@@ -1,0 +1,4959 @@
+import React, { useState, useMemo, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import {
+  Shield,
+  LayoutDashboard,
+  Users,
+  BookOpen,
+  GraduationCap,
+  Bell,
+  FileText,
+  Settings,
+  Download,
+  Plus,
+  Trash2,
+  Edit2,
+  Check,
+  X,
+  Search,
+  Filter,
+  Eye,
+  RotateCcw,
+  MessageSquare,
+  Lock,
+  LogOut,
+  Sparkles,
+  Layers,
+  ArrowRight,
+  ExternalLink,
+  Receipt,
+  CreditCard,
+  CheckCircle2,
+  AlertCircle,
+  Copy,
+  FileCheck,
+  QrCode,
+  Phone,
+  Send,
+  UserPlus,
+  Share2,
+  Radio,
+  CheckSquare,
+  MessageCircle,
+  Clock,
+  Award,
+  HelpCircle,
+} from 'lucide-react';
+import { useApp } from '../context/AppContext';
+import { InquiryStatus, Course, Teacher, Notice, StudyMaterial, StudentGroup, StudentGroupMember, CourseType, MockTest, MockTestSubmission } from '../types';
+
+export const AdminDashboardPage: React.FC = () => {
+  const {
+    currentUser,
+    loginAsAdmin,
+    logout,
+    settings,
+    updateSettings,
+    resetSettings,
+    courses,
+    addCourse,
+    updateCourse,
+    togglePublishCourse,
+    deleteCourse,
+    teachers,
+    addTeacher,
+    updateTeacher,
+    deleteTeacher,
+    notices,
+    addNotice,
+    updateNotice,
+    deleteNotice,
+    studyMaterials,
+    addStudyMaterial,
+    updateStudyMaterial,
+    deleteStudyMaterial,
+    inquiries,
+    updateInquiryStatus,
+    verifyAndEnrollApplicant,
+    addInquiryNote,
+    exportInquiriesCSV,
+    contactMessages,
+    studentGroups,
+    addStudentGroup,
+    updateStudentGroup,
+    deleteStudentGroup,
+    addMemberToGroup,
+    bulkAddMembersToGroup,
+    importVerifiedInquiriesToGroup,
+    removeMemberFromGroup,
+    sendGroupBroadcast,
+    deleteGroupBroadcast,
+    mockTests,
+    addMockTest,
+    updateMockTest,
+    deleteMockTest,
+    togglePublishMockTest,
+    mockTestSubmissions,
+    gradeMockTestSubmission,
+    uploadMockTestResult,
+  } = useApp();
+
+  // Admin authentication state
+  const [adminPass, setAdminPass] = useState('');
+  const [authError, setAuthError] = useState('');
+
+  // Active dashboard tab
+  const [activeTab, setActiveTab] = useState<
+    'overview' | 'inquiries' | 'courses' | 'groups' | 'mock-tests' | 'teachers' | 'notices' | 'materials' | 'settings'
+  >('overview');
+
+  // Inquiries filter state
+  const [inquirySearch, setInquirySearch] = useState('');
+  const [inquiryStatusFilter, setInquiryStatusFilter] = useState<string>('ALL');
+  const [selectedInquiryDetail, setSelectedInquiryDetail] = useState<any | null>(null);
+  const [newNoteText, setNewNoteText] = useState('');
+
+  // Payment proof verification states
+  const [selectedProofModalUrl, setSelectedProofModalUrl] = useState<string | null>(null);
+  const [assignedStudentIdInput, setAssignedStudentIdInput] = useState('');
+  const [verificationSuccessToast, setVerificationSuccessToast] = useState<string | null>(null);
+  const [copiedWelcomeMessage, setCopiedWelcomeMessage] = useState(false);
+
+  // Student Groups states
+  const [groupSearch, setGroupSearch] = useState('');
+  const [groupTypeFilter, setGroupTypeFilter] = useState<'ALL' | 'New Course' | 'Old Course'>('ALL');
+  const [editingGroup, setEditingGroup] = useState<StudentGroup | null>(null);
+  const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
+  const [selectedGroupForBroadcast, setSelectedGroupForBroadcast] = useState<StudentGroup | null>(null);
+  const [selectedGroupForMembers, setSelectedGroupForMembers] = useState<StudentGroup | null>(null);
+  const [groupToastMessage, setGroupToastMessage] = useState<string | null>(null);
+
+  // Course modal state
+  const [editingCourse, setEditingCourse] = useState<Course | null>(null);
+  const [isCourseModalOpen, setIsCourseModalOpen] = useState(false);
+
+  // Teacher modal state
+  const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
+  const [isTeacherModalOpen, setIsTeacherModalOpen] = useState(false);
+
+  // Notice modal state
+  const [editingNotice, setEditingNotice] = useState<Notice | null>(null);
+  const [isNoticeModalOpen, setIsNoticeModalOpen] = useState(false);
+
+  // Material modal state
+  const [editingMaterial, setEditingMaterial] = useState<StudyMaterial | null>(null);
+  const [isMaterialModalOpen, setIsMaterialModalOpen] = useState(false);
+
+  // Mock Test & Timed Exam states
+  const [editingMockTest, setEditingMockTest] = useState<MockTest | null>(null);
+  const [isMockTestModalOpen, setIsMockTestModalOpen] = useState(false);
+  const [selectedTestForSubmissions, setSelectedTestForSubmissions] = useState<MockTest | null>(null);
+  const [gradingSubmission, setGradingSubmission] = useState<MockTestSubmission | null>(null);
+  const [isDirectResultModalOpen, setIsDirectResultModalOpen] = useState(false);
+  const [mockTestCourseFilter, setMockTestCourseFilter] = useState('ALL');
+  const [mockTestSubjectFilter, setMockTestSubjectFilter] = useState('ALL');
+  const [mockTestTypeFilter, setMockTestTypeFilter] = useState<'ALL' | 'New Course' | 'Old Course'>('ALL');
+  const [mockTestEvaluationStatusFilter, setMockTestEvaluationStatusFilter] = useState<'ALL' | 'Submitted' | 'Evaluated'>('ALL');
+  const [mockTestSubView, setMockTestSubView] = useState<'tests' | 'answer-sheets'>('tests');
+  const [mockTestSearch, setMockTestSearch] = useState('');
+
+  // Derived subjects for admin mock test & submission filtering
+  const adminMockTestSubjects = useMemo(() => {
+    if (mockTestCourseFilter !== 'ALL') {
+      const course = courses.find((c) => c.slug === mockTestCourseFilter);
+      const subsFromCourse = (course?.subjectsOffered || []).map((s) => s.name);
+      const subsFromTests = mockTests
+        .filter((t) => t.courseSlug === mockTestCourseFilter)
+        .map((t) => t.subject);
+      const subsFromSubmissions = mockTestSubmissions
+        .filter((s) => s.courseSlug === mockTestCourseFilter)
+        .map((s) => s.subject || '')
+        .filter(Boolean);
+      return Array.from(new Set([...subsFromCourse, ...subsFromTests, ...subsFromSubmissions])).filter(Boolean).sort();
+    }
+    const set = new Set<string>();
+    courses.forEach((c) => {
+      c.subjectsOffered?.forEach((s) => set.add(s.name));
+    });
+    mockTests.forEach((t) => {
+      if (t.subject) set.add(t.subject);
+    });
+    mockTestSubmissions.forEach((s) => {
+      if (s.subject) set.add(s.subject);
+    });
+    return Array.from(set).filter(Boolean).sort();
+  }, [courses, mockTests, mockTestSubmissions, mockTestCourseFilter]);
+
+  // Keep admin subject filter in sync with course filter
+  useEffect(() => {
+    if (mockTestSubjectFilter !== 'ALL' && adminMockTestSubjects.length > 0 && !adminMockTestSubjects.includes(mockTestSubjectFilter)) {
+      setMockTestSubjectFilter('ALL');
+    }
+  }, [mockTestCourseFilter, adminMockTestSubjects, mockTestSubjectFilter]);
+
+  // Settings form local state
+  const [tempSettings, setTempSettings] = useState(settings);
+  const [settingsSavedMessage, setSettingsSavedMessage] = useState(false);
+
+  // Admin login handling
+  if (!currentUser || currentUser.role !== 'admin') {
+    const handleAdminLogin = (e: React.FormEvent) => {
+      e.preventDefault();
+      setAuthError('');
+      const ok = loginAsAdmin(adminPass);
+      if (!ok) {
+        setAuthError('Incorrect administrator access code.');
+      }
+    };
+
+    return (
+      <div className="py-20 px-4 sm:px-6">
+        <div className="max-w-md mx-auto bg-white rounded-3xl border border-slate-200 shadow-2xl overflow-hidden">
+          <div className="bg-[#12315A] text-white p-8 text-center space-y-3">
+            <div className="w-14 h-14 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center mx-auto shadow-md">
+              <Shield className="w-8 h-8" />
+            </div>
+            <h2 className="text-2xl font-bold">Administrator Portal</h2>
+            <p className="text-xs text-blue-200">
+              SHIKSHYALAYA SHAIKSHIK SANSTHA Central Administration
+            </p>
+          </div>
+
+          <form onSubmit={handleAdminLogin} className="p-8 space-y-5 text-xs sm:text-sm">
+            {authError && (
+              <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs">
+                {authError}
+              </div>
+            )}
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">
+                Enter Administrator Passcode
+              </label>
+              <div className="relative">
+                <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="password"
+                  placeholder="Enter passcode (or leave blank for dev access)"
+                  value={adminPass}
+                  onChange={(e) => setAdminPass(e.target.value)}
+                  className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              className="w-full py-3 rounded-xl font-bold text-white bg-[#12315A] hover:bg-blue-900 transition-colors shadow-md flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <Shield className="w-4 h-4 text-amber-400" />
+              <span>Unlock Admin Dashboard</span>
+            </button>
+
+            <p className="text-[11px] text-slate-400 text-center">
+              Secured administrative dashboard. Changes update live database instantly.
+            </p>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // Live Statistics calculation
+  const stats = {
+    publishedCourses: courses.filter((c) => c.published).length,
+    totalTeachers: teachers.filter((t) => t.published).length,
+    newInquiries: inquiries.filter((i) => i.status === 'New').length,
+    pendingPayments: inquiries.filter((i) => i.hasPaymentProof && !i.paymentVerified).length,
+    verifiedStudents: inquiries.filter((i) => i.status === 'Verified & Enrolled').length,
+    pendingFollowups: inquiries.filter((i) => i.status === 'Follow-up Required').length,
+    publishedNotices: notices.filter((n) => n.published).length,
+    studyMaterials: studyMaterials.filter((m) => m.published).length,
+    totalMessages: contactMessages.length,
+  };
+
+  // Filtered inquiries
+  const filteredInquiries = inquiries
+    .filter((inq) => {
+      if (inquiryStatusFilter === 'ALL') return true;
+      if (inquiryStatusFilter === 'Needs Verification') return inq.hasPaymentProof && !inq.paymentVerified;
+      if (inquiryStatusFilter === 'Verified & Enrolled') return inq.status === 'Verified & Enrolled';
+      return inq.status === inquiryStatusFilter;
+    })
+    .filter((inq) => {
+      if (!inquirySearch.trim()) return true;
+      const q = inquirySearch.toLowerCase();
+      return (
+        inq.fullName.toLowerCase().includes(q) ||
+        inq.referenceNumber.toLowerCase().includes(q) ||
+        inq.phone.includes(q) ||
+        inq.courseName.toLowerCase().includes(q) ||
+        (inq.transactionReference && inq.transactionReference.toLowerCase().includes(q)) ||
+        (inq.assignedStudentId && inq.assignedStudentId.toLowerCase().includes(q))
+      );
+    });
+
+  const handleOpenInquiryDetail = (inq: any) => {
+    setSelectedInquiryDetail(inq);
+    const courseCode = inq.courseSlug.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 4) || 'SCH';
+    const suggestedId =
+      inq.assignedStudentId ||
+      `SSS-STU-${courseCode}-${inq.referenceNumber ? inq.referenceNumber.slice(-4) : Math.floor(1000 + Math.random() * 9000)}`;
+    setAssignedStudentIdInput(suggestedId);
+    setVerificationSuccessToast(null);
+    setCopiedWelcomeMessage(false);
+  };
+
+  // Handle Save Settings
+  const handleSaveSettings = (e: React.FormEvent) => {
+    e.preventDefault();
+    updateSettings(tempSettings);
+    setSettingsSavedMessage(true);
+    setTimeout(() => setSettingsSavedMessage(false), 3000);
+  };
+
+  return (
+    <div className="py-8 max-w-7xl mx-auto px-4 sm:px-6 space-y-8">
+      {/* Admin Top Header Bar */}
+      <div className="bg-[#12315A] text-white p-6 rounded-3xl shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center shadow-md">
+            <Shield className="w-6 h-6" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold">Admin Management Control Center</h1>
+              <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-amber-400 text-slate-950">
+                Live Admin Mode
+              </span>
+            </div>
+            <p className="text-xs text-blue-200 mt-0.5">
+              Institute: <strong>{settings.instituteName}</strong> ({settings.instituteDevanagariName})
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => exportInquiriesCSV()}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-white bg-blue-700 hover:bg-blue-600 transition-colors shadow-sm"
+          >
+            <Download className="w-3.5 h-3.5 text-amber-300" />
+            <span>Export CSV</span>
+          </button>
+          <button
+            onClick={() => logout()}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-300 hover:text-white bg-white/10 hover:bg-white/20 transition-colors"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Sign Out</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Navigation Sub-Tabs */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-slate-200">
+        {[
+          { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+          { id: 'inquiries', label: `Inquiries (${stats.newInquiries} New)`, icon: GraduationCap },
+          { id: 'courses', label: `Courses (${courses.length})`, icon: BookOpen },
+          { id: 'groups', label: `Student Groups (${studentGroups.length})`, icon: MessageSquare },
+          { id: 'mock-tests', label: `Mock Tests & Exams (${mockTests.length})`, icon: Clock },
+          { id: 'teachers', label: `Teachers (${teachers.length})`, icon: Users },
+          { id: 'notices', label: `Notices (${notices.length})`, icon: Bell },
+          { id: 'materials', label: `Study Materials (${studyMaterials.length})`, icon: FileText },
+          { id: 'settings', label: 'Website Settings', icon: Settings },
+        ].map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                isActive
+                  ? 'bg-[#12315A] text-white shadow-md'
+                  : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* TAB 1: OVERVIEW & LIVE STATISTICS */}
+      {activeTab === 'overview' && (
+        <div className="space-y-8 animate-fadeIn">
+          {/* Live Metric Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Courses</span>
+              <p className="text-xl font-black text-[#12315A]">{stats.publishedCourses}</p>
+              <span className="text-[10px] text-emerald-600 font-semibold">Active</span>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Faculty</span>
+              <p className="text-xl font-black text-[#12315A]">{stats.totalTeachers}</p>
+              <span className="text-[10px] text-blue-600 font-semibold">Teachers</span>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border border-amber-300 bg-amber-50/30 shadow-2xs space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800">Inquiries</span>
+              <p className="text-xl font-black text-amber-600">{stats.newInquiries}</p>
+              <span className="text-[10px] text-amber-700 font-bold">New Leads</span>
+            </div>
+
+            <div
+              onClick={() => {
+                setInquiryStatusFilter('Needs Verification');
+                setActiveTab('inquiries');
+              }}
+              className="bg-white p-4 rounded-2xl border-2 border-amber-500 shadow-sm space-y-1 cursor-pointer hover:bg-amber-50/50 transition-colors"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-900">Payment Proofs</span>
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+              </div>
+              <p className="text-xl font-black text-amber-700">{stats.pendingPayments}</p>
+              <span className="text-[10px] text-amber-800 font-bold underline">Review & Verify &rarr;</span>
+            </div>
+
+            <div
+              onClick={() => {
+                setInquiryStatusFilter('Verified & Enrolled');
+                setActiveTab('inquiries');
+              }}
+              className="bg-white p-4 rounded-2xl border-2 border-emerald-500 shadow-sm space-y-1 cursor-pointer hover:bg-emerald-50/50 transition-colors"
+            >
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-900">Enrolled Students</span>
+              <p className="text-xl font-black text-emerald-700">{stats.verifiedStudents}</p>
+              <span className="text-[10px] text-emerald-700 font-bold">Verified & Active</span>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Follow-ups</span>
+              <p className="text-xl font-black text-indigo-600">{stats.pendingFollowups}</p>
+              <span className="text-[10px] text-indigo-600 font-semibold">Scheduled</span>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Notices</span>
+              <p className="text-xl font-black text-[#12315A]">{stats.publishedNotices}</p>
+              <span className="text-[10px] text-slate-500 font-semibold">Published</span>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Resources</span>
+              <p className="text-xl font-black text-[#12315A]">{stats.studyMaterials}</p>
+              <span className="text-[10px] text-purple-600 font-semibold">Notes & Sets</span>
+            </div>
+          </div>
+
+          {/* Quick Action Cards & Recent Inquiries Preview */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            {/* Recent Inquiries Quick Table */}
+            <div className="lg:col-span-8 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-[#12315A]">Recent Admission Inquiries & Enrolled Students</h3>
+                  <p className="text-xs text-slate-400">Student applications and payment receipts submitted online</p>
+                </div>
+                <button
+                  onClick={() => setActiveTab('inquiries')}
+                  className="text-xs font-bold text-blue-700 hover:underline cursor-pointer"
+                >
+                  View All &rarr;
+                </button>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-100 text-slate-400 text-[10px] uppercase font-bold">
+                      <th className="py-2.5 px-3">Ref ID</th>
+                      <th className="py-2.5 px-3">Student Name</th>
+                      <th className="py-2.5 px-3">Course</th>
+                      <th className="py-2.5 px-3">Payment Proof</th>
+                      <th className="py-2.5 px-3">Status</th>
+                      <th className="py-2.5 px-3 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {inquiries.slice(0, 6).map((inq) => (
+                      <tr key={inq.id} className="hover:bg-slate-50">
+                        <td className="py-2.5 px-3 font-mono font-bold text-slate-700">{inq.referenceNumber}</td>
+                        <td className="py-2.5 px-3 font-semibold text-slate-900">{inq.fullName}</td>
+                        <td className="py-2.5 px-3 text-slate-600">{inq.courseName}</td>
+                        <td className="py-2.5 px-3">
+                          {inq.hasPaymentProof ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                              <Receipt className="w-3 h-3 text-amber-600" />
+                              <span>{inq.paymentMethod || 'Slip'}</span>
+                              {inq.paymentAmount && <span>(Rs.{inq.paymentAmount})</span>}
+                            </span>
+                          ) : (
+                            <span className="text-[11px] text-slate-400">No Slip</span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              inq.status === 'Verified & Enrolled'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : inq.status === 'New'
+                                ? 'bg-amber-100 text-amber-800'
+                                : inq.status === 'Admission Confirmed'
+                                ? 'bg-blue-100 text-blue-800'
+                                : 'bg-slate-100 text-slate-700'
+                            }`}
+                          >
+                            {inq.status}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-right">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleOpenInquiryDetail(inq);
+                              setActiveTab('inquiries');
+                            }}
+                            className="px-2 py-1 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 text-[11px] font-bold cursor-pointer"
+                          >
+                            {inq.hasPaymentProof && !inq.paymentVerified ? 'Verify Proof' : 'View'}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Admin Management Shortcuts */}
+            <div className="lg:col-span-4 bg-slate-50 p-6 rounded-3xl border border-slate-200 space-y-4 text-xs">
+              <h3 className="text-sm font-bold text-[#12315A]">Administrative Controls</h3>
+              <p className="text-slate-500">Fast access to manage content without editing source code.</p>
+
+              <div className="space-y-2 pt-1">
+                <button
+                  onClick={() => {
+                    setEditingNotice(null);
+                    setIsNoticeModalOpen(true);
+                  }}
+                  className="w-full py-2.5 px-3 rounded-xl bg-white border border-slate-200 text-left font-bold text-slate-800 hover:border-blue-500 flex items-center justify-between"
+                >
+                  <span>Publish New Notice</span>
+                  <Plus className="w-4 h-4 text-blue-700" />
+                </button>
+                <button
+                  onClick={() => {
+                    setEditingMaterial(null);
+                    setIsMaterialModalOpen(true);
+                  }}
+                  className="w-full py-2.5 px-3 rounded-xl bg-white border border-slate-200 text-left font-bold text-slate-800 hover:border-blue-500 flex items-center justify-between"
+                >
+                  <span>Upload Study Material</span>
+                  <Plus className="w-4 h-4 text-blue-700" />
+                </button>
+                <button
+                  onClick={() => setActiveTab('settings')}
+                  className="w-full py-2.5 px-3 rounded-xl bg-white border border-slate-200 text-left font-bold text-slate-800 hover:border-blue-500 flex items-center justify-between"
+                >
+                  <span>Update Contact & Branding</span>
+                  <Settings className="w-4 h-4 text-slate-500" />
+                </button>
+              </div>
+
+              <div className="pt-3 border-t border-slate-200 text-[11px] text-slate-500">
+                <strong>System Notice:</strong> Data changes are persisted in real time into local database storage and synced across the application.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 2: ADMISSION INQUIRIES MANAGEMENT */}
+      {activeTab === 'inquiries' && (
+        <div className="space-y-6 animate-fadeIn">
+          {/* Search & Filter Bar */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
+            <div className="relative w-full md:w-80">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Search student, ref ID, phone..."
+                value={inquirySearch}
+                onChange={(e) => setInquirySearch(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50/50"
+              />
+            </div>
+
+            <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto text-xs pb-1 sm:pb-0">
+              <span className="font-bold text-slate-400 uppercase text-[10px] shrink-0">Filter:</span>
+              {(
+                [
+                  'ALL',
+                  'Needs Verification',
+                  'Verified & Enrolled',
+                  'New',
+                  'Contacted',
+                  'Follow-up Required',
+                  'Admission Confirmed',
+                  'Closed',
+                ] as const
+              ).map((st) => (
+                <button
+                  key={st}
+                  onClick={() => setInquiryStatusFilter(st)}
+                  className={`px-3 py-1.5 rounded-lg font-semibold shrink-0 transition-colors flex items-center gap-1.5 cursor-pointer ${
+                    inquiryStatusFilter === st
+                      ? 'bg-[#12315A] text-white shadow-sm'
+                      : st === 'Needs Verification'
+                      ? 'bg-amber-100 text-amber-900 hover:bg-amber-200'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  <span>{st}</span>
+                  {st === 'Needs Verification' && stats.pendingPayments > 0 && (
+                    <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-500 text-white">
+                      {stats.pendingPayments}
+                    </span>
+                  )}
+                  {st === 'Verified & Enrolled' && stats.verifiedStudents > 0 && (
+                    <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-emerald-600 text-white">
+                      {stats.verifiedStudents}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Inquiries Table */}
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 text-[10px] uppercase font-bold tracking-wider">
+                    <th className="py-3 px-4">Ref Number</th>
+                    <th className="py-3 px-4">Student Name</th>
+                    <th className="py-3 px-4">Program & Level</th>
+                    <th className="py-3 px-4">Payment Proof</th>
+                    <th className="py-3 px-4">Contact</th>
+                    <th className="py-3 px-4">Mode & Shift</th>
+                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredInquiries.map((inq) => (
+                    <tr key={inq.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="py-3 px-4 font-mono font-bold text-slate-800">
+                        {inq.referenceNumber}
+                      </td>
+                      <td className="py-3 px-4">
+                        <p className="font-bold text-slate-900">{inq.fullName}</p>
+                        <p className="text-[11px] text-slate-400">{inq.address || 'Address unlisted'}</p>
+                      </td>
+                      <td className="py-3 px-4">
+                        <p className="font-semibold text-slate-800">{inq.courseName}</p>
+                        <p className="text-[11px] text-slate-500">{inq.academicLevel}</p>
+                      </td>
+                      <td className="py-3 px-4">
+                        {inq.hasPaymentProof ? (
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (inq.paymentProofUrl) {
+                                    setSelectedProofModalUrl(inq.paymentProofUrl);
+                                  } else {
+                                    handleOpenInquiryDetail(inq);
+                                  }
+                                }}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 border border-amber-300 text-amber-900 hover:bg-amber-100 transition-colors cursor-pointer"
+                                title="Click to view payment slip"
+                              >
+                                <Receipt className="w-3 h-3 text-amber-600" />
+                                <span>{inq.paymentMethod || 'Receipt'}</span>
+                                {inq.paymentAmount && (
+                                  <span className="font-mono text-slate-800">Rs.{inq.paymentAmount}</span>
+                                )}
+                              </button>
+                            </div>
+                            <div>
+                              {inq.paymentVerified || inq.status === 'Verified & Enrolled' ? (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700">
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                  <span>Enrolled ({inq.assignedStudentId || 'ID Issued'})</span>
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenInquiryDetail(inq)}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-400 hover:bg-amber-500 text-slate-950 text-[10px] font-bold shadow-2xs transition-colors cursor-pointer"
+                                >
+                                  <AlertCircle className="w-3 h-3 text-slate-950" />
+                                  <span>Verify & Enroll</span>
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-0.5">
+                            <span className="text-slate-400 text-[11px] block">No slip attached</span>
+                            {inq.status === 'Verified & Enrolled' ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                <span>Manually Enrolled</span>
+                              </span>
+                            ) : null}
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-3 px-4">
+                        <a href={`tel:${inq.phone}`} className="font-semibold text-blue-700 hover:underline block">
+                          {inq.phone}
+                        </a>
+                        <p className="text-[11px] text-slate-400 truncate max-w-[120px]">{inq.email}</p>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className="font-medium text-slate-700">{inq.preferredMode}</span>
+                        <p className="text-[11px] text-slate-400">{inq.preferredShift} Batch</p>
+                      </td>
+                      <td className="py-3 px-4">
+                        <select
+                          value={inq.status}
+                          onChange={(e) =>
+                            updateInquiryStatus(inq.id, e.target.value as InquiryStatus, 'Admin updated status')
+                          }
+                          className={`px-2 py-1 rounded text-[11px] font-bold border focus:outline-none ${
+                            inq.status === 'Verified & Enrolled'
+                              ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                              : inq.status === 'New'
+                              ? 'bg-amber-100 text-amber-900 border-amber-300'
+                              : inq.status === 'Admission Confirmed'
+                              ? 'bg-blue-100 text-blue-900 border-blue-300'
+                              : inq.status === 'Follow-up Required'
+                              ? 'bg-purple-100 text-purple-900 border-purple-300'
+                              : 'bg-slate-100 text-slate-800 border-slate-200'
+                          }`}
+                        >
+                          <option value="New">New</option>
+                          <option value="Verified & Enrolled">Verified & Enrolled</option>
+                          <option value="Admission Confirmed">Admission Confirmed</option>
+                          <option value="Contacted">Contacted</option>
+                          <option value="Follow-up Required">Follow-up Required</option>
+                          <option value="Closed">Closed</option>
+                        </select>
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <button
+                          onClick={() => handleOpenInquiryDetail(inq)}
+                          className="px-2.5 py-1 rounded-lg text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors cursor-pointer"
+                        >
+                          {inq.hasPaymentProof && !inq.paymentVerified ? 'Verify Proof' : 'Details'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Inquiry Detail & Payment Verification Modal */}
+      {selectedInquiryDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200 relative max-h-[90vh] overflow-y-auto space-y-6 text-xs sm:text-sm">
+            <button
+              onClick={() => setSelectedInquiryDetail(null)}
+              className="absolute top-5 right-5 p-2 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {verificationSuccessToast && (
+              <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-900 flex items-center gap-3">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                <p className="font-bold text-xs">{verificationSuccessToast}</p>
+              </div>
+            )}
+
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded border border-amber-200">
+                  Ref: {selectedInquiryDetail.referenceNumber}
+                </span>
+                <span
+                  className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${
+                    selectedInquiryDetail.status === 'Verified & Enrolled'
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : 'bg-amber-100 text-amber-800'
+                  }`}
+                >
+                  Status: {selectedInquiryDetail.status}
+                </span>
+                {selectedInquiryDetail.assignedStudentId && (
+                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-900">
+                    ID: {selectedInquiryDetail.assignedStudentId}
+                  </span>
+                )}
+              </div>
+              <h2 className="text-xl sm:text-2xl font-bold text-slate-900">
+                {selectedInquiryDetail.fullName}
+              </h2>
+              <p className="text-slate-500 text-xs">
+                Submitted on {new Date(selectedInquiryDetail.createdAt).toLocaleString()}
+              </p>
+            </div>
+
+            {/* Applicant Details */}
+            <div className="grid grid-cols-2 gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-100">
+              <div>
+                <p className="text-[10px] font-bold uppercase text-slate-400">Course & Board</p>
+                <p className="font-bold text-slate-800">{selectedInquiryDetail.courseName}</p>
+                <p className="text-xs text-slate-500">{selectedInquiryDetail.board}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase text-slate-400">Level & Subjects</p>
+                <p className="font-bold text-slate-800">{selectedInquiryDetail.academicLevel || 'N/A'}</p>
+                <p className="text-xs text-slate-500">
+                  {selectedInquiryDetail.subjectsOfInterest || 'All offered subjects'}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase text-slate-400">Contact Details</p>
+                <p className="font-bold text-blue-700">{selectedInquiryDetail.phone}</p>
+                <p className="text-xs text-slate-500">{selectedInquiryDetail.email}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase text-slate-400">Mode & Shift</p>
+                <p className="font-bold text-slate-800">{selectedInquiryDetail.preferredMode}</p>
+                <p className="text-xs text-slate-500">{selectedInquiryDetail.preferredShift} Batch</p>
+              </div>
+            </div>
+
+            {selectedInquiryDetail.message && (
+              <div className="p-3.5 rounded-xl bg-blue-50/50 border border-blue-100 text-xs space-y-1">
+                <p className="font-bold text-blue-900 uppercase text-[10px]">Student Message / Query</p>
+                <p className="text-slate-700">{selectedInquiryDetail.message}</p>
+              </div>
+            )}
+
+            {/* PAYMENT PROOF & ENROLLMENT VERIFICATION SECTION */}
+            <div className="p-5 rounded-2xl border-2 border-amber-300 bg-gradient-to-br from-amber-50/50 via-white to-blue-50/30 space-y-4">
+              <div className="flex items-center justify-between border-b border-amber-200/60 pb-2">
+                <div className="flex items-center gap-2">
+                  <Receipt className="w-5 h-5 text-amber-600" />
+                  <h3 className="font-bold text-sm text-[#12315A]">
+                    Tuition Fee Payment Proof & Student Verification
+                  </h3>
+                </div>
+                {selectedInquiryDetail.hasPaymentProof ? (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                    Slip Attached
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600">
+                    No Slip Uploaded
+                  </span>
+                )}
+              </div>
+
+              {selectedInquiryDetail.hasPaymentProof ? (
+                <div className="space-y-4">
+                  {/* Voucher Preview & Metadata */}
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-center">
+                    {/* Voucher Image / Slip */}
+                    <div className="sm:col-span-5 bg-white p-2 rounded-xl border border-slate-200 shadow-xs text-center space-y-1.5">
+                      {selectedInquiryDetail.paymentProofUrl ? (
+                        <div>
+                          <img
+                            src={selectedInquiryDetail.paymentProofUrl}
+                            alt="Payment Voucher"
+                            onClick={() => setSelectedProofModalUrl(selectedInquiryDetail.paymentProofUrl)}
+                            className="w-full h-36 object-contain rounded-lg border border-slate-100 bg-slate-50 hover:opacity-90 transition-opacity cursor-pointer"
+                            title="Click to view full voucher preview"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setSelectedProofModalUrl(selectedInquiryDetail.paymentProofUrl)}
+                            className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 hover:underline mt-1 cursor-pointer"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>View Full Resolution Slip</span>
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="h-32 flex flex-col items-center justify-center bg-slate-50 rounded-lg text-slate-400">
+                          <Receipt className="w-8 h-8 mb-1" />
+                          <p className="text-[11px]">Voucher file attached</p>
+                        </div>
+                      )}
+                      <p className="text-[10px] text-slate-500 font-medium truncate">
+                        {selectedInquiryDetail.paymentProofName || 'Voucher_receipt.png'} •{' '}
+                        {selectedInquiryDetail.paymentProofSize || 'Image'}
+                      </p>
+                    </div>
+
+                    {/* Payment Metadata */}
+                    <div className="sm:col-span-7 space-y-2 text-xs">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="p-2 bg-white rounded-lg border border-slate-200">
+                          <span className="text-[10px] text-slate-400 block font-semibold uppercase">
+                            Payment Method
+                          </span>
+                          <span className="font-bold text-slate-900">
+                            {selectedInquiryDetail.paymentMethod || 'eSewa'}
+                          </span>
+                        </div>
+                        <div className="p-2 bg-white rounded-lg border border-slate-200">
+                          <span className="text-[10px] text-slate-400 block font-semibold uppercase">
+                            Deposited Amount
+                          </span>
+                          <span className="font-bold text-emerald-700 font-mono text-sm">
+                            NPR {selectedInquiryDetail.paymentAmount || 'N/A'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="p-2 bg-white rounded-lg border border-slate-200">
+                        <span className="text-[10px] text-slate-400 block font-semibold uppercase">
+                          Transaction ID / Ref
+                        </span>
+                        <span className="font-mono font-bold text-slate-900">
+                          {selectedInquiryDetail.transactionReference || 'Not provided'}
+                        </span>
+                      </div>
+
+                      {selectedInquiryDetail.paymentRemarks && (
+                        <div className="p-2 bg-white rounded-lg border border-slate-200">
+                          <span className="text-[10px] text-slate-400 block font-semibold uppercase">
+                            Student Payment Remarks
+                          </span>
+                          <p className="text-slate-700 text-[11px]">
+                            {selectedInquiryDetail.paymentRemarks}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Verification Actions Box */}
+                  {selectedInquiryDetail.paymentVerified ||
+                  selectedInquiryDetail.status === 'Verified & Enrolled' ? (
+                    <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-300 space-y-3">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <div className="flex items-center gap-2 text-emerald-900">
+                          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                          <div>
+                            <p className="font-bold text-xs sm:text-sm">
+                              Enrolled & Officially Verified Student
+                            </p>
+                            <p className="text-[11px] text-emerald-800">
+                              Verified by {selectedInquiryDetail.verifiedBy || 'Administrator'} • Student ID:{' '}
+                              <strong>{selectedInquiryDetail.assignedStudentId}</strong>
+                            </p>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const msg = `Namaste ${selectedInquiryDetail.fullName}! Your admission and payment of NPR ${selectedInquiryDetail.paymentAmount || ''} for ${selectedInquiryDetail.courseName} at Shikshyalaya Shaikshik Sanstha has been verified. Your official Student ID is ${selectedInquiryDetail.assignedStudentId}. Please log in to your Student Portal to access enrolled study materials & live classes: https://shikshyalaya.edu.np/student/login`;
+                            navigator.clipboard.writeText(msg);
+                            setCopiedWelcomeMessage(true);
+                            setTimeout(() => setCopiedWelcomeMessage(false), 2500);
+                          }}
+                          className="px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs cursor-pointer"
+                        >
+                          {copiedWelcomeMessage ? (
+                            <>
+                              <Check className="w-3.5 h-3.5" />
+                              <span>Copied Welcome Msg!</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3.5 h-3.5" />
+                              <span>Copy WhatsApp/SMS Notification</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-4 rounded-xl bg-amber-50 border border-amber-300 space-y-3">
+                      <div className="flex items-start gap-2 text-amber-900">
+                        <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-bold text-xs">Awaiting Administrator Verification</p>
+                          <p className="text-[11px] text-amber-800">
+                            Check the deposited amount and transaction ID against the institute eSewa or bank
+                            account. Once verified, approving will activate the student's portal access to
+                            study materials.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1">
+                        <div className="flex-1">
+                          <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">
+                            Assign Student ID
+                          </label>
+                          <input
+                            type="text"
+                            value={assignedStudentIdInput}
+                            onChange={(e) => setAssignedStudentIdInput(e.target.value)}
+                            placeholder="e.g. SSS-STU-BBM-2026"
+                            className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-mono font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                          />
+                        </div>
+
+                        <div className="sm:pt-5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              verifyAndEnrollApplicant(
+                                selectedInquiryDetail.id,
+                                assignedStudentIdInput
+                              );
+                              setSelectedInquiryDetail((prev: any) => ({
+                                ...prev,
+                                status: 'Verified & Enrolled',
+                                paymentVerified: true,
+                                assignedStudentId: assignedStudentIdInput,
+                                verifiedBy: currentUser?.name || 'Administrator',
+                                verifiedAt: new Date().toISOString(),
+                              }));
+                              setVerificationSuccessToast(
+                                `Student ${selectedInquiryDetail.fullName} has been verified and enrolled with ID ${assignedStudentIdInput}!`
+                              );
+                            }}
+                            className="w-full sm:w-auto px-5 py-2.5 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                          >
+                            <CheckCircle2 className="w-4 h-4" />
+                            <span>Verify Payment & Enroll Student</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* No payment proof attached case */
+                <div className="space-y-3">
+                  <p className="text-xs text-slate-600">
+                    Student has not yet attached an electronic payment voucher. If they deposited cash directly
+                    at the campus admissions desk, you can manually verify and enroll them below.
+                  </p>
+                  {selectedInquiryDetail.status !== 'Verified & Enrolled' ? (
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1">
+                      <input
+                        type="text"
+                        value={assignedStudentIdInput}
+                        onChange={(e) => setAssignedStudentIdInput(e.target.value)}
+                        placeholder="Assign Student ID (e.g. SSS-STU-2026)"
+                        className="flex-1 px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-mono font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          verifyAndEnrollApplicant(
+                            selectedInquiryDetail.id,
+                            assignedStudentIdInput,
+                            'Student enrolled via direct campus desk payment verification.'
+                          );
+                          setSelectedInquiryDetail((prev: any) => ({
+                            ...prev,
+                            status: 'Verified & Enrolled',
+                            paymentVerified: true,
+                            assignedStudentId: assignedStudentIdInput,
+                            verifiedBy: currentUser?.name || 'Administrator',
+                            verifiedAt: new Date().toISOString(),
+                          }));
+                          setVerificationSuccessToast(
+                            `Student ${selectedInquiryDetail.fullName} manually enrolled with ID ${assignedStudentIdInput}!`
+                          );
+                        }}
+                        className="px-4 py-2 rounded-xl font-bold text-white bg-[#12315A] hover:bg-blue-900 transition-colors shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <Shield className="w-4 h-4 text-amber-400" />
+                        <span>Manual Campus Desk Verification & Enroll</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-bold flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      <span>
+                        Enrolled Student • Assigned ID: {selectedInquiryDetail.assignedStudentId}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Internal Admin Notes */}
+            <div className="space-y-3 pt-2 border-t border-slate-100">
+              <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider">
+                Internal Administrative Follow-up Notes
+              </h4>
+
+              <div className="space-y-2 max-h-40 overflow-y-auto">
+                {selectedInquiryDetail.adminNotes?.map((note: any, idx: number) => (
+                  <div key={idx} className="p-2.5 rounded-lg bg-slate-50 border border-slate-100 text-xs">
+                    <div className="flex items-center justify-between text-[10px] text-slate-400 mb-0.5">
+                      <span className="font-bold text-slate-600">{note.by}</span>
+                      <span>{note.date}</span>
+                    </div>
+                    <p className="text-slate-700">{note.text}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Add Note Form */}
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Record follow-up result or phone note..."
+                  value={newNoteText}
+                  onChange={(e) => setNewNoteText(e.target.value)}
+                  className="flex-1 px-3 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (newNoteText.trim()) {
+                      addInquiryNote(selectedInquiryDetail.id, newNoteText);
+                      setNewNoteText('');
+                      // Update active modal view
+                      setSelectedInquiryDetail((prev: any) => ({
+                        ...prev,
+                        adminNotes: [
+                          ...(prev.adminNotes || []),
+                          { date: new Date().toLocaleDateString(), text: newNoteText, by: 'Administrator' },
+                        ],
+                      }));
+                    }
+                  }}
+                  className="px-4 py-2 rounded-xl font-bold text-white bg-[#12315A] hover:bg-blue-900 text-xs cursor-pointer"
+                >
+                  Save Note
+                </button>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-slate-100 flex justify-end">
+              <button
+                onClick={() => setSelectedInquiryDetail(null)}
+                className="px-5 py-2.5 rounded-xl font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 text-xs cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* FULL RESOLUTION PAYMENT PROOF PREVIEW MODAL */}
+      {selectedProofModalUrl && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-3xl w-full p-5 sm:p-6 shadow-2xl border border-slate-200 space-y-4 relative">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <Receipt className="w-5 h-5 text-amber-600" />
+                <h3 className="font-bold text-sm text-[#12315A]">Payment Voucher Preview</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedProofModalUrl(null)}
+                className="p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="max-h-[70vh] overflow-auto flex items-center justify-center bg-slate-50 p-2 rounded-2xl border border-slate-200">
+              <img
+                src={selectedProofModalUrl}
+                alt="Payment Voucher Full Preview"
+                className="max-h-[65vh] w-auto object-contain rounded-lg shadow-sm"
+              />
+            </div>
+
+            <div className="flex items-center justify-between text-xs pt-1">
+              <span className="text-slate-400 text-[11px]">Official Tuition Deposit Receipt</span>
+              <button
+                type="button"
+                onClick={() => setSelectedProofModalUrl(null)}
+                className="px-4 py-2 rounded-xl font-bold bg-[#12315A] text-white hover:bg-blue-900 cursor-pointer"
+              >
+                Close Preview
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: COURSE MANAGEMENT */}
+      {activeTab === 'courses' && (
+        <div className="space-y-6 animate-fadeIn">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-base font-bold text-[#12315A]">Academic Courses Directory</h3>
+              <p className="text-xs text-slate-400">Manage academic programs, subjects, and schedules</p>
+            </div>
+            <button
+              onClick={() => {
+                setEditingCourse(null);
+                setIsCourseModalOpen(true);
+              }}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#12315A] hover:bg-blue-900 shadow"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add New Course</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {courses.map((c) => (
+              <div
+                key={c.id}
+                className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4 flex flex-col justify-between"
+              >
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-blue-100 text-blue-800">
+                        {c.board}
+                      </span>
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                          c.courseType === 'Old Course'
+                            ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                            : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                        }`}
+                      >
+                        {c.courseType || 'New Course'}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => togglePublishCourse(c.id)}
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                        c.published ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'
+                      }`}
+                    >
+                      {c.published ? 'Published' : 'Draft'}
+                    </button>
+                  </div>
+                  <h4 className="font-bold text-slate-900 text-sm">{c.title}</h4>
+                  {c.syllabusVersion && (
+                    <p className="text-[10px] font-semibold text-slate-500">
+                      Syllabus: {c.syllabusVersion}
+                    </p>
+                  )}
+                  <p className="text-xs text-slate-500 line-clamp-2">{c.shortDescription}</p>
+                  <p className="text-[11px] text-slate-600 font-medium">
+                    Subjects: <strong>{c.subjectsOffered.length}</strong> modules
+                  </p>
+                </div>
+
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                  <Link to={`/courses/${c.slug}`} className="text-blue-700 font-bold hover:underline">
+                    View Page &rarr;
+                  </Link>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        setEditingCourse(c);
+                        setIsCourseModalOpen(true);
+                      }}
+                      className="p-1.5 rounded-lg text-slate-600 hover:text-blue-700 hover:bg-slate-100"
+                      title="Edit Course"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm(`Are you sure you want to delete ${c.title}?`)) {
+                          deleteCourse(c.id);
+                        }
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                      title="Delete Course"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Course Modal */}
+      {isCourseModalOpen && (
+        <CourseEditModal
+          course={editingCourse}
+          onClose={() => setIsCourseModalOpen(false)}
+          onSave={(data) => {
+            if (editingCourse) {
+              updateCourse(editingCourse.id, data);
+            } else {
+              addCourse(data as any);
+            }
+            setIsCourseModalOpen(false);
+          }}
+        />
+      )}
+
+      {/* TAB: STUDENT GROUPS & IMMEDIATE COMMUNICATION */}
+      {activeTab === 'groups' && (
+        <div className="space-y-6 animate-fadeIn">
+          {groupToastMessage && (
+            <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-950 text-xs font-bold flex items-center justify-between shadow-xs">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{groupToastMessage}</span>
+              </div>
+              <button
+                onClick={() => setGroupToastMessage(null)}
+                className="text-emerald-700 hover:text-emerald-900"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {/* Group Header & Action */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-bold text-[#12315A]">
+                  Enrolled Student Groups & Immediate Communication Center
+                </h3>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800">
+                  Notice Broadcast Hub
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Organize enrolled student mobile numbers by academic batch, send instant urgent notice broadcasts, and connect official WhatsApp groups.
+              </p>
+            </div>
+
+            <button
+              onClick={() => {
+                setEditingGroup(null);
+                setIsGroupModalOpen(true);
+              }}
+              className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-[#12315A] hover:bg-blue-900 shadow transition-colors shrink-0 cursor-pointer"
+            >
+              <Plus className="w-4 h-4 text-amber-400" />
+              <span>Create New Student Group</span>
+            </button>
+          </div>
+
+          {/* Quick Stats Banner */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Groups</span>
+              <p className="text-xl font-black text-[#12315A]">{studentGroups.length}</p>
+              <span className="text-[10px] text-blue-600 font-semibold">Cohorts / Batches</span>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Enrolled Students</span>
+              <p className="text-xl font-black text-emerald-600">
+                {studentGroups.reduce((acc, g) => acc + (g.members?.length || 0), 0)}
+              </p>
+              <span className="text-[10px] text-emerald-700 font-semibold">Active In Groups</span>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">WhatsApp Groups</span>
+              <p className="text-xl font-black text-emerald-700">
+                {studentGroups.filter((g) => g.whatsappGroupLink).length}
+              </p>
+              <span className="text-[10px] text-emerald-600 font-semibold">Connected Invites</span>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Urgent Broadcasts</span>
+              <p className="text-xl font-black text-rose-600">
+                {studentGroups.reduce((acc, g) => acc + (g.broadcasts?.length || 0), 0)}
+              </p>
+              <span className="text-[10px] text-rose-700 font-semibold">Notices Sent</span>
+            </div>
+          </div>
+
+          {/* Search & Course Type Filter Bar */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 text-xs">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Search groups by batch name, academic course, level, or coordinator..."
+                value={groupSearch}
+                onChange={(e) => setGroupSearch(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 text-xs bg-slate-50/60 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[11px] font-bold text-slate-500">Syllabus:</span>
+              {(['ALL', 'New Course', 'Old Course'] as const).map((type) => (
+                <button
+                  key={type}
+                  onClick={() => setGroupTypeFilter(type)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    groupTypeFilter === type
+                      ? type === 'Old Course'
+                        ? 'bg-amber-600 text-white shadow-xs'
+                        : 'bg-[#12315A] text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {type === 'ALL' ? 'All Groups' : type}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Groups Grid */}
+          {studentGroups
+            .filter((g) => {
+              if (groupTypeFilter !== 'ALL' && (g.courseType || 'New Course') !== groupTypeFilter) {
+                return false;
+              }
+              if (!groupSearch.trim()) return true;
+              const q = groupSearch.toLowerCase();
+              const gName = g.name || g.title || '';
+              return (
+                gName.toLowerCase().includes(q) ||
+                g.courseName.toLowerCase().includes(q) ||
+                g.academicLevel.toLowerCase().includes(q) ||
+                g.coordinatorName.toLowerCase().includes(q)
+              );
+            })
+            .length === 0 ? (
+            <div className="p-12 text-center rounded-3xl bg-white border border-slate-200 space-y-3">
+              <Users className="w-10 h-10 text-slate-300 mx-auto" />
+              <h4 className="font-bold text-slate-800 text-sm">No student groups found</h4>
+              <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                No cohort matches your active search or filter. Create a new group to begin organizing enrolled students.
+              </p>
+              <button
+                onClick={() => {
+                  setEditingGroup(null);
+                  setIsGroupModalOpen(true);
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#12315A]"
+              >
+                Create First Group
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {studentGroups
+                .filter((g) => {
+                  if (groupTypeFilter !== 'ALL' && (g.courseType || 'New Course') !== groupTypeFilter) {
+                    return false;
+                  }
+                  if (!groupSearch.trim()) return true;
+                  const q = groupSearch.toLowerCase();
+                  const gName = g.name || g.title || '';
+                  return (
+                    gName.toLowerCase().includes(q) ||
+                    g.courseName.toLowerCase().includes(q) ||
+                    g.academicLevel.toLowerCase().includes(q) ||
+                    g.coordinatorName.toLowerCase().includes(q)
+                  );
+                })
+                .map((g) => (
+                  <div
+                    key={g.id}
+                    className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4 flex flex-col justify-between hover:border-blue-300 transition-all"
+                  >
+                    <div className="space-y-3">
+                      {/* Top Badges */}
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                              g.courseType === 'Old Course'
+                                ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                                : 'bg-blue-100 text-blue-800 border border-blue-200'
+                            }`}
+                          >
+                            {g.courseType || 'New Course'}
+                          </span>
+                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-100 text-slate-700">
+                            {g.shift} Shift
+                          </span>
+                          <span className="text-[10px] font-semibold text-slate-500">
+                            Batch {g.academicYearOrBatch}
+                          </span>
+                        </div>
+
+                        <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                          {g.members?.length || 0} Students Enrolled
+                        </span>
+                      </div>
+
+                      {/* Title & Course */}
+                      <div>
+                        <h4 className="text-base font-bold text-slate-900 leading-snug">{g.name}</h4>
+                        <p className="text-xs text-blue-800 font-semibold mt-0.5">
+                          {g.courseName} • Level: {g.academicLevel}
+                        </p>
+                      </div>
+
+                      {/* Coordinator Bar */}
+                      <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-xs">
+                        <div className="min-w-0">
+                          <p className="text-[10px] text-slate-400 font-bold uppercase">Coordinator</p>
+                          <p className="font-bold text-slate-800 truncate">{g.coordinatorName}</p>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <a
+                            href={`tel:${g.coordinatorPhone}`}
+                            className="px-2.5 py-1 rounded-lg text-[10px] font-bold text-blue-700 bg-white border border-slate-200 hover:bg-blue-50 flex items-center gap-1 cursor-pointer"
+                          >
+                            <Phone className="w-3 h-3 text-blue-600" />
+                            <span>{g.coordinatorPhone}</span>
+                          </a>
+                        </div>
+                      </div>
+
+                      {/* WhatsApp Official Batch Link Card */}
+                      <div className="p-3 rounded-2xl bg-emerald-50/60 border border-emerald-200 text-xs space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-emerald-950 text-[11px] flex items-center gap-1.5">
+                            <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Official Batch WhatsApp Group</span>
+                          </span>
+                          {g.whatsappGroupLink ? (
+                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-200 text-emerald-900">
+                              Active Link
+                            </span>
+                          ) : (
+                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800">
+                              No Link Set
+                            </span>
+                          )}
+                        </div>
+
+                        {g.whatsappGroupLink ? (
+                          <div className="flex items-center justify-between gap-2 pt-0.5">
+                            <p className="text-[11px] font-mono text-emerald-800 truncate max-w-[200px]">
+                              {g.whatsappGroupLink}
+                            </p>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const link = g.whatsappGroupLink || g.whatsappGroupUrl || '';
+                                  navigator.clipboard.writeText(link);
+                                  setGroupToastMessage(`Copied WhatsApp group link for ${g.name || g.title}!`);
+                                  setTimeout(() => setGroupToastMessage(null), 3000);
+                                }}
+                                className="px-2 py-1 rounded-lg text-[10px] font-bold text-emerald-800 bg-white border border-emerald-300 hover:bg-emerald-100 cursor-pointer"
+                              >
+                                Copy Link
+                              </button>
+                              <a
+                                href={g.whatsappGroupLink || g.whatsappGroupUrl || '#'}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="px-2 py-1 rounded-lg text-[10px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 flex items-center gap-1 cursor-pointer"
+                              >
+                                <span>Open</span>
+                                <ExternalLink className="w-2.5 h-2.5" />
+                              </a>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-[11px] text-slate-500 italic">
+                            No WhatsApp link configured. Tap Edit to paste group invite link.
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Latest Broadcast Excerpt if Any */}
+                      {g.broadcasts && g.broadcasts.length > 0 && (
+                        <div className="p-2.5 rounded-xl bg-blue-50/50 border border-blue-100 text-xs space-y-0.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-blue-900 flex items-center gap-1">
+                              <Radio className="w-3 h-3 text-blue-600" />
+                              <span>Latest Broadcast</span>
+                            </span>
+                            <span className="text-[10px] text-slate-400">
+                              {g.broadcasts[0].sentAt}
+                            </span>
+                          </div>
+                          <p className="font-bold text-slate-800 text-[11px] truncate">
+                            {g.broadcasts[0].title}
+                          </p>
+                          <p className="text-[10px] text-slate-500 line-clamp-1">
+                            {g.broadcasts[0].message}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="pt-3 border-t border-slate-100 space-y-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedGroupForBroadcast(g)}
+                          className="px-3 py-2 rounded-xl text-xs font-bold text-white bg-blue-700 hover:bg-blue-800 shadow transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <Send className="w-3.5 h-3.5 text-amber-300" />
+                          <span>Broadcast Notice</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setSelectedGroupForMembers(g)}
+                          className="px-3 py-2 rounded-xl text-xs font-bold text-slate-800 bg-slate-100 hover:bg-slate-200 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <Users className="w-3.5 h-3.5 text-blue-600" />
+                          <span>Manage Students ({g.members?.length || 0})</span>
+                        </button>
+                      </div>
+
+                      <div className="flex items-center justify-between text-xs pt-1 text-slate-400">
+                        <span className="text-[11px]">Created {g.createdAt}</span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingGroup(g);
+                              setIsGroupModalOpen(true);
+                            }}
+                            className="p-1.5 rounded-lg text-slate-600 hover:text-blue-700 hover:bg-slate-100"
+                            title="Edit Group"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (confirm(`Are you sure you want to delete group "${g.name}"?`)) {
+                                deleteStudentGroup(g.id);
+                                setGroupToastMessage(`Group "${g.name}" deleted.`);
+                                setTimeout(() => setGroupToastMessage(null), 3000);
+                              }
+                            }}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                            title="Delete Group"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Group Create/Edit Modal */}
+      {isGroupModalOpen && (
+        <GroupEditModal
+          group={editingGroup}
+          courses={courses}
+          onClose={() => setIsGroupModalOpen(false)}
+          onSave={(data) => {
+            if (editingGroup) {
+              updateStudentGroup(editingGroup.id, data);
+              setGroupToastMessage(`Updated student group: ${data.name || editingGroup.name}`);
+            } else {
+              addStudentGroup(data as any);
+              setGroupToastMessage(`Created new student group: ${data.name}`);
+            }
+            setIsGroupModalOpen(false);
+            setTimeout(() => setGroupToastMessage(null), 3000);
+          }}
+        />
+      )}
+
+      {/* Group Immediate Broadcast Notice Modal */}
+      {selectedGroupForBroadcast && (
+        <GroupBroadcastModal
+          group={selectedGroupForBroadcast}
+          onClose={() => setSelectedGroupForBroadcast(null)}
+          onSendBroadcast={(groupId, data) => {
+            sendGroupBroadcast(groupId, data);
+            // Refresh reference to modal's group
+            const updated = studentGroups.find((item) => item.id === groupId);
+            if (updated) setSelectedGroupForBroadcast(updated);
+          }}
+          onDeleteBroadcast={(groupId, broadcastId) => {
+            deleteGroupBroadcast(groupId, broadcastId);
+            const updated = studentGroups.find((item) => item.id === groupId);
+            if (updated) setSelectedGroupForBroadcast(updated);
+          }}
+        />
+      )}
+
+      {/* Group Members Management Modal */}
+      {selectedGroupForMembers && (
+        <GroupMembersModal
+          group={selectedGroupForMembers}
+          inquiries={inquiries}
+          onClose={() => setSelectedGroupForMembers(null)}
+          onAddMember={(groupId, member) => {
+            addMemberToGroup(groupId, member);
+            const updated = studentGroups.find((item) => item.id === groupId);
+            if (updated) setSelectedGroupForMembers(updated);
+          }}
+          onBulkAddMembers={(groupId, members) => {
+            bulkAddMembersToGroup(groupId, members);
+            const updated = studentGroups.find((item) => item.id === groupId);
+            if (updated) setSelectedGroupForMembers(updated);
+          }}
+          onImportFromInquiries={(groupId) => {
+            const count = importVerifiedInquiriesToGroup(groupId);
+            const updated = studentGroups.find((item) => item.id === groupId);
+            if (updated) setSelectedGroupForMembers(updated);
+            return count;
+          }}
+          onRemoveMember={(groupId, memberId) => {
+            removeMemberFromGroup(groupId, memberId);
+            const updated = studentGroups.find((item) => item.id === groupId);
+            if (updated) setSelectedGroupForMembers(updated);
+          }}
+        />
+      )}
+
+      {/* TAB 4: TEACHER MANAGEMENT */}
+      {activeTab === 'teachers' && (
+        <div className="space-y-6 animate-fadeIn">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-base font-bold text-[#12315A]">Faculty & Instructor Directory</h3>
+              <p className="text-xs text-slate-400">Add, edit, or customize teacher profiles</p>
+            </div>
+            <button
+              onClick={() => {
+                setEditingTeacher(null);
+                setIsTeacherModalOpen(true);
+              }}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#12315A] hover:bg-blue-900 shadow"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Faculty Member</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {teachers.map((t) => (
+              <div
+                key={t.id}
+                className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-4 flex flex-col justify-between"
+              >
+                <div className="flex items-start gap-3.5">
+                  <img src={t.avatarUrl} alt={t.name} className="w-14 h-14 rounded-2xl object-cover shrink-0" />
+                  <div className="min-w-0">
+                    <h4 className="font-bold text-slate-900 text-sm truncate">{t.name}</h4>
+                    <p className="text-xs text-blue-700 font-semibold">{t.designation}</p>
+                    <p className="text-[11px] text-slate-400">{t.experience}</p>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-slate-50 rounded-xl text-xs text-slate-600 line-clamp-2">
+                  {t.qualification}
+                </div>
+
+                <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                  <span className="text-[10px] text-slate-400 font-semibold">
+                    {t.assignedCourseSlugs.length} Assigned Program(s)
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        setEditingTeacher(t);
+                        setIsTeacherModalOpen(true);
+                      }}
+                      className="p-1.5 rounded-lg text-slate-600 hover:text-blue-700 hover:bg-slate-100"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm(`Remove teacher profile for ${t.name}?`)) {
+                          deleteTeacher(t.id);
+                        }
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Teacher Modal */}
+      {isTeacherModalOpen && (
+        <TeacherEditModal
+          teacher={editingTeacher}
+          onClose={() => setIsTeacherModalOpen(false)}
+          onSave={(data) => {
+            if (editingTeacher) {
+              updateTeacher(editingTeacher.id, data);
+            } else {
+              addTeacher(data as any);
+            }
+            setIsTeacherModalOpen(false);
+          }}
+        />
+      )}
+
+      {/* TAB 5: NOTICE MANAGEMENT */}
+      {activeTab === 'notices' && (
+        <div className="space-y-6 animate-fadeIn">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-base font-bold text-[#12315A]">Public Notice Board Announcements</h3>
+              <p className="text-xs text-slate-400">Publish batch schedules, holiday alerts, and admissions</p>
+            </div>
+            <button
+              onClick={() => {
+                setEditingNotice(null);
+                setIsNoticeModalOpen(true);
+              }}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#12315A] hover:bg-blue-900 shadow"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Create Announcement</span>
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            {notices.map((n) => (
+              <div
+                key={n.id}
+                className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs"
+              >
+                <div className="space-y-1 max-w-2xl">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold uppercase text-[10px] px-2 py-0.5 rounded bg-blue-100 text-blue-800">
+                      {n.category}
+                    </span>
+                    <span className="text-slate-400 text-[11px]">{n.publishDate}</span>
+                    {n.important && (
+                      <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.2 rounded">
+                        High Priority
+                      </span>
+                    )}
+                  </div>
+                  <h4 className="font-bold text-slate-900 text-sm">{n.title}</h4>
+                  <p className="text-slate-600 line-clamp-1">{n.content}</p>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => {
+                      setEditingNotice(n);
+                      setIsNoticeModalOpen(true);
+                    }}
+                    className="p-1.5 rounded-lg text-slate-600 hover:text-blue-700 hover:bg-slate-100"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (confirm(`Delete announcement: ${n.title}?`)) {
+                        deleteNotice(n.id);
+                      }
+                    }}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Notice Modal */}
+      {isNoticeModalOpen && (
+        <NoticeEditModal
+          notice={editingNotice}
+          onClose={() => setIsNoticeModalOpen(false)}
+          onSave={(data) => {
+            if (editingNotice) {
+              updateNotice(editingNotice.id, data);
+            } else {
+              addNotice(data as any);
+            }
+            setIsNoticeModalOpen(false);
+          }}
+        />
+      )}
+
+      {/* TAB 6: STUDY MATERIAL MANAGEMENT */}
+      {activeTab === 'materials' && (
+        <div className="space-y-6 animate-fadeIn">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-base font-bold text-[#12315A]">Study Materials & Resource Repository</h3>
+              <p className="text-xs text-slate-400">Publish notes, past papers, and access permission levels</p>
+            </div>
+            <button
+              onClick={() => {
+                setEditingMaterial(null);
+                setIsMaterialModalOpen(true);
+              }}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#12315A] hover:bg-blue-900 shadow"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Resource</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {studyMaterials.map((m) => (
+              <div
+                key={m.id}
+                className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between space-y-3 text-xs"
+              >
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-blue-50 text-blue-800">
+                      {m.resourceType}
+                    </span>
+                    <span
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                        m.accessLevel === 'Public' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                      }`}
+                    >
+                      {m.accessLevel}
+                    </span>
+                  </div>
+                  <h4 className="font-bold text-slate-900 text-sm leading-snug">{m.title}</h4>
+                  <p className="text-slate-500 font-medium">
+                    {m.courseName} • {m.subject} • {m.semesterOrYear}
+                  </p>
+                  <p className="text-slate-600 line-clamp-2">{m.description}</p>
+                </div>
+
+                <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                  <span className="text-slate-400 text-[11px]">{m.fileSize} • {m.uploadDate}</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        setEditingMaterial(m);
+                        setIsMaterialModalOpen(true);
+                      }}
+                      className="p-1.5 rounded-lg text-slate-600 hover:text-blue-700 hover:bg-slate-100"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm(`Delete material ${m.title}?`)) {
+                          deleteStudyMaterial(m.id);
+                        }
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Material Modal */}
+      {isMaterialModalOpen && (
+        <MaterialEditModal
+          material={editingMaterial}
+          courses={courses}
+          onClose={() => setIsMaterialModalOpen(false)}
+          onSave={(data) => {
+            if (editingMaterial) {
+              updateStudyMaterial(editingMaterial.id, data);
+            } else {
+              addStudyMaterial(data as any);
+            }
+            setIsMaterialModalOpen(false);
+          }}
+        />
+      )}
+
+      {/* TAB 7: WEBSITE SETTINGS */}
+      {activeTab === 'settings' && (
+        <div className="bg-white p-6 sm:p-10 rounded-3xl border border-slate-200 shadow-sm space-y-8 animate-fadeIn text-xs sm:text-sm">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+            <div>
+              <h3 className="text-lg font-bold text-[#12315A]">Central Website & Brand Settings</h3>
+              <p className="text-xs text-slate-500">
+                Update institute name, tagline, official contact details, social links, and notice marquee.
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                if (confirm('Reset all website settings to original default values?')) {
+                  resetSettings();
+                  setTempSettings(settings);
+                }
+              }}
+              className="text-xs font-semibold text-rose-600 hover:underline flex items-center gap-1"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Reset to Defaults</span>
+            </button>
+          </div>
+
+          {settingsSavedMessage && (
+            <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2">
+              <Check className="w-4 h-4 text-emerald-600" />
+              <span>Website settings successfully updated and saved!</span>
+            </div>
+          )}
+
+          <form onSubmit={handleSaveSettings} className="space-y-6">
+            {/* Institute Identity */}
+            <div className="space-y-4">
+              <h4 className="font-bold text-[#12315A] uppercase text-xs tracking-wider">
+                1. Institutional Identity & Tagline
+              </h4>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Institute Name (English)
+                  </label>
+                  <input
+                    type="text"
+                    value={tempSettings.instituteName}
+                    onChange={(e) => setTempSettings({ ...tempSettings, instituteName: e.target.value })}
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Institute Name (Nepali Devanagari)
+                  </label>
+                  <input
+                    type="text"
+                    value={tempSettings.instituteDevanagariName}
+                    onChange={(e) =>
+                      setTempSettings({ ...tempSettings, instituteDevanagariName: e.target.value })
+                    }
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 font-['Noto_Sans_Devanagari',sans-serif]"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Primary Tagline</label>
+                  <input
+                    type="text"
+                    value={tempSettings.tagline}
+                    onChange={(e) => setTempSettings({ ...tempSettings, tagline: e.target.value })}
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Alternative Tagline</label>
+                  <input
+                    type="text"
+                    value={tempSettings.altTagline}
+                    onChange={(e) => setTempSettings({ ...tempSettings, altTagline: e.target.value })}
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Custom Logo URL (Optional)</label>
+                <input
+                  type="text"
+                  placeholder="Leave empty to use the official vector emblem"
+                  value={tempSettings.logoUrl || ''}
+                  onChange={(e) => setTempSettings({ ...tempSettings, logoUrl: e.target.value })}
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            {/* Contact Details */}
+            <div className="space-y-4 pt-4 border-t border-slate-100">
+              <h4 className="font-bold text-[#12315A] uppercase text-xs tracking-wider">
+                2. Contact & Physical Location
+              </h4>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Primary Phone</label>
+                  <input
+                    type="text"
+                    value={tempSettings.contactNumber}
+                    onChange={(e) => setTempSettings({ ...tempSettings, contactNumber: e.target.value })}
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Alternate Phone</label>
+                  <input
+                    type="text"
+                    value={tempSettings.contactNumberAlt || ''}
+                    onChange={(e) => setTempSettings({ ...tempSettings, contactNumberAlt: e.target.value })}
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Official Email</label>
+                  <input
+                    type="email"
+                    value={tempSettings.emailAddress}
+                    onChange={(e) => setTempSettings({ ...tempSettings, emailAddress: e.target.value })}
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Physical Address</label>
+                  <input
+                    type="text"
+                    value={tempSettings.physicalAddress}
+                    onChange={(e) => setTempSettings({ ...tempSettings, physicalAddress: e.target.value })}
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Office Hours</label>
+                  <input
+                    type="text"
+                    value={tempSettings.officeHours}
+                    onChange={(e) => setTempSettings({ ...tempSettings, officeHours: e.target.value })}
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Social & WhatsApp */}
+            <div className="space-y-4 pt-4 border-t border-slate-100">
+              <h4 className="font-bold text-[#12315A] uppercase text-xs tracking-wider">
+                3. Social Media & WhatsApp
+              </h4>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">WhatsApp Phone Number</label>
+                  <input
+                    type="text"
+                    value={tempSettings.whatsappNumber}
+                    onChange={(e) => setTempSettings({ ...tempSettings, whatsappNumber: e.target.value })}
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Facebook Page URL</label>
+                  <input
+                    type="text"
+                    value={tempSettings.facebookUrl}
+                    onChange={(e) => setTempSettings({ ...tempSettings, facebookUrl: e.target.value })}
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">YouTube Channel URL</label>
+                  <input
+                    type="text"
+                    value={tempSettings.youtubeUrl}
+                    onChange={(e) => setTempSettings({ ...tempSettings, youtubeUrl: e.target.value })}
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Top Notice Marquee */}
+            <div className="space-y-4 pt-4 border-t border-slate-100">
+              <h4 className="font-bold text-[#12315A] uppercase text-xs tracking-wider">
+                4. Notice Marquee Banner
+              </h4>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Banner Text</label>
+                <input
+                  type="text"
+                  value={tempSettings.noticeMarqueeText}
+                  onChange={(e) =>
+                    setTempSettings({ ...tempSettings, noticeMarqueeText: e.target.value })
+                  }
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="flex items-center gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={tempSettings.isNoticeMarqueeActive}
+                    onChange={(e) =>
+                      setTempSettings({ ...tempSettings, isNoticeMarqueeActive: e.target.checked })
+                    }
+                    className="w-4 h-4 text-blue-600 rounded"
+                  />
+                  <span className="font-semibold text-slate-700">Display Top Notice Marquee</span>
+                </label>
+
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={tempSettings.registrationOpen}
+                    onChange={(e) =>
+                      setTempSettings({ ...tempSettings, registrationOpen: e.target.checked })
+                    }
+                    className="w-4 h-4 text-blue-600 rounded"
+                  />
+                  <span className="font-semibold text-slate-700">Admissions Open Status Badge</span>
+                </label>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-slate-100 flex justify-end">
+              <button
+                type="submit"
+                className="px-6 py-3 rounded-xl font-bold text-white bg-[#12315A] hover:bg-blue-900 shadow-md transition-colors"
+              >
+                Save Website Settings
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* TAB: MOCK TESTS & TIMED EXAMINATIONS */}
+      {activeTab === 'mock-tests' && (
+        <div className="space-y-6">
+          {/* Top Header & Actions */}
+          <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-blue-50 text-blue-700">
+                  <Clock className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-[#12315A]">
+                    Mock Tests & Timed Examinations Control
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Upload question papers with strict time limits, manage New vs Old Course options, and evaluate student answer uploads with private examiner feedback.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setIsDirectResultModalOpen(true)}
+                className="px-3.5 py-2.5 rounded-xl text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
+              >
+                <Award className="w-4 h-4 text-emerald-600" />
+                <span>Upload Student Result</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingMockTest(null);
+                  setIsMockTestModalOpen(true);
+                }}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-950 bg-amber-400 hover:bg-amber-500 transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Create Mock Test</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Quick Metrics */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
+              <p className="text-[10px] uppercase font-bold text-slate-400">Total Mock Tests</p>
+              <p className="text-2xl font-extrabold text-slate-900 mt-1">{mockTests.length}</p>
+              <p className="text-[10px] text-slate-500 mt-0.5">
+                {mockTests.filter((t) => t.published).length} Published Live
+              </p>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
+              <p className="text-[10px] uppercase font-bold text-slate-400">Total Submissions</p>
+              <p className="text-2xl font-extrabold text-blue-700 mt-1">{mockTestSubmissions.length}</p>
+              <p className="text-[10px] text-slate-500 mt-0.5">Student Answer Sheets</p>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
+              <p className="text-[10px] uppercase font-bold text-slate-400">Evaluated Papers</p>
+              <p className="text-2xl font-extrabold text-emerald-700 mt-1">
+                {mockTestSubmissions.filter((s) => s.evaluationStatus === 'Evaluated').length}
+              </p>
+              <p className="text-[10px] text-slate-500 mt-0.5">With Marks & Examiner Feedback</p>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
+              <p className="text-[10px] uppercase font-bold text-slate-400">Pending Evaluation</p>
+              <p className="text-2xl font-extrabold text-amber-600 mt-1">
+                {mockTestSubmissions.filter((s) => s.evaluationStatus !== 'Evaluated').length}
+              </p>
+              <p className="text-[10px] text-slate-500 mt-0.5">Awaiting Examiner Review</p>
+            </div>
+          </div>
+
+          {/* Sub-View Navigation Tabs */}
+          <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+            <button
+              type="button"
+              onClick={() => setMockTestSubView('tests')}
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                mockTestSubView === 'tests'
+                  ? 'bg-[#12315A] text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>Mock Tests & Papers ({mockTests.length})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMockTestSubView('answer-sheets')}
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                mockTestSubView === 'answer-sheets'
+                  ? 'bg-amber-400 text-slate-950 shadow-xs font-black'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              <Award className="w-3.5 h-3.5" />
+              <span>Check Answer Sheets by Subject ({mockTestSubmissions.length})</span>
+            </button>
+          </div>
+
+          {/* Filters & Search */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex flex-col md:flex-row gap-3 items-center justify-between">
+            <div className="relative flex-1 w-full">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder={
+                  mockTestSubView === 'tests'
+                    ? 'Search mock tests by title, subject...'
+                    : 'Search answer sheets by student name, roll number, subject, title...'
+                }
+                value={mockTestSearch}
+                onChange={(e) => setMockTestSearch(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div className="flex items-center gap-2 w-full md:w-auto flex-wrap">
+              {/* Course filter */}
+              <select
+                value={mockTestCourseFilter}
+                onChange={(e) => setMockTestCourseFilter(e.target.value)}
+                aria-label="Filter by Course"
+                className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium bg-white text-slate-700"
+              >
+                <option value="ALL">All Courses</option>
+                {courses.map((c) => (
+                  <option key={c.id} value={c.slug}>
+                    {c.title}
+                  </option>
+                ))}
+              </select>
+
+              {/* Subject filter */}
+              <select
+                value={mockTestSubjectFilter}
+                onChange={(e) => setMockTestSubjectFilter(e.target.value)}
+                aria-label="Filter by Subject"
+                className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium bg-white text-slate-700"
+              >
+                <option value="ALL">All Subjects ({adminMockTestSubjects.length})</option>
+                {adminMockTestSubjects.map((sub: string) => (
+                  <option key={sub} value={sub}>
+                    {sub}
+                  </option>
+                ))}
+              </select>
+
+              {/* Syllabus type filter */}
+              <select
+                value={mockTestTypeFilter}
+                onChange={(e) => setMockTestTypeFilter(e.target.value as any)}
+                aria-label="Filter by Course Type"
+                className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium bg-white text-slate-700"
+              >
+                <option value="ALL">All Syllabi (New & Old)</option>
+                <option value="New Course">New Course (Regular)</option>
+                <option value="Old Course">Old Course (Backpaper)</option>
+              </select>
+
+              {/* Evaluation Status Filter (when viewing answer sheets) */}
+              {mockTestSubView === 'answer-sheets' && (
+                <select
+                  value={mockTestEvaluationStatusFilter}
+                  onChange={(e) => setMockTestEvaluationStatusFilter(e.target.value as any)}
+                  aria-label="Filter by Status"
+                  className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium bg-white text-slate-700"
+                >
+                  <option value="ALL">All Evaluation Status</option>
+                  <option value="Submitted">Pending Evaluation</option>
+                  <option value="Evaluated">Evaluated</option>
+                </select>
+              )}
+
+              {/* Reset Filters */}
+              {(mockTestCourseFilter !== 'ALL' ||
+                mockTestSubjectFilter !== 'ALL' ||
+                mockTestTypeFilter !== 'ALL' ||
+                mockTestEvaluationStatusFilter !== 'ALL' ||
+                mockTestSearch) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMockTestCourseFilter('ALL');
+                    setMockTestSubjectFilter('ALL');
+                    setMockTestTypeFilter('ALL');
+                    setMockTestEvaluationStatusFilter('ALL');
+                    setMockTestSearch('');
+                  }}
+                  className="px-3 py-2 rounded-xl text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 transition-colors flex items-center gap-1 cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Reset</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* SUBVIEW 1: MOCK TESTS LIST */}
+          {mockTestSubView === 'tests' && (
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-100 bg-slate-50/80 text-slate-500 text-[10px] uppercase font-bold tracking-wider">
+                      <th className="py-3 px-4">Test Title & Subject</th>
+                      <th className="py-3 px-4">Course & Stream</th>
+                      <th className="py-3 px-4">Duration & Marks</th>
+                      <th className="py-3 px-4">Student Submissions</th>
+                      <th className="py-3 px-4">Status</th>
+                      <th className="py-3 px-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {mockTests
+                      .filter((t) => {
+                        if (mockTestCourseFilter !== 'ALL' && t.courseSlug !== mockTestCourseFilter) return false;
+                        if (mockTestSubjectFilter !== 'ALL' && t.subject !== mockTestSubjectFilter) return false;
+                        if (mockTestTypeFilter !== 'ALL' && t.courseType !== mockTestTypeFilter) return false;
+                        if (!mockTestSearch.trim()) return true;
+                        const q = mockTestSearch.toLowerCase();
+                        return (
+                          t.title.toLowerCase().includes(q) ||
+                          t.subject.toLowerCase().includes(q) ||
+                          t.courseName.toLowerCase().includes(q)
+                        );
+                      })
+                      .map((test) => {
+                        const testSubs = mockTestSubmissions.filter((s) => (s.mockTestId || s.testId) === test.id);
+                        const evaluatedCount = testSubs.filter((s) => s.evaluationStatus === 'Evaluated').length;
+
+                        return (
+                          <tr key={test.id} className="hover:bg-slate-50/80 transition-colors">
+                            <td className="py-3 px-4">
+                              <p className="font-bold text-slate-900">{test.title}</p>
+                              <p className="text-[11px] text-blue-700 font-bold mt-0.5">
+                                Subject: {test.subject}
+                              </p>
+                            </td>
+
+                            <td className="py-3 px-4">
+                              <p className="font-medium text-slate-700">{test.courseName}</p>
+                              <span
+                                className={`inline-block mt-0.5 text-[9px] font-bold px-2 py-0.2 rounded-full uppercase ${
+                                  test.courseType === 'Old Course'
+                                    ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                                    : 'bg-blue-100 text-blue-900 border border-blue-200'
+                                }`}
+                              >
+                                {test.courseType}
+                              </span>
+                            </td>
+
+                            <td className="py-3 px-4">
+                              <p className="font-mono text-slate-800 font-semibold">
+                                {test.durationMinutes} Mins
+                              </p>
+                              <p className="text-[10px] text-slate-500">
+                                Full: {test.fullMarks} • Pass: {test.passMarks}
+                              </p>
+                            </td>
+
+                            <td className="py-3 px-4">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedTestForSubmissions(test)}
+                                className="px-2.5 py-1 rounded-lg text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-colors flex items-center gap-1.5 cursor-pointer"
+                              >
+                                <FileCheck className="w-3.5 h-3.5" />
+                                <span>
+                                  {testSubs.length} Uploads ({evaluatedCount} Evaluated)
+                                </span>
+                              </button>
+                            </td>
+
+                            <td className="py-3 px-4">
+                              <button
+                                type="button"
+                                onClick={() => togglePublishMockTest(test.id)}
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer ${
+                                  test.published
+                                    ? 'bg-emerald-100 text-emerald-800'
+                                    : 'bg-slate-200 text-slate-600'
+                                }`}
+                              >
+                                {test.published ? 'Live Active' : 'Draft Hidden'}
+                              </button>
+                            </td>
+
+                            <td className="py-3 px-4 text-right">
+                              <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedTestForSubmissions(test)}
+                                  className="p-1.5 text-blue-700 hover:bg-blue-50 rounded-lg cursor-pointer"
+                                  title="Grade Submissions"
+                                >
+                                  <Award className="w-4 h-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingMockTest(test);
+                                    setIsMockTestModalOpen(true);
+                                  }}
+                                  className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg cursor-pointer"
+                                  title="Edit Test Details"
+                                >
+                                  <Edit2 className="w-4 h-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (confirm(`Delete mock test "${test.title}"?`)) {
+                                      deleteMockTest(test.id);
+                                    }
+                                  }}
+                                  className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg cursor-pointer"
+                                  title="Delete Test"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* SUBVIEW 2: FACULTY ANSWER SHEET CHECKING (FILTERED BY COURSE & SUBJECT) */}
+          {mockTestSubView === 'answer-sheets' && (
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden space-y-4">
+              <div className="p-4 bg-slate-50/80 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-9 h-9 rounded-xl bg-amber-400 text-slate-950 font-bold flex items-center justify-center text-xs shadow-2xs">
+                    <FileCheck className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">
+                      Faculty Examiner Answer Sheet Evaluation Queue
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Filtered by Course: <strong>{mockTestCourseFilter}</strong> • Subject: <strong>{mockTestSubjectFilter}</strong>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="text-slate-500">
+                    Showing {
+                      mockTestSubmissions.filter((sub) => {
+                        if (mockTestCourseFilter !== 'ALL' && sub.courseSlug !== mockTestCourseFilter) return false;
+                        if (mockTestSubjectFilter !== 'ALL') {
+                          const sSub = (sub.subject || '').toLowerCase();
+                          const fSub = mockTestSubjectFilter.toLowerCase();
+                          if (sSub !== fSub && !sSub.includes(fSub)) return false;
+                        }
+                        if (mockTestTypeFilter !== 'ALL' && sub.courseType && sub.courseType !== mockTestTypeFilter) return false;
+                        if (mockTestEvaluationStatusFilter !== 'ALL' && sub.evaluationStatus !== mockTestEvaluationStatusFilter) return false;
+                        if (!mockTestSearch.trim()) return true;
+                        const q = mockTestSearch.toLowerCase();
+                        return (
+                          sub.studentName.toLowerCase().includes(q) ||
+                          (sub.rollNumber || '').toLowerCase().includes(q) ||
+                          (sub.subject || '').toLowerCase().includes(q) ||
+                          (sub.mockTestTitle || sub.testTitle || '').toLowerCase().includes(q)
+                        );
+                      }).length
+                    } submissions
+                  </span>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-100 bg-slate-50 text-slate-500 text-[10px] uppercase font-bold tracking-wider">
+                      <th className="py-3 px-4">Student & Roll No</th>
+                      <th className="py-3 px-4">Course & Stream</th>
+                      <th className="py-3 px-4">Exam Subject</th>
+                      <th className="py-3 px-4">Uploaded PDF Paper</th>
+                      <th className="py-3 px-4">Evaluation Status</th>
+                      <th className="py-3 px-4 text-right">Faculty Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {(() => {
+                      const filteredSubmissions = mockTestSubmissions.filter((sub) => {
+                        if (mockTestCourseFilter !== 'ALL' && sub.courseSlug !== mockTestCourseFilter) return false;
+                        if (mockTestSubjectFilter !== 'ALL') {
+                          const sSub = (sub.subject || '').toLowerCase();
+                          const fSub = mockTestSubjectFilter.toLowerCase();
+                          if (sSub !== fSub && !sSub.includes(fSub)) return false;
+                        }
+                        if (mockTestTypeFilter !== 'ALL' && sub.courseType && sub.courseType !== mockTestTypeFilter) return false;
+                        if (mockTestEvaluationStatusFilter !== 'ALL' && sub.evaluationStatus !== mockTestEvaluationStatusFilter) return false;
+                        if (!mockTestSearch.trim()) return true;
+                        const q = mockTestSearch.toLowerCase();
+                        return (
+                          sub.studentName.toLowerCase().includes(q) ||
+                          (sub.rollNumber || '').toLowerCase().includes(q) ||
+                          (sub.subject || '').toLowerCase().includes(q) ||
+                          (sub.mockTestTitle || sub.testTitle || '').toLowerCase().includes(q)
+                        );
+                      });
+
+                      if (filteredSubmissions.length === 0) {
+                        return (
+                          <tr>
+                            <td colSpan={6} className="py-12 text-center text-slate-400">
+                              <FileCheck className="w-8 h-8 mx-auto mb-2 text-slate-300" />
+                              <p className="font-bold text-slate-700">No student answer sheets match the selected Course & Subject filters.</p>
+                              <p className="text-xs text-slate-400 mt-1">Try selecting "All Subjects" or choosing a different academic stream.</p>
+                            </td>
+                          </tr>
+                        );
+                      }
+
+                      return filteredSubmissions.map((sub) => {
+                        const targetTest = mockTests.find((t) => t.id === sub.mockTestId || t.id === sub.testId);
+                        const courseObj = courses.find((c) => c.slug === sub.courseSlug);
+                        const fullMarks = targetTest?.fullMarks || 100;
+
+                        return (
+                          <tr key={sub.id} className="hover:bg-slate-50/80 transition-colors">
+                            <td className="py-3 px-4">
+                              <p className="font-bold text-slate-900">{sub.studentName}</p>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <span className="font-mono text-[11px] font-semibold text-blue-700 bg-blue-50 px-1.5 py-0.2 rounded border border-blue-200">
+                                  Roll: {sub.rollNumber}
+                                </span>
+                                {sub.studentPhone && (
+                                  <span className="text-[10px] text-slate-500 font-mono">
+                                    {sub.studentPhone}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[10px] text-slate-400 mt-0.5">
+                                Submitted {new Date(sub.submittedAt).toLocaleDateString()}
+                              </p>
+                            </td>
+
+                            <td className="py-3 px-4">
+                              <p className="font-medium text-slate-700">
+                                {courseObj?.title || sub.courseSlug}
+                              </p>
+                              <span
+                                className={`inline-block mt-0.5 text-[9px] font-bold px-2 py-0.2 rounded-full uppercase ${
+                                  sub.courseType === 'Old Course'
+                                    ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                                    : 'bg-blue-100 text-blue-900 border border-blue-200'
+                                }`}
+                              >
+                                {sub.courseType || 'New Course'}
+                              </span>
+                            </td>
+
+                            <td className="py-3 px-4">
+                              <div className="inline-flex items-center gap-1 bg-amber-50 text-amber-950 font-bold px-2.5 py-1 rounded-lg border border-amber-200/80">
+                                <BookOpen className="w-3.5 h-3.5 text-amber-600" />
+                                <span>{sub.subject || targetTest?.subject || 'Curriculum Subject'}</span>
+                              </div>
+                              {sub.mockTestTitle && (
+                                <p className="text-[10px] text-slate-500 mt-1 line-clamp-1">
+                                  {sub.mockTestTitle}
+                                </p>
+                              )}
+                            </td>
+
+                            <td className="py-3 px-4">
+                              {sub.answerFileUrl ? (
+                                <div className="space-y-1">
+                                  <a
+                                    href={sub.answerFileUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-colors"
+                                  >
+                                    <Download className="w-3.5 h-3.5 text-rose-600" />
+                                    <span>{sub.answerFileName || 'Student_Answer_Sheet.pdf'}</span>
+                                  </a>
+                                  {sub.evaluatedPaperUrl && (
+                                    <div>
+                                      <a
+                                        href={sub.evaluatedPaperUrl}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 hover:underline"
+                                      >
+                                        <FileCheck className="w-3 h-3" />
+                                        <span>Checked Paper Attached</span>
+                                      </a>
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-slate-400 italic">Typed text only</span>
+                              )}
+                            </td>
+
+                            <td className="py-3 px-4">
+                              <span
+                                className={`inline-block text-[11px] font-bold px-2.5 py-0.5 rounded-lg ${
+                                  sub.evaluationStatus === 'Evaluated'
+                                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                    : 'bg-amber-100 text-amber-900 border border-amber-300'
+                                }`}
+                              >
+                                {sub.evaluationStatus === 'Evaluated'
+                                  ? `Evaluated: ${sub.marksObtained}/${fullMarks}`
+                                  : 'Pending Evaluation'}
+                              </span>
+                              {sub.feedbackRemarks && (
+                                <p className="text-[10px] text-slate-500 mt-1 line-clamp-1 italic">
+                                  "{sub.feedbackRemarks}"
+                                </p>
+                              )}
+                            </td>
+
+                            <td className="py-3 px-4 text-right">
+                              <button
+                                type="button"
+                                onClick={() => setGradingSubmission(sub)}
+                                className="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-950 bg-amber-400 hover:bg-amber-500 transition-colors flex items-center gap-1 cursor-pointer shadow-2xs ml-auto"
+                              >
+                                <Award className="w-3.5 h-3.5" />
+                                <span>{sub.evaluationStatus === 'Evaluated' ? 'Update Grade' : 'Grade & Feedback'}</span>
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      });
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* SUBMISSIONS & GRADING DRAWER / MODAL */}
+      {selectedTestForSubmissions && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
+            {/* Header */}
+            <div className="p-5 border-b border-slate-100 bg-[#12315A] text-white flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-amber-400 text-slate-950">
+                    {selectedTestForSubmissions.courseType}
+                  </span>
+                  <span className="text-xs text-blue-200">
+                    {selectedTestForSubmissions.courseName}
+                  </span>
+                </div>
+                <h3 className="text-base sm:text-lg font-bold mt-1">
+                  Student Submissions: {selectedTestForSubmissions.title}
+                </h3>
+                <p className="text-xs text-white/80">
+                  Full Marks: {selectedTestForSubmissions.fullMarks} • Time Limit: {selectedTestForSubmissions.durationMinutes} Mins
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedTestForSubmissions(null)}
+                className="text-white/70 hover:text-white p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Submissions List */}
+            <div className="p-5 sm:p-6 overflow-y-auto space-y-4 flex-1">
+              {(() => {
+                const subs = mockTestSubmissions.filter(
+                  (s) => (s.mockTestId || s.testId) === selectedTestForSubmissions.id
+                );
+                if (subs.length === 0) {
+                  return (
+                    <div className="p-10 text-center rounded-2xl bg-slate-50 border border-slate-200 text-slate-500 text-xs space-y-2">
+                      <FileCheck className="w-8 h-8 text-slate-400 mx-auto" />
+                      <p className="font-bold text-slate-700">No Student Answer Sheets Uploaded Yet</p>
+                      <p>When students take this timed mock test and upload their answers, their papers will appear here for grading.</p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="space-y-4">
+                    {subs.map((sub) => (
+                      <div
+                        key={sub.id}
+                        className="bg-slate-50/80 rounded-2xl border border-slate-200 p-4 sm:p-5 space-y-3 hover:bg-white transition-colors"
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/60 pb-3">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-slate-900 text-sm">{sub.studentName}</span>
+                              <span className="text-xs font-mono font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                                Roll: {sub.rollNumber}
+                              </span>
+                              {sub.isLateSubmission && (
+                                <span className="text-[10px] font-bold text-rose-700 bg-rose-100 px-2 py-0.5 rounded">
+                                  Late Submission
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-slate-500 mt-0.5">
+                              Phone: <span className="font-mono">{sub.studentPhone || 'N/A'}</span> • Submitted {new Date(sub.submittedAt).toLocaleString()}
+                              {sub.timeTakenSeconds && ` • Time taken: ${Math.floor(sub.timeTakenSeconds / 60)}m ${sub.timeTakenSeconds % 60}s`}
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`text-[11px] font-bold px-2.5 py-1 rounded-lg ${
+                                sub.evaluationStatus === 'Evaluated'
+                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                  : 'bg-amber-100 text-amber-900 border border-amber-300'
+                              }`}
+                            >
+                              {sub.evaluationStatus === 'Evaluated'
+                                ? `Evaluated: ${sub.marksObtained}/${selectedTestForSubmissions.fullMarks}`
+                                : 'Pending Evaluation'}
+                            </span>
+
+                            <button
+                              type="button"
+                              onClick={() => setGradingSubmission(sub)}
+                              className="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-950 bg-amber-400 hover:bg-amber-500 transition-colors flex items-center gap-1 cursor-pointer shadow-2xs"
+                            >
+                              <Award className="w-3.5 h-3.5" />
+                              <span>{sub.evaluationStatus === 'Evaluated' ? 'Update Grade' : 'Grade & Feedback'}</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Uploaded answer paper & typed text */}
+                        <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
+                          <div className="flex items-center gap-3">
+                            {sub.answerFileUrl ? (
+                              <a
+                                href={sub.answerFileUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="px-3 py-1.5 rounded-lg text-xs font-bold text-blue-700 bg-white border border-blue-300 hover:bg-blue-50 transition-colors flex items-center gap-1.5"
+                              >
+                                <Download className="w-3.5 h-3.5" />
+                                <span>View Student Answer Sheet ({sub.answerFileName || 'PDF'})</span>
+                              </a>
+                            ) : (
+                              <span className="text-slate-400 italic">No external file attached</span>
+                            )}
+                          </div>
+
+                          {sub.evaluatedPaperUrl && (
+                            <a
+                              href={sub.evaluatedPaperUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="px-3 py-1.5 rounded-lg text-xs font-bold text-emerald-800 bg-emerald-100 hover:bg-emerald-200 transition-colors flex items-center gap-1.5"
+                            >
+                              <FileCheck className="w-3.5 h-3.5 text-emerald-700" />
+                              <span>Checked Paper Attached</span>
+                            </a>
+                          )}
+                        </div>
+
+                        {sub.typedAnswers && (
+                          <div className="bg-white p-3 rounded-xl border border-slate-200 text-xs text-slate-700 font-mono whitespace-pre-line leading-relaxed max-h-32 overflow-y-auto">
+                            {sub.typedAnswers}
+                          </div>
+                        )}
+
+                        {/* Existing examiner feedback if evaluated */}
+                        {sub.feedbackRemarks && (
+                          <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-3 text-xs space-y-1">
+                            <p className="font-bold text-amber-950 flex items-center gap-1">
+                              <Award className="w-3.5 h-3.5 text-amber-600" />
+                              <span>Examiner Remarks ({sub.evaluatedBy || 'Examiner'}):</span>
+                            </p>
+                            <p className="text-slate-800 whitespace-pre-line">{sub.feedbackRemarks}</p>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* GRADING & EXAMINER FEEDBACK MODAL */}
+      {gradingSubmission && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-slate-200 relative space-y-4">
+            <button
+              type="button"
+              onClick={() => setGradingSubmission(null)}
+              className="absolute top-5 right-5 p-1.5 text-slate-400 hover:text-slate-700 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-2">
+              <Award className="w-5 h-5 text-amber-600" />
+              <div>
+                <h3 className="text-base font-bold text-[#12315A]">Evaluate Student Answer Sheet</h3>
+                <p className="text-xs text-slate-500">
+                  Student: <strong>{gradingSubmission.studentName}</strong> (Roll: {gradingSubmission.rollNumber})
+                </p>
+              </div>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const formData = new FormData(e.currentTarget);
+                const marksObtained = Number(formData.get('marksObtained') || 0);
+                const feedbackRemarks = String(formData.get('feedbackRemarks') || '');
+                const evaluatedBy = String(formData.get('evaluatedBy') || '');
+                const evaluatedPaperUrl = String(formData.get('evaluatedPaperUrl') || '');
+
+                gradeMockTestSubmission(gradingSubmission.id, {
+                  marksObtained,
+                  evaluationStatus: 'Evaluated',
+                  feedbackRemarks,
+                  evaluatedBy,
+                  evaluatedPaperUrl: evaluatedPaperUrl || undefined,
+                  evaluatedPaperName: evaluatedPaperUrl ? 'Checked_Answer_Sheet.pdf' : undefined,
+                });
+
+                setGradingSubmission(null);
+              }}
+              className="space-y-4 text-xs"
+            >
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  {(() => {
+                    const targetTest = mockTests.find(
+                      (t) => t.id === gradingSubmission.mockTestId || t.id === gradingSubmission.testId
+                    );
+                    const targetFullMarks = targetTest?.fullMarks || selectedTestForSubmissions?.fullMarks || 100;
+                    return (
+                      <>
+                        <label className="block font-bold text-slate-700 mb-1">
+                          Marks Obtained (Full: {targetFullMarks}) *
+                        </label>
+                        <input
+                          type="number"
+                          name="marksObtained"
+                          required
+                          min={0}
+                          max={targetFullMarks}
+                          defaultValue={gradingSubmission.marksObtained ?? 75}
+                          className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm font-bold bg-slate-50 focus:bg-white"
+                        />
+                      </>
+                    );
+                  })()}
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Examiner Name / Faculty *</label>
+                  <input
+                    type="text"
+                    name="evaluatedBy"
+                    required
+                    defaultValue={gradingSubmission.evaluatedBy || 'Prof. Dr. Narayan Prasad Sharma, Head of Dept.'}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Examiner Constructive Feedback & Critique (Visible to this student ONLY) *
+                </label>
+                <textarea
+                  name="feedbackRemarks"
+                  required
+                  rows={4}
+                  defaultValue={
+                    gradingSubmission.feedbackRemarks ||
+                    `Commendable conceptual clarity in theoretical questions. In numerical questions, review calculation steps carefully. Structure conclusions and point-wise presentation to maximize scores in the upcoming board exam.`
+                  }
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500 font-sans"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Private feedback: Only this student will be able to view these evaluation remarks upon entering their roll number.
+                </p>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Checked Answer Sheet PDF Link (Optional)
+                </label>
+                <input
+                  type="url"
+                  name="evaluatedPaperUrl"
+                  placeholder="https://example.com/checked-papers/sample_checked.pdf"
+                  defaultValue={gradingSubmission.evaluatedPaperUrl || ''}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setGradingSubmission(null)}
+                  className="px-4 py-2 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl font-bold text-slate-950 bg-amber-400 hover:bg-amber-500 shadow-sm cursor-pointer"
+                >
+                  Publish Result & Feedback
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* DIRECT RESULT UPLOAD MODAL */}
+      {isDirectResultModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-slate-200 relative space-y-4">
+            <button
+              type="button"
+              onClick={() => setIsDirectResultModalOpen(false)}
+              className="absolute top-5 right-5 p-1.5 text-slate-400 hover:text-slate-700 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-2">
+              <Award className="w-5 h-5 text-emerald-600" />
+              <div>
+                <h3 className="text-base font-bold text-[#12315A]">Directly Publish Student Result</h3>
+                <p className="text-xs text-slate-500">
+                  Assign marks and examiner remarks directly for an enrolled student by roll number.
+                </p>
+              </div>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const form = e.currentTarget;
+                const testId = (form.elements.namedItem('testId') as HTMLSelectElement).value;
+                const studentName = (form.elements.namedItem('studentName') as HTMLInputElement).value;
+                const rollNumber = (form.elements.namedItem('rollNumber') as HTMLInputElement).value;
+                const studentPhone = (form.elements.namedItem('studentPhone') as HTMLInputElement).value;
+                const marksObtained = Number((form.elements.namedItem('marksObtained') as HTMLInputElement).value);
+                const evaluatedBy = (form.elements.namedItem('evaluatedBy') as HTMLInputElement).value;
+                const feedbackRemarks = (form.elements.namedItem('feedbackRemarks') as HTMLTextAreaElement).value;
+                const evaluatedPaperUrl = (form.elements.namedItem('evaluatedPaperUrl') as HTMLInputElement).value;
+
+                uploadMockTestResult({
+                  mockTestId: testId,
+                  studentId: rollNumber,
+                  studentName,
+                  rollNumber,
+                  studentPhone,
+                  marksObtained,
+                  evaluatedBy,
+                  feedbackRemarks,
+                  evaluatedPaperUrl: evaluatedPaperUrl || undefined,
+                });
+
+                setIsDirectResultModalOpen(false);
+              }}
+              className="space-y-3.5 text-xs"
+            >
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Select Mock Test *</label>
+                <select
+                  name="testId"
+                  required
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                >
+                  {mockTests.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.title} ({t.courseType} • {t.subject})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Student Full Name *</label>
+                  <input
+                    type="text"
+                    name="studentName"
+                    required
+                    placeholder="e.g. Ramesh Kumar Adhikari"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Roll Number / Student ID *</label>
+                  <input
+                    type="text"
+                    name="rollNumber"
+                    required
+                    placeholder="e.g. SSS-STU-2026-08"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Student Contact Phone *</label>
+                  <input
+                    type="text"
+                    name="studentPhone"
+                    required
+                    placeholder="e.g. 9841234567"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Marks Obtained *</label>
+                  <input
+                    type="number"
+                    name="marksObtained"
+                    required
+                    min={0}
+                    max={100}
+                    defaultValue={78}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 font-bold"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Evaluator / Examiner Name *</label>
+                <input
+                  type="text"
+                  name="evaluatedBy"
+                  required
+                  defaultValue="Prof. Dr. Narayan Prasad Sharma, Head of Department"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Examiner Feedback Remarks *</label>
+                <textarea
+                  name="feedbackRemarks"
+                  required
+                  rows={3}
+                  defaultValue="Excellent comprehension of the curriculum. Detailed presentation and neat working in numerical questions. Recommended to maintain this time management speed during the upcoming board examination."
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 font-sans"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Checked Paper Link (Optional)</label>
+                <input
+                  type="url"
+                  name="evaluatedPaperUrl"
+                  placeholder="https://example.com/checked-papers/sample.pdf"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 font-mono"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsDirectResultModalOpen(false)}
+                  className="px-4 py-2 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl font-bold text-white bg-emerald-700 hover:bg-emerald-800 shadow cursor-pointer"
+                >
+                  Publish Result
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* CREATE / EDIT MOCK TEST MODAL */}
+      {isMockTestModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200 relative max-h-[90vh] overflow-y-auto space-y-4 text-xs sm:text-sm">
+            <button
+              type="button"
+              onClick={() => setIsMockTestModalOpen(false)}
+              className="absolute top-5 right-5 p-1.5 text-slate-400 hover:text-slate-700 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <h3 className="text-lg font-bold text-[#12315A]">
+              {editingMockTest ? 'Edit Mock Test' : 'Upload Questions / Create Mock Test'}
+            </h3>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const form = e.currentTarget;
+                const title = (form.elements.namedItem('title') as HTMLInputElement).value;
+                const courseSlug = (form.elements.namedItem('courseSlug') as HTMLSelectElement).value;
+                const matchedCourse = courses.find((c) => c.slug === courseSlug);
+                const courseName = matchedCourse?.title || 'Academic Course';
+                const courseType = (form.elements.namedItem('courseType') as HTMLSelectElement).value as CourseType;
+                const subject = (form.elements.namedItem('subject') as HTMLInputElement).value;
+                const durationMinutes = Number((form.elements.namedItem('durationMinutes') as HTMLInputElement).value);
+                const fullMarks = Number((form.elements.namedItem('fullMarks') as HTMLInputElement).value);
+                const passMarks = Number((form.elements.namedItem('passMarks') as HTMLInputElement).value);
+                const questionPaperUrl = (form.elements.namedItem('questionPaperUrl') as HTMLInputElement).value;
+                const instructions = (form.elements.namedItem('instructions') as HTMLTextAreaElement).value;
+                const questionText = (form.elements.namedItem('questionText') as HTMLTextAreaElement).value;
+
+                if (editingMockTest) {
+                  updateMockTest(editingMockTest.id, {
+                    title,
+                    courseSlug,
+                    courseName,
+                    courseType,
+                    subject,
+                    durationMinutes,
+                    fullMarks,
+                    passMarks,
+                    questionPaperUrl: questionPaperUrl || undefined,
+                    instructions: instructions.includes('\n') ? instructions.split('\n').filter(Boolean) : [instructions],
+                    questionText,
+                  });
+                } else {
+                  addMockTest({
+                    title,
+                    courseSlug,
+                    courseName,
+                    courseType,
+                    subject,
+                    durationMinutes,
+                    fullMarks,
+                    passMarks,
+                    questionPaperUrl: questionPaperUrl || undefined,
+                    questionFileName: questionPaperUrl ? 'Official_Question_Paper.pdf' : undefined,
+                    instructions: instructions.includes('\n') ? instructions.split('\n').filter(Boolean) : [instructions],
+                    questionText,
+                    published: true,
+                  });
+                }
+
+                setIsMockTestModalOpen(false);
+              }}
+              className="space-y-3.5"
+            >
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Mock Test Examination Title *</label>
+                <input
+                  type="text"
+                  name="title"
+                  required
+                  defaultValue={editingMockTest?.title || ''}
+                  placeholder="e.g. BBS 4th Year Corporate Finance Pre-Board Model Exam"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Target Academic Course *</label>
+                  <select
+                    name="courseSlug"
+                    required
+                    defaultValue={editingMockTest?.courseSlug || courses[0]?.slug}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                  >
+                    {courses.map((c) => (
+                      <option key={c.id} value={c.slug}>
+                        {c.title} ({c.board})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Syllabus Stream (New vs. Old Course) *
+                  </label>
+                  <select
+                    name="courseType"
+                    required
+                    defaultValue={editingMockTest?.courseType || 'New Course'}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                  >
+                    <option value="New Course">New Course (Current Regular Syllabus)</option>
+                    <option value="Old Course">Old Course (Backpaper Examination Prep)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Subject Name *</label>
+                  <input
+                    type="text"
+                    name="subject"
+                    required
+                    list="courseSubjectsDatalist"
+                    defaultValue={editingMockTest?.subject || ''}
+                    placeholder="e.g. Cost and Management Accounting"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200"
+                  />
+                  <datalist id="courseSubjectsDatalist">
+                    {adminMockTestSubjects.map((sub: string) => (
+                      <option key={sub} value={sub} />
+                    ))}
+                  </datalist>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Time Limit (Minutes) *</label>
+                  <input
+                    type="number"
+                    name="durationMinutes"
+                    required
+                    min={10}
+                    max={360}
+                    defaultValue={editingMockTest?.durationMinutes || 180}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Full / Pass Marks *</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      name="fullMarks"
+                      required
+                      min={10}
+                      defaultValue={editingMockTest?.fullMarks || 100}
+                      className="w-1/2 px-2.5 py-2 rounded-xl border border-slate-200"
+                      placeholder="Full"
+                    />
+                    <input
+                      type="number"
+                      name="passMarks"
+                      required
+                      min={5}
+                      defaultValue={editingMockTest?.passMarks || 40}
+                      className="w-1/2 px-2.5 py-2 rounded-xl border border-slate-200"
+                      placeholder="Pass"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Question Paper PDF URL (Optional link or uploaded file)
+                </label>
+                <input
+                  type="url"
+                  name="questionPaperUrl"
+                  defaultValue={editingMockTest?.questionPaperUrl || ''}
+                  placeholder="https://example.com/question-papers/tu_bbs_model_2026.pdf"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 font-mono text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Exam Instructions</label>
+                <textarea
+                  name="instructions"
+                  rows={2}
+                  defaultValue={
+                    editingMockTest?.instructions ||
+                    'Candidates are required to give answers in their own words as far as practicable. Figures in the margin indicate full marks. Upload your scanned handwritten answers before the countdown expires.'
+                  }
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Structured Question Text / Prompts (Displayed directly to students)
+                </label>
+                <textarea
+                  name="questionText"
+                  rows={5}
+                  defaultValue={
+                    editingMockTest?.questionText ||
+                    `Group A: Brief Answer Questions (Attempt ALL - 10 x 2 = 20 Marks)\n1. Define Capital Structure and Financial Leverage.\n2. State the primary objective of Financial Management.\n\nGroup B: Descriptive Answer Questions (Attempt Any FIVE - 5 x 10 = 50 Marks)\n3. Explain the Determinants of Dividend Policy in Nepali commercial banks.\n4. Numerical: Calculate Net Present Value (NPV) and Internal Rate of Return (IRR) for Project Alpha and Beta.\n\nGroup C: Comprehensive Analysis Question (Attempt Any ONE - 1 x 30 = 30 Marks)\n5. Detailed Case on Working Capital Management Strategy.`
+                  }
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 font-mono text-xs"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsMockTestModalOpen(false)}
+                  className="px-4 py-2.5 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 rounded-xl font-bold text-slate-950 bg-amber-400 hover:bg-amber-500 shadow-sm cursor-pointer"
+                >
+                  {editingMockTest ? 'Save Changes' : 'Upload Question Paper'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Course Modal Subcomponent
+const CourseEditModal: React.FC<{
+  course: Course | null;
+  onClose: () => void;
+  onSave: (data: Partial<Course>) => void;
+}> = ({ course, onClose, onSave }) => {
+  const [title, setTitle] = useState(course?.title || '');
+  const [board, setBoard] = useState(course?.board || 'Tribhuvan University (TU)');
+  const [category, setCategory] = useState(course?.category || 'bachelor');
+  const [courseType, setCourseType] = useState<CourseType>(course?.courseType || 'New Course');
+  const [syllabusVersion, setSyllabusVersion] = useState(
+    course?.syllabusVersion ||
+      (course?.courseType === 'Old Course'
+        ? 'Old Annual Syllabus (Backpaper Exam Prep)'
+        : 'New CBCS / Semester Syllabus')
+  );
+  const [duration, setDuration] = useState(course?.duration || '');
+  const [schedule, setSchedule] = useState(course?.schedule || '');
+  const [shortDesc, setShortDesc] = useState(course?.shortDescription || '');
+  const [feeInfo, setFeeInfo] = useState(course?.feeInfo || '');
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
+      <div className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200 relative max-h-[90vh] overflow-y-auto space-y-4 text-xs sm:text-sm">
+        <button onClick={onClose} className="absolute top-5 right-5 p-1.5 text-slate-400 hover:text-slate-700">
+          <X className="w-5 h-5" />
+        </button>
+
+        <h3 className="text-lg font-bold text-[#12315A]">
+          {course ? 'Edit Course Details' : 'Create New Academic Course'}
+        </h3>
+
+        <div className="space-y-3">
+          <div>
+            <label className="block font-bold text-slate-700 mb-1">Course Title</label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-slate-200"
+            />
+          </div>
+
+          {/* Course Type / Syllabus Structure Selector */}
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+            <label className="block font-bold text-slate-800 text-xs">
+              Course Syllabus Classification (New vs. Old Course)
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setCourseType('New Course');
+                  if (!syllabusVersion || syllabusVersion.includes('Old Annual')) {
+                    setSyllabusVersion('New CBCS / Regular Semester Syllabus');
+                  }
+                }}
+                className={`py-2 px-3 rounded-lg font-bold text-xs border transition-all cursor-pointer ${
+                  courseType === 'New Course'
+                    ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                New Course (Regular)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setCourseType('Old Course');
+                  if (!syllabusVersion || syllabusVersion.includes('New CBCS')) {
+                    setSyllabusVersion('Old Annual Syllabus (Backpaper Exam Prep)');
+                  }
+                }}
+                className={`py-2 px-3 rounded-lg font-bold text-xs border transition-all cursor-pointer ${
+                  courseType === 'Old Course'
+                    ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                Old Course (Backpaper Prep)
+              </button>
+            </div>
+
+            <div>
+              <label className="block font-semibold text-slate-600 text-[11px] mb-0.5">
+                Syllabus Version Note / Exam Scheme
+              </label>
+              <input
+                type="text"
+                value={syllabusVersion}
+                placeholder="e.g. Tribhuvan University Revised Syllabus 2080 / Old Annual System"
+                onChange={(e) => setSyllabusVersion(e.target.value)}
+                className="w-full px-3 py-1.5 rounded-lg border border-slate-200 text-xs bg-white"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Board / University</label>
+              <input
+                type="text"
+                value={board}
+                onChange={(e) => setBoard(e.target.value as any)}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200"
+              />
+            </div>
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Duration</label>
+              <input
+                type="text"
+                value={duration}
+                onChange={(e) => setDuration(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block font-bold text-slate-700 mb-1">Schedule</label>
+            <input
+              type="text"
+              value={schedule}
+              onChange={(e) => setSchedule(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-slate-200"
+            />
+          </div>
+
+          <div>
+            <label className="block font-bold text-slate-700 mb-1">Short Description</label>
+            <textarea
+              rows={3}
+              value={shortDesc}
+              onChange={(e) => setShortDesc(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-slate-200"
+            />
+          </div>
+
+          <div>
+            <label className="block font-bold text-slate-700 mb-1">Fee & Batch Information</label>
+            <input
+              type="text"
+              value={feeInfo}
+              onChange={(e) => setFeeInfo(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-slate-200"
+            />
+          </div>
+        </div>
+
+        <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-2 rounded-xl font-bold text-slate-600 bg-slate-100">
+            Cancel
+          </button>
+          <button
+            onClick={() =>
+              onSave({
+                title,
+                board: board as any,
+                category: category as any,
+                courseType,
+                syllabusVersion,
+                duration,
+                schedule,
+                shortDescription: shortDesc,
+                feeInfo,
+              })
+            }
+            className="px-5 py-2 rounded-xl font-bold text-white bg-[#12315A]"
+          >
+            Save Course
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Teacher Modal Subcomponent
+const TeacherEditModal: React.FC<{
+  teacher: Teacher | null;
+  onClose: () => void;
+  onSave: (data: Partial<Teacher>) => void;
+}> = ({ teacher, onClose, onSave }) => {
+  const [name, setName] = useState(teacher?.name || '');
+  const [designation, setDesignation] = useState(teacher?.designation || '');
+  const [qualification, setQualification] = useState(teacher?.qualification || '');
+  const [experience, setExperience] = useState(teacher?.experience || '');
+  const [bio, setBio] = useState(teacher?.bio || '');
+  const [avatarUrl, setAvatarUrl] = useState(
+    teacher?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80'
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
+      <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 relative max-h-[90vh] overflow-y-auto space-y-4 text-xs sm:text-sm">
+        <button onClick={onClose} className="absolute top-5 right-5 p-1 text-slate-400">
+          <X className="w-5 h-5" />
+        </button>
+
+        <h3 className="text-lg font-bold text-[#12315A]">
+          {teacher ? 'Edit Faculty Member' : 'Add New Faculty Member'}
+        </h3>
+
+        <div className="space-y-3">
+          <div>
+            <label className="block font-bold text-slate-700 mb-1">Full Name</label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-slate-200"
+            />
+          </div>
+
+          <div>
+            <label className="block font-bold text-slate-700 mb-1">Designation</label>
+            <input
+              type="text"
+              value={designation}
+              onChange={(e) => setDesignation(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-slate-200"
+            />
+          </div>
+
+          <div>
+            <label className="block font-bold text-slate-700 mb-1">Qualification</label>
+            <input
+              type="text"
+              value={qualification}
+              onChange={(e) => setQualification(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-slate-200"
+            />
+          </div>
+
+          <div>
+            <label className="block font-bold text-slate-700 mb-1">Experience</label>
+            <input
+              type="text"
+              value={experience}
+              onChange={(e) => setExperience(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-slate-200"
+            />
+          </div>
+
+          <div>
+            <label className="block font-bold text-slate-700 mb-1">Photo Image URL</label>
+            <input
+              type="text"
+              value={avatarUrl}
+              onChange={(e) => setAvatarUrl(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-slate-200"
+            />
+          </div>
+
+          <div>
+            <label className="block font-bold text-slate-700 mb-1">Biography</label>
+            <textarea
+              rows={2}
+              value={bio}
+              onChange={(e) => setBio(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-slate-200"
+            />
+          </div>
+        </div>
+
+        <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-2 rounded-xl font-bold text-slate-600 bg-slate-100">
+            Cancel
+          </button>
+          <button
+            onClick={() =>
+              onSave({
+                name,
+                designation,
+                qualification,
+                experience,
+                bio,
+                avatarUrl,
+                specialization: ['Academic Subject Expert'],
+                assignedCourseSlugs: ['mbs-tu'],
+                published: true,
+              })
+            }
+            className="px-5 py-2 rounded-xl font-bold text-white bg-[#12315A]"
+          >
+            Save Faculty
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Notice Modal Subcomponent
+const NoticeEditModal: React.FC<{
+  notice: Notice | null;
+  onClose: () => void;
+  onSave: (data: Partial<Notice>) => void;
+}> = ({ notice, onClose, onSave }) => {
+  const [title, setTitle] = useState(notice?.title || '');
+  const [category, setCategory] = useState(notice?.category || 'Admission');
+  const [content, setContent] = useState(notice?.content || '');
+  const [important, setImportant] = useState(notice?.important || false);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
+      <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 relative max-h-[90vh] overflow-y-auto space-y-4 text-xs sm:text-sm">
+        <button onClick={onClose} className="absolute top-5 right-5 p-1 text-slate-400">
+          <X className="w-5 h-5" />
+        </button>
+
+        <h3 className="text-lg font-bold text-[#12315A]">
+          {notice ? 'Edit Notice' : 'Publish New Notice'}
+        </h3>
+
+        <div className="space-y-3">
+          <div>
+            <label className="block font-bold text-slate-700 mb-1">Notice Headline</label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-slate-200"
+            />
+          </div>
+
+          <div>
+            <label className="block font-bold text-slate-700 mb-1">Category</label>
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value as any)}
+              className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+            >
+              <option value="Admission">Admission</option>
+              <option value="New Courses">New Courses</option>
+              <option value="Class Schedules">Class Schedules</option>
+              <option value="Exam Prep">Exam Prep</option>
+              <option value="Holidays">Holidays</option>
+              <option value="Academic Events">Academic Events</option>
+              <option value="General">General</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block font-bold text-slate-700 mb-1">Notice Full Content</label>
+            <textarea
+              rows={4}
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-slate-200"
+            />
+          </div>
+
+          <label className="flex items-center gap-2 cursor-pointer pt-1">
+            <input
+              type="checkbox"
+              checked={important}
+              onChange={(e) => setImportant(e.target.checked)}
+              className="w-4 h-4 text-blue-600 rounded"
+            />
+            <span className="font-semibold text-slate-700">Mark as High Priority / Urgent Notice</span>
+          </label>
+        </div>
+
+        <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-2 rounded-xl font-bold text-slate-600 bg-slate-100">
+            Cancel
+          </button>
+          <button
+            onClick={() =>
+              onSave({
+                title,
+                category: category as any,
+                content,
+                important,
+                publishDate: new Date().toISOString().slice(0, 10),
+                published: true,
+              })
+            }
+            className="px-5 py-2 rounded-xl font-bold text-white bg-[#12315A]"
+          >
+            Publish Notice
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Material Modal Subcomponent
+const MaterialEditModal: React.FC<{
+  material: StudyMaterial | null;
+  courses: Course[];
+  onClose: () => void;
+  onSave: (data: Partial<StudyMaterial>) => void;
+}> = ({ material, courses, onClose, onSave }) => {
+  const [title, setTitle] = useState(material?.title || '');
+  const [courseSlug, setCourseSlug] = useState(material?.courseSlug || courses[0]?.slug || '');
+  const [subject, setSubject] = useState(material?.subject || '');
+  const [semesterOrYear, setSemesterOrYear] = useState(material?.semesterOrYear || '');
+  const [resourceType, setResourceType] = useState(material?.resourceType || 'PDF Notes');
+  const [accessLevel, setAccessLevel] = useState(material?.accessLevel || 'Public');
+  const [description, setDescription] = useState(material?.description || '');
+
+  const selectedCourse = courses.find((c) => c.slug === courseSlug);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
+      <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 relative max-h-[90vh] overflow-y-auto space-y-4 text-xs sm:text-sm">
+        <button onClick={onClose} className="absolute top-5 right-5 p-1 text-slate-400">
+          <X className="w-5 h-5" />
+        </button>
+
+        <h3 className="text-lg font-bold text-[#12315A]">
+          {material ? 'Edit Study Material' : 'Add Study Material / Question Paper'}
+        </h3>
+
+        <div className="space-y-3">
+          <div>
+            <label className="block font-bold text-slate-700 mb-1">Document Title</label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-slate-200"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Target Course</label>
+              <select
+                value={courseSlug}
+                onChange={(e) => setCourseSlug(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+              >
+                {courses.map((c) => (
+                  <option key={c.slug} value={c.slug}>
+                    {c.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Subject</label>
+              <input
+                type="text"
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Semester or Year</label>
+              <input
+                type="text"
+                placeholder="e.g. Semester 2 / Grade 11"
+                value={semesterOrYear}
+                onChange={(e) => setSemesterOrYear(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Access Level</label>
+              <select
+                value={accessLevel}
+                onChange={(e) => setAccessLevel(e.target.value as any)}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+              >
+                <option value="Public">Public (Free Download)</option>
+                <option value="Enrolled Students">Enrolled Students Only</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block font-bold text-slate-700 mb-1">Resource Type</label>
+            <select
+              value={resourceType}
+              onChange={(e) => setResourceType(e.target.value as any)}
+              className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+            >
+              <option value="Recorded Videos">Recorded Videos</option>
+              <option value="PDF Notes">PDF Notes</option>
+              <option value="Lecture Slides">Lecture Slides</option>
+              <option value="Practice Questions">Practice Questions</option>
+              <option value="Model Question Papers">Model Question Papers</option>
+              <option value="Past Papers">Past Papers</option>
+              <option value="Revision Materials">Revision Materials</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block font-bold text-slate-700 mb-1">Short Description</label>
+            <textarea
+              rows={2}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-slate-200"
+            />
+          </div>
+        </div>
+
+        <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-2 rounded-xl font-bold text-slate-600 bg-slate-100">
+            Cancel
+          </button>
+          <button
+            onClick={() =>
+              onSave({
+                title,
+                courseSlug,
+                courseName: selectedCourse?.title || 'Academic Course',
+                board: selectedCourse?.board || 'Board',
+                subject,
+                semesterOrYear,
+                resourceType: resourceType as any,
+                accessLevel: accessLevel as any,
+                fileSize: '3.2 MB',
+                uploadDate: new Date().toISOString().slice(0, 10),
+                description,
+                published: true,
+              })
+            }
+            className="px-5 py-2 rounded-xl font-bold text-white bg-[#12315A]"
+          >
+            Save Resource
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ==========================================
+// 1. GROUP EDIT MODAL (CREATE / EDIT)
+// ==========================================
+const GroupEditModal: React.FC<{
+  group: StudentGroup | null;
+  courses: Course[];
+  onClose: () => void;
+  onSave: (data: Partial<StudentGroup>) => void;
+}> = ({ group, courses, onClose, onSave }) => {
+  const [name, setName] = useState(group?.name || group?.title || '');
+  const [courseSlug, setCourseSlug] = useState(group?.courseSlug || (courses[0]?.slug || ''));
+  const selectedCourse = courses.find((c) => c.slug === courseSlug);
+  const [courseType, setCourseType] = useState<CourseType>(
+    group?.courseType || selectedCourse?.courseType || 'New Course'
+  );
+  const [syllabusVersion, setSyllabusVersion] = useState(
+    group?.syllabusVersion || selectedCourse?.syllabusVersion || ''
+  );
+  const [academicLevel, setAcademicLevel] = useState(group?.academicLevel || '1st Year');
+  const [academicYearOrBatch, setAcademicYearOrBatch] = useState(
+    group?.academicYearOrBatch || group?.batchYear || '2081/82'
+  );
+  const [shift, setShift] = useState<'Morning' | 'Day' | 'Evening' | 'Flexible' | 'Online' | 'All Shifts'>(
+    group?.shift || 'Morning'
+  );
+  const [whatsappGroupLink, setWhatsappGroupLink] = useState(
+    group?.whatsappGroupLink || 'https://chat.whatsapp.com/'
+  );
+  const [coordinatorName, setCoordinatorName] = useState(
+    group?.coordinatorName || 'Prof. Narayan Kafle'
+  );
+  const [coordinatorPhone, setCoordinatorPhone] = useState(
+    group?.coordinatorPhone || '9767648342'
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-fadeIn">
+      <div className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200 relative max-h-[92vh] overflow-y-auto space-y-4 text-xs sm:text-sm">
+        <button
+          onClick={onClose}
+          className="absolute top-5 right-5 p-1.5 text-slate-400 hover:text-slate-700 cursor-pointer"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
+        <div>
+          <h3 className="text-lg font-bold text-[#12315A] flex items-center gap-2">
+            <Users className="w-5 h-5 text-blue-600" />
+            <span>{group ? 'Edit Student Group' : 'Create Enrolled Student Group'}</span>
+          </h3>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Organize enrolled students for instant notifications, syllabus updates, and WhatsApp batch broadcasts.
+          </p>
+        </div>
+
+        <div className="space-y-3.5">
+          <div>
+            <label className="block font-bold text-slate-700 mb-1">Group Cohort Name *</label>
+            <input
+              type="text"
+              required
+              placeholder="e.g. BBS 1st Year Morning Batch, MBS Thesis Students, Finance Specialization"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Target Academic Program *</label>
+              <select
+                value={courseSlug}
+                onChange={(e) => {
+                  const s = e.target.value;
+                  setCourseSlug(s);
+                  const matched = courses.find((c) => c.slug === s);
+                  if (matched?.courseType) {
+                    setCourseType(matched.courseType);
+                  }
+                  if (matched?.syllabusVersion) {
+                    setSyllabusVersion(matched.syllabusVersion);
+                  }
+                }}
+                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 bg-white font-medium"
+              >
+                {courses.map((c) => (
+                  <option key={c.slug} value={c.slug}>
+                    {c.title} ({c.board}) {c.courseType ? `[${c.courseType}]` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Class Shift</label>
+              <select
+                value={shift}
+                onChange={(e) => setShift(e.target.value as any)}
+                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 bg-white font-medium"
+              >
+                <option value="Morning">Morning (6:30 AM - 10:30 AM)</option>
+                <option value="Day">Day Shift (11:00 AM - 3:30 PM)</option>
+                <option value="Evening">Evening Shift (4:00 PM - 7:30 PM)</option>
+                <option value="Flexible">Flexible / Hybrid</option>
+                <option value="Online">Online Virtual Batch</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Syllabus Type Selection */}
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+            <label className="block font-bold text-slate-800 text-xs">
+              Syllabus Structure (New Course vs. Old Course)
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setCourseType('New Course')}
+                className={`py-2 px-3 rounded-xl font-bold text-xs border transition-all cursor-pointer ${
+                  courseType === 'New Course'
+                    ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                New Course (Regular)
+              </button>
+              <button
+                type="button"
+                onClick={() => setCourseType('Old Course')}
+                className={`py-2 px-3 rounded-xl font-bold text-xs border transition-all cursor-pointer ${
+                  courseType === 'Old Course'
+                    ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                Old Course (Backpaper Prep)
+              </button>
+            </div>
+            <p className="text-[11px] text-slate-500">
+              {courseType === 'Old Course'
+                ? 'Dedicated to backpaper/chance exams and previous annual academic curriculum.'
+                : 'Current regular semester / annual CBCS curriculum.'}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Academic Year / Term</label>
+              <input
+                type="text"
+                placeholder="e.g. 1st Year / 3rd Semester"
+                value={academicLevel}
+                onChange={(e) => setAcademicLevel(e.target.value)}
+                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 font-medium"
+              />
+            </div>
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Batch / Exam Session</label>
+              <input
+                type="text"
+                placeholder="e.g. 2081/82 or 2078 Backpaper"
+                value={academicYearOrBatch}
+                onChange={(e) => setAcademicYearOrBatch(e.target.value)}
+                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 font-medium"
+              />
+            </div>
+          </div>
+
+          {/* Official WhatsApp Group Invite Link */}
+          <div className="p-3.5 rounded-2xl bg-emerald-50/70 border border-emerald-200 space-y-1.5">
+            <label className="block font-bold text-emerald-950 text-xs flex items-center gap-1.5">
+              <MessageCircle className="w-4 h-4 text-emerald-600" />
+              <span>Official WhatsApp Group Invite Link</span>
+            </label>
+            <input
+              type="url"
+              placeholder="https://chat.whatsapp.com/inviteCode..."
+              value={whatsappGroupLink}
+              onChange={(e) => setWhatsappGroupLink(e.target.value)}
+              className="w-full px-3.5 py-2 rounded-xl border border-emerald-300 bg-white text-xs font-mono"
+            />
+            <p className="text-[11px] text-emerald-800">
+              Students can tap "Join Batch WhatsApp Group" directly from their student dashboard to join this official discussion group.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Faculty Coordinator Name</label>
+              <input
+                type="text"
+                value={coordinatorName}
+                onChange={(e) => setCoordinatorName(e.target.value)}
+                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 font-medium"
+              />
+            </div>
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Coordinator Mobile Phone</label>
+              <input
+                type="text"
+                value={coordinatorPhone}
+                onChange={(e) => setCoordinatorPhone(e.target.value)}
+                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 font-medium"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="px-4 py-2.5 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => {
+              if (!name.trim()) return;
+              onSave({
+                name,
+                courseSlug,
+                courseName: selectedCourse?.title || 'Academic Course',
+                courseType,
+                syllabusVersion,
+                shift,
+                academicLevel,
+                academicYearOrBatch,
+                whatsappGroupLink,
+                coordinatorName,
+                coordinatorPhone,
+              });
+            }}
+            className="px-6 py-2.5 rounded-xl font-bold text-white bg-[#12315A] hover:bg-blue-900 shadow cursor-pointer"
+          >
+            Save Student Group
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ==========================================
+// 2. GROUP BROADCAST NOTICE MODAL
+// ==========================================
+const GroupBroadcastModal: React.FC<{
+  group: StudentGroup;
+  onClose: () => void;
+  onSendBroadcast: (
+    groupId: string,
+    data: {
+      title: string;
+      message: string;
+      urgency: 'Normal' | 'Important' | 'Urgent / Exam Alert';
+      sentBy: string;
+    }
+  ) => void;
+  onDeleteBroadcast: (groupId: string, broadcastId: string) => void;
+}> = ({ group, onClose, onSendBroadcast, onDeleteBroadcast }) => {
+  const [title, setTitle] = useState('');
+  const [broadcastText, setBroadcastText] = useState('');
+  const [urgency, setUrgency] = useState<'Normal' | 'Important' | 'Urgent / Exam Alert'>('Urgent / Exam Alert');
+  const [sentBy, setSentBy] = useState(group.coordinatorName || 'Academic Coordinator');
+  const [broadcastSentToast, setBroadcastSentToast] = useState(false);
+  const [copiedSMSList, setCopiedSMSList] = useState(false);
+  const [copiedWhatsAppText, setCopiedWhatsAppText] = useState(false);
+
+  const handleSendInApp = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim() || !broadcastText.trim()) return;
+    onSendBroadcast(group.id, {
+      title: title.trim(),
+      message: broadcastText.trim(),
+      urgency,
+      sentBy,
+    });
+    setBroadcastSentToast(true);
+    setTitle('');
+    setBroadcastText('');
+    setTimeout(() => setBroadcastSentToast(false), 3000);
+  };
+
+  const formattedWhatsAppMessage = `📢 *[SHIKSHYALAYA SANSTHA - URGENT NOTICE]*
+🎯 *Group:* ${group.name} (${group.courseType || 'Regular'})
+⚡ *Priority:* ${urgency}
+📌 *Topic:* ${title || 'Notice to Enrolled Students'}
+
+${broadcastText || 'Please check your student portal for class updates and syllabus routines.'}
+
+☎ *Academic Coordinator:* ${group.coordinatorName} (${group.coordinatorPhone})
+🌐 *Student Portal:* https://shikshyalaya.edu.np/student/dashboard`;
+
+  const handleOpenWhatsAppBroadcast = () => {
+    navigator.clipboard.writeText(formattedWhatsAppMessage);
+    setCopiedWhatsAppText(true);
+    setTimeout(() => setCopiedWhatsAppText(false), 3000);
+
+    const waUrl = group.whatsappGroupLink && group.whatsappGroupLink.includes('whatsapp.com')
+      ? group.whatsappGroupLink
+      : `https://api.whatsapp.com/send?text=${encodeURIComponent(formattedWhatsAppMessage)}`;
+    window.open(waUrl, '_blank');
+  };
+
+  const handleCopySMSNumbers = () => {
+    const numbers = group.members.map((m) => m.phone.replace(/[^0-9]/g, '')).filter(Boolean);
+    const unique = Array.from(new Set(numbers));
+    navigator.clipboard.writeText(unique.join(', '));
+    setCopiedSMSList(true);
+    setTimeout(() => setCopiedSMSList(false), 3000);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-fadeIn">
+      <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200 relative max-h-[92vh] overflow-y-auto space-y-5 text-xs sm:text-sm">
+        <button
+          onClick={onClose}
+          className="absolute top-5 right-5 p-1.5 text-slate-400 hover:text-slate-700 cursor-pointer"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping" />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+              Immediate Communication Hub
+            </span>
+          </div>
+          <h3 className="text-lg font-bold text-[#12315A] mt-1">
+            Broadcast Urgent Notice: {group.name}
+          </h3>
+          <p className="text-xs text-slate-500">
+            {group.members.length} enrolled students • Shift: {group.shift} • {group.courseType || 'New Course'}
+          </p>
+        </div>
+
+        {broadcastSentToast && (
+          <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-900 flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+            <span className="font-bold text-xs">
+              Notice broadcasted successfully to all {group.members.length} students!
+            </span>
+          </div>
+        )}
+
+        {/* Quick Action Buttons Bar */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 p-3.5 bg-slate-50 border border-slate-200 rounded-2xl">
+          <button
+            type="button"
+            onClick={handleOpenWhatsAppBroadcast}
+            className="flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl font-bold text-xs text-white bg-emerald-600 hover:bg-emerald-700 shadow transition-colors cursor-pointer"
+          >
+            <MessageCircle className="w-4 h-4" />
+            <span>
+              {copiedWhatsAppText ? 'Copied & Opening WhatsApp...' : 'Launch WhatsApp Group Notice'}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleCopySMSNumbers}
+            className="flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl font-bold text-xs text-slate-800 bg-white hover:bg-slate-100 border border-slate-200 shadow-xs transition-colors cursor-pointer"
+          >
+            <Copy className="w-4 h-4 text-blue-600" />
+            <span>
+              {copiedSMSList
+                ? `Copied ${group.members.length} Numbers!`
+                : `Copy ${group.members.length} Numbers for SMS Broadcast`}
+            </span>
+          </button>
+        </div>
+
+        {/* In-App Broadcast Form */}
+        <form onSubmit={handleSendInApp} className="space-y-3.5 p-4 rounded-2xl border border-slate-200 bg-white">
+          <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider flex items-center justify-between">
+            <span>Compose In-App Notice & Alert</span>
+            <span className="text-[10px] text-slate-400 font-normal">Pushed to Student Dashboard</span>
+          </h4>
+
+          <div>
+            <label className="block font-bold text-slate-700 mb-1">Notice Headline / Topic *</label>
+            <input
+              type="text"
+              required
+              placeholder="e.g. Revised Exam Routine, Sunday Special Numerical Class, Room Change"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block font-bold text-slate-700 mb-1">Notice Content / Instructions *</label>
+            <textarea
+              required
+              rows={3}
+              placeholder="Enter exact timing, classroom or Zoom meeting link, preparation guidelines, and required books..."
+              value={broadcastText}
+              onChange={(e) => setBroadcastText(e.target.value)}
+              className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Urgency Priority</label>
+              <select
+                value={urgency}
+                onChange={(e) => setUrgency(e.target.value as any)}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-medium"
+              >
+                <option value="Normal">Normal Announcement</option>
+                <option value="Important">Important Class Update</option>
+                <option value="Urgent / Exam Alert">Urgent / Exam Alert (High Priority)</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Sender Tag</label>
+              <input
+                type="text"
+                value={sentBy}
+                onChange={(e) => setSentBy(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 font-medium"
+              />
+            </div>
+          </div>
+
+          <div className="pt-2 flex justify-end">
+            <button
+              type="submit"
+              className="px-5 py-2.5 rounded-xl font-bold text-white bg-blue-700 hover:bg-blue-800 transition-colors shadow flex items-center gap-1.5 cursor-pointer"
+            >
+              <Send className="w-4 h-4" />
+              <span>Send Broadcast Notice to Group</span>
+            </button>
+          </div>
+        </form>
+
+        {/* Broadcast History */}
+        <div className="space-y-2 pt-2">
+          <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider flex items-center justify-between">
+            <span>Recent Broadcast History ({group.broadcasts?.length || 0})</span>
+            <span className="text-[10px] text-slate-400">Stored on student feeds</span>
+          </h4>
+
+          {(!group.broadcasts || group.broadcasts.length === 0) ? (
+            <p className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center text-slate-400 text-xs">
+              No previous broadcasts recorded for this group.
+            </p>
+          ) : (
+            <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+              {group.broadcasts.map((b) => (
+                <div
+                  key={b.id}
+                  className="p-3 rounded-xl border border-slate-200 bg-slate-50/70 flex items-start justify-between gap-3 text-xs"
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`text-[9px] font-bold uppercase px-1.5 py-0.2 rounded ${
+                          b.urgency === 'Urgent / Exam Alert'
+                            ? 'bg-rose-100 text-rose-800'
+                            : b.urgency === 'Important'
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-blue-100 text-blue-800'
+                        }`}
+                      >
+                        {b.urgency}
+                      </span>
+                      <span className="text-slate-400 text-[10px]">{b.sentAt}</span>
+                      <span className="text-slate-400 text-[10px]">• By {b.sentBy}</span>
+                    </div>
+                    <p className="font-bold text-slate-900">{b.title}</p>
+                    <p className="text-slate-600 line-clamp-2">{b.message}</p>
+                  </div>
+                  <button
+                    onClick={() => onDeleteBroadcast(group.id, b.id)}
+                    className="p-1 text-slate-400 hover:text-rose-600 rounded cursor-pointer"
+                    title="Delete notice"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ==========================================
+// 3. GROUP MEMBERS MODAL (ADD / BULK / SYNC)
+// ==========================================
+const GroupMembersModal: React.FC<{
+  group: StudentGroup;
+  inquiries: any[];
+  onClose: () => void;
+  onAddMember: (groupId: string, member: Omit<StudentGroupMember, 'id' | 'addedAt'>) => void;
+  onBulkAddMembers: (
+    groupId: string,
+    members: Array<Omit<StudentGroupMember, 'id' | 'addedAt'>>
+  ) => void;
+  onImportFromInquiries: (groupId: string) => number;
+  onRemoveMember: (groupId: string, memberId: string) => void;
+}> = ({
+  group,
+  inquiries,
+  onClose,
+  onAddMember,
+  onBulkAddMembers,
+  onImportFromInquiries,
+  onRemoveMember,
+}) => {
+  const [activeTab, setActiveTab] = useState<'list' | 'single' | 'bulk'>('list');
+  const [searchMember, setSearchMember] = useState('');
+  const [singleName, setSingleName] = useState('');
+  const [singlePhone, setSinglePhone] = useState('');
+  const [singleRollNo, setSingleRollNo] = useState('');
+  const [singleAcademicLevel, setSingleAcademicLevel] = useState(group.academicLevel || '');
+  const [bulkText, setBulkText] = useState('');
+  const [bulkStatus, setBulkStatus] = useState<string | null>(null);
+  const [importStatus, setImportStatus] = useState<string | null>(null);
+
+  // Filter group members
+  const filteredMembers = (group.members || []).filter((m) => {
+    if (!searchMember.trim()) return true;
+    const q = searchMember.toLowerCase();
+    return (
+      m.fullName.toLowerCase().includes(q) ||
+      m.phone.includes(q) ||
+      (m.rollNumber && m.rollNumber.toLowerCase().includes(q))
+    );
+  });
+
+  const handleSingleAdd = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!singleName.trim() || !singlePhone.trim()) return;
+    onAddMember(group.id, {
+      fullName: singleName.trim(),
+      phone: singlePhone.trim(),
+      rollNumber: singleRollNo.trim() || undefined,
+      academicLevel: singleAcademicLevel.trim() || undefined,
+      source: 'manual',
+    });
+    setSingleName('');
+    setSinglePhone('');
+    setSingleRollNo('');
+    setActiveTab('list');
+  };
+
+  const handleBulkAdd = () => {
+    if (!bulkText.trim()) return;
+    const lines = bulkText.split('\n').map((l) => l.trim()).filter(Boolean);
+    const parsed: Array<Omit<StudentGroupMember, 'id' | 'addedAt'>> = [];
+
+    lines.forEach((line) => {
+      // Split by comma or tab or spaces
+      const parts = line.split(/[,;\t]+/).map((p) => p.trim()).filter(Boolean);
+      let name = '';
+      let phone = '';
+
+      if (parts.length >= 2) {
+        // e.g. "Ramesh Adhikari, 9841000000" or "9841000000, Ramesh Adhikari"
+        if (/^\+?\d[\d\s-]{6,}$/.test(parts[0])) {
+          phone = parts[0];
+          name = parts.slice(1).join(' ');
+        } else {
+          name = parts[0];
+          phone = parts[1];
+        }
+      } else {
+        // single string, look for phone digits
+        const phoneMatch = line.match(/\b(\+?977[- ]?)?[987]\d{7,9}\b/);
+        if (phoneMatch) {
+          phone = phoneMatch[0];
+          name = line.replace(phoneMatch[0], '').replace(/[-:,]/g, '').trim() || 'Enrolled Student';
+        } else {
+          name = line;
+          phone = '98' + Math.floor(10000000 + Math.random() * 90000000);
+        }
+      }
+
+      if (name && phone) {
+        parsed.push({
+          fullName: name,
+          phone,
+          academicLevel: group.academicLevel,
+          source: 'bulk',
+        });
+      }
+    });
+
+    if (parsed.length > 0) {
+      onBulkAddMembers(group.id, parsed);
+      setBulkStatus(`Successfully parsed and added ${parsed.length} student contact(s)!`);
+      setBulkText('');
+      setTimeout(() => {
+        setBulkStatus(null);
+        setActiveTab('list');
+      }, 1500);
+    }
+  };
+
+  const handleAutoImportInquiries = () => {
+    const importedCount = onImportFromInquiries(group.id);
+    setImportStatus(
+      importedCount > 0
+        ? `Successfully imported ${importedCount} verified student(s) matching ${group.courseName}!`
+        : `All verified applicants for ${group.courseName} are already in this group.`
+    );
+    setTimeout(() => setImportStatus(null), 3500);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-fadeIn">
+      <div className="bg-white rounded-3xl max-w-3xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200 relative max-h-[92vh] overflow-y-auto space-y-5 text-xs sm:text-sm">
+        <button
+          onClick={onClose}
+          className="absolute top-5 right-5 p-1.5 text-slate-400 hover:text-slate-700 cursor-pointer"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h3 className="text-lg font-bold text-[#12315A] flex items-center gap-2">
+              <Users className="w-5 h-5 text-blue-600" />
+              <span>Manage Student Cohort: {group.name}</span>
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Total Enrolled in Group: <strong>{group.members.length}</strong> students •{' '}
+              <span className="font-semibold text-blue-700">{group.courseType || 'New Course'}</span>
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleAutoImportInquiries}
+            className="px-3 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors shadow flex items-center gap-1.5 shrink-0 cursor-pointer"
+          >
+            <UserPlus className="w-3.5 h-3.5" />
+            <span>1-Click Sync Enrolled Inquiries</span>
+          </button>
+        </div>
+
+        {importStatus && (
+          <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-bold flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{importStatus}</span>
+          </div>
+        )}
+
+        {/* Tab switcher: Student List vs Add Single vs Bulk Paste */}
+        <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+          <button
+            onClick={() => setActiveTab('list')}
+            className={`px-3.5 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${
+              activeTab === 'list'
+                ? 'bg-[#12315A] text-white shadow-xs'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            Enrolled Students ({group.members.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('single')}
+            className={`px-3.5 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${
+              activeTab === 'single'
+                ? 'bg-[#12315A] text-white shadow-xs'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            + Add Single Student
+          </button>
+          <button
+            onClick={() => setActiveTab('bulk')}
+            className={`px-3.5 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${
+              activeTab === 'bulk'
+                ? 'bg-[#12315A] text-white shadow-xs'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            Bulk Paste Numbers & Names
+          </button>
+        </div>
+
+        {/* SUBTAB 1: MEMBERS LIST */}
+        {activeTab === 'list' && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Search students by name, roll no, or phone number..."
+                  value={searchMember}
+                  onChange={(e) => setSearchMember(e.target.value)}
+                  className="w-full pl-9 pr-3 py-1.5 rounded-xl border border-slate-200 text-xs bg-slate-50/70"
+                />
+              </div>
+              <span className="text-[11px] text-slate-500 whitespace-nowrap">
+                Showing {filteredMembers.length} of {group.members.length}
+              </span>
+            </div>
+
+            {filteredMembers.length === 0 ? (
+              <div className="p-8 text-center rounded-2xl bg-slate-50 border border-slate-200 text-slate-400 text-xs space-y-2">
+                <Users className="w-8 h-8 text-slate-300 mx-auto" />
+                <p className="font-semibold text-slate-600">No students found</p>
+                <p className="text-[11px]">Use "+ Add Single Student" or "Bulk Paste Numbers" above to add enrolled students.</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-100 border border-slate-200 rounded-2xl overflow-hidden max-h-80 overflow-y-auto bg-white">
+                {filteredMembers.map((m) => {
+                  const cleanedDigits = m.phone.replace(/[^0-9]/g, '');
+                  const waNumber = cleanedDigits.startsWith('977') ? cleanedDigits : `977${cleanedDigits}`;
+                  return (
+                    <div
+                      key={m.id}
+                      className="p-3 hover:bg-slate-50/80 transition-colors flex items-center justify-between gap-3 text-xs"
+                    >
+                      <div className="space-y-0.5 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-slate-900 truncate">{m.fullName}</span>
+                          {m.rollNumber && (
+                            <span className="text-[10px] font-mono bg-blue-50 text-blue-700 px-1.5 py-0.2 rounded border border-blue-200">
+                              {m.rollNumber}
+                            </span>
+                          )}
+                          <span className="text-[9px] uppercase px-1.5 py-0.2 rounded bg-slate-100 text-slate-500">
+                            {m.source}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 font-mono">
+                          {m.phone} • Added {m.addedAt}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <a
+                          href={`https://wa.me/${waNumber}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-2 py-1 rounded-lg text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 flex items-center gap-1 cursor-pointer"
+                          title="Chat on WhatsApp"
+                        >
+                          <MessageCircle className="w-3 h-3 text-emerald-600" />
+                          <span>WhatsApp</span>
+                        </a>
+
+                        <a
+                          href={`tel:${m.phone}`}
+                          className="px-2 py-1 rounded-lg text-[10px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 flex items-center gap-1 cursor-pointer"
+                          title="Call Student"
+                        >
+                          <Phone className="w-3 h-3 text-blue-600" />
+                          <span>Call</span>
+                        </a>
+
+                        <button
+                          onClick={() => {
+                            if (confirm(`Remove ${m.fullName} from this group?`)) {
+                              onRemoveMember(group.id, m.id);
+                            }
+                          }}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
+                          title="Remove from group"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* SUBTAB 2: ADD SINGLE STUDENT */}
+        {activeTab === 'single' && (
+          <form onSubmit={handleSingleAdd} className="space-y-3.5 p-4 rounded-2xl bg-slate-50 border border-slate-200">
+            <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider">
+              Add Enrolled Student to Group
+            </h4>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Student Full Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Ramesh Kumar Adhikari"
+                  value={singleName}
+                  onChange={(e) => setSingleName(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Mobile / WhatsApp Number *</label>
+                <input
+                  type="tel"
+                  required
+                  placeholder="e.g. 9841234567 / 9767648342"
+                  value={singlePhone}
+                  onChange={(e) => setSinglePhone(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Roll / SSS Reg Number</label>
+                <input
+                  type="text"
+                  placeholder="e.g. SSS-BBS-2081-45"
+                  value={singleRollNo}
+                  onChange={(e) => setSingleRollNo(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Academic Level / Term</label>
+                <input
+                  type="text"
+                  value={singleAcademicLevel}
+                  onChange={(e) => setSingleAcademicLevel(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                />
+              </div>
+            </div>
+
+            <div className="pt-2 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setActiveTab('list')}
+                className="px-4 py-2 rounded-xl font-bold text-slate-600 bg-white border border-slate-200"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-5 py-2 rounded-xl font-bold text-white bg-blue-700 hover:bg-blue-800 shadow"
+              >
+                Add Student to Group
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* SUBTAB 3: BULK PASTE NUMBERS & NAMES */}
+        {activeTab === 'bulk' && (
+          <div className="space-y-3.5 p-4 rounded-2xl bg-slate-50 border border-slate-200">
+            <div>
+              <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider">
+                Bulk Paste Student Contact Numbers & Names
+              </h4>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Paste student lists directly from Excel, CSV, or WhatsApp exports. Supports formats:
+                <code className="text-blue-700 ml-1">Name, 98XXXXXXXX</code> or <code className="text-blue-700">98XXXXXXXX Name</code> (one per line).
+              </p>
+            </div>
+
+            {bulkStatus && (
+              <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-bold">
+                {bulkStatus}
+              </div>
+            )}
+
+            <div>
+              <textarea
+                rows={6}
+                placeholder={`Ramesh Kumar Adhikari, 9841234567\nSita Sharma, 9801234567\nBikash Thapa, 9812345678\nPooja Shrestha, 9860123456`}
+                value={bulkText}
+                onChange={(e) => setBulkText(e.target.value)}
+                className="w-full p-3 rounded-xl border border-slate-200 bg-white font-mono text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div className="flex items-center justify-between pt-1">
+              <span className="text-[11px] text-slate-500">
+                {bulkText.trim() ? `${bulkText.split('\n').filter(Boolean).length} line(s) detected` : 'Empty list'}
+              </span>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('list')}
+                  className="px-4 py-2 rounded-xl font-bold text-slate-600 bg-white border border-slate-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleBulkAdd}
+                  disabled={!bulkText.trim()}
+                  className="px-5 py-2 rounded-xl font-bold text-white bg-blue-700 hover:bg-blue-800 disabled:opacity-50 shadow cursor-pointer"
+                >
+                  Parse & Add All Students
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};

@@ -1,0 +1,7 @@
+{
+  "name": "SHIKSHYALAYASHAIKSHIKSANSTHA",
+  "description": "Official educational institute platform for Shikshyalaya Shaikshik Sanstha — Academic tuition, exam preparation, study materials, and student support for +2 and university-level students.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+

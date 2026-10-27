@@ -1,0 +1,92 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (request.auth.token.role == 'admin' ||
+         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+    }
+
+    function isStudent() {
+      return isAuthenticated() &&
+        (request.auth.token.role == 'student' ||
+         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'student');
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Public Collections: Anyone can read published academic content; only admin can write
+    match /courses/{courseId} {
+      allow read: if resource.data.published == true || isAdmin();
+      allow write: if isAdmin();
+    }
+
+    match /teachers/{teacherId} {
+      allow read: if resource.data.published == true || isAdmin();
+      allow write: if isAdmin();
+    }
+
+    match /notices/{noticeId} {
+      allow read: if resource.data.published == true || isAdmin();
+      allow write: if isAdmin();
+    }
+
+    match /gallery/{itemId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /siteSettings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /faqs/{faqId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Study Materials: Public items can be read by anyone; restricted items require student or admin auth
+    match /studyMaterials/{materialId} {
+      allow read: if resource.data.accessLevel == 'Public' || isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Admission Inquiries: Anyone can submit an inquiry; only admin can read all & update statuses
+    match /admissionInquiries/{inquiryId} {
+      allow create: if request.resource.data.fullName is string &&
+                       request.resource.data.phone is string &&
+                       request.resource.data.courseSlug is string;
+      allow read, update, delete: if isAdmin();
+    }
+
+    // Contact Messages: Anyone can submit; only admin can read/manage
+    match /contactMessages/{messageId} {
+      allow create: if request.resource.data.name is string &&
+                       request.resource.data.phone is string &&
+                       request.resource.data.message is string;
+      allow read, update, delete: if isAdmin();
+    }
+
+    // User profiles & student personal records
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if isAdmin();
+    }
+
+    match /students/{studentId} {
+      allow read: if (isAuthenticated() && request.auth.uid == studentId) || isAdmin();
+      allow write: if isAdmin();
+    }
+  }
+}
