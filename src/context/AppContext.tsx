@@ -38,6 +38,9 @@ import {
   syncAllDataToSupabase,
   fetchInquiriesFromSupabase,
   fetchSubmissionsFromSupabase,
+  deleteInquiryFromSupabase,
+  deleteMultipleInquiriesFromSupabase,
+  clearAllInquiriesFromSupabase,
 } from '../services/supabaseService';
 
 interface AppContextType {
@@ -87,6 +90,9 @@ interface AppContextType {
     }
   ) => { success: boolean; message: string; inquiry?: AdmissionInquiry };
   addInquiryNote: (id: string, noteText: string) => void;
+  deleteInquiry: (id: string) => Promise<void>;
+  deleteMultipleInquiries: (ids: string[]) => Promise<void>;
+  clearAllInquiries: () => Promise<void>;
   exportInquiriesCSV: () => void;
 
   contactMessages: ContactMessage[];
@@ -343,11 +349,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Admission Inquiries
   const [inquiries, setInquiries] = useState<AdmissionInquiry[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.INQUIRIES);
-    if (!saved) return INITIAL_INQUIRIES;
-    const parsed: AdmissionInquiry[] = JSON.parse(saved);
-    const existingIds = new Set(parsed.map((i) => i.id));
-    const toAdd = INITIAL_INQUIRIES.filter((i) => !existingIds.has(i.id));
-    return [...parsed, ...toAdd];
+    if (saved !== null) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        return [];
+      }
+    }
+    return INITIAL_INQUIRIES;
   });
 
   // Contact Messages
@@ -847,6 +856,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return inq;
       })
     );
+  };
+
+  const deleteInquiry = async (id: string) => {
+    setInquiries((prev) => {
+      const updated = prev.filter((inq) => inq.id !== id);
+      try {
+        localStorage.setItem(STORAGE_KEYS.INQUIRIES, JSON.stringify(updated));
+      } catch (err) {
+        console.warn('Error saving to localStorage:', err);
+      }
+      return updated;
+    });
+    await deleteInquiryFromSupabase(id).catch(console.warn);
+  };
+
+  const deleteMultipleInquiries = async (ids: string[]) => {
+    const idSet = new Set(ids);
+    setInquiries((prev) => {
+      const updated = prev.filter((inq) => !idSet.has(inq.id));
+      try {
+        localStorage.setItem(STORAGE_KEYS.INQUIRIES, JSON.stringify(updated));
+      } catch (err) {
+        console.warn('Error saving to localStorage:', err);
+      }
+      return updated;
+    });
+    await deleteMultipleInquiriesFromSupabase(ids).catch(console.warn);
+  };
+
+  const clearAllInquiries = async () => {
+    setInquiries([]);
+    try {
+      localStorage.setItem(STORAGE_KEYS.INQUIRIES, JSON.stringify([]));
+    } catch (err) {
+      console.warn('Error saving to localStorage:', err);
+    }
+    await clearAllInquiriesFromSupabase().catch(console.warn);
   };
 
   const exportInquiriesCSV = () => {
@@ -1530,6 +1576,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         verifyAndEnrollApplicant,
         attachPaymentProofToInquiry,
         addInquiryNote,
+        deleteInquiry,
+        deleteMultipleInquiries,
+        clearAllInquiries,
         exportInquiriesCSV,
         contactMessages,
         submitContactMessage,

@@ -87,6 +87,9 @@ export const AdminDashboardPage: React.FC = () => {
     updateInquiryStatus,
     verifyAndEnrollApplicant,
     addInquiryNote,
+    deleteInquiry,
+    deleteMultipleInquiries,
+    clearAllInquiries,
     exportInquiriesCSV,
     contactMessages,
     studentGroups,
@@ -135,6 +138,8 @@ export const AdminDashboardPage: React.FC = () => {
   const [inquiryStatusFilter, setInquiryStatusFilter] = useState<string>('ALL');
   const [selectedInquiryDetail, setSelectedInquiryDetail] = useState<any | null>(null);
   const [newNoteText, setNewNoteText] = useState('');
+  const [inquiryToastMessage, setInquiryToastMessage] = useState<string | null>(null);
+  const [selectedInquiryIds, setSelectedInquiryIds] = useState<string[]>([]);
 
   // Payment proof verification states
   const [selectedProofModalUrl, setSelectedProofModalUrl] = useState<string | null>(null);
@@ -582,16 +587,39 @@ export const AdminDashboardPage: React.FC = () => {
                           </span>
                         </td>
                         <td className="py-2.5 px-3 text-right">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              handleOpenInquiryDetail(inq);
-                              setActiveTab('inquiries');
-                            }}
-                            className="px-2 py-1 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 text-[11px] font-bold cursor-pointer"
-                          >
-                            {inq.hasPaymentProof && !inq.paymentVerified ? 'Verify Proof' : 'View'}
-                          </button>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleOpenInquiryDetail(inq);
+                                setActiveTab('inquiries');
+                              }}
+                              className="px-2 py-1 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 text-[11px] font-bold cursor-pointer"
+                            >
+                              {inq.hasPaymentProof && !inq.paymentVerified ? 'Verify Proof' : 'View'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (
+                                  confirm(
+                                    `Are you sure you want to permanently delete inquiry ${inq.referenceNumber} for ${inq.fullName}?`
+                                  )
+                                ) {
+                                  await deleteInquiry(inq.id);
+                                  setInquiryToastMessage(
+                                    `Inquiry ${inq.referenceNumber} (${inq.fullName}) deleted successfully.`
+                                  );
+                                  setTimeout(() => setInquiryToastMessage(null), 3500);
+                                }
+                              }}
+                              className="px-2 py-1 rounded text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                              title={`Delete ${inq.referenceNumber}`}
+                            >
+                              <Trash2 className="w-3 h-3 text-rose-600" />
+                              <span>Delete</span>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -646,6 +674,114 @@ export const AdminDashboardPage: React.FC = () => {
       {/* TAB 2: ADMISSION INQUIRIES MANAGEMENT */}
       {activeTab === 'inquiries' && (
         <div className="space-y-6 animate-fadeIn">
+          {/* Inquiries Header & Batch Actions */}
+          <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-blue-50 text-blue-700">
+                  <GraduationCap className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-[#12315A]">
+                    Admission Inquiries & Student Applications
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Total Inquiries: <strong>{inquiries.length}</strong> • Pending Payment Verifications: <strong>{stats.pendingPayments}</strong>
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Delete Sample / Demo Data Button */}
+              {(() => {
+                const demoList = inquiries.filter(
+                  (i) =>
+                    i.id === 'inq-1' ||
+                    i.id === 'inq-2' ||
+                    i.id === 'inq-3' ||
+                    i.id === 'inq-4' ||
+                    i.id === 'inq-5' ||
+                    i.referenceNumber.startsWith('SSS-ADM-2026-100')
+                );
+                if (demoList.length === 0) return null;
+                return (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (
+                        confirm(
+                          `Delete all ${demoList.length} sample admission records (Aayush, Pooja, Bibek, Sunil, Prashant)?\n\nThis will permanently remove them from both local storage and your Supabase database.`
+                        )
+                      ) {
+                        const ids = demoList.map((d) => d.id);
+                        await deleteMultipleInquiries(ids);
+                        setInquiryToastMessage(
+                          `Successfully deleted ${ids.length} sample inquiry record(s) from database!`
+                        );
+                        setTimeout(() => setInquiryToastMessage(null), 3500);
+                      }
+                    }}
+                    className="px-3.5 py-2.5 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                    title="Remove sample student inquiry records"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                    <span>Delete Sample Data ({demoList.length})</span>
+                  </button>
+                );
+              })()}
+
+              {/* Clear All Inquiries Button */}
+              {inquiries.length > 0 && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (
+                      confirm(
+                        `Are you sure you want to permanently delete ALL ${inquiries.length} inquiries?\n\nThis cannot be undone.`
+                      )
+                    ) {
+                      await clearAllInquiries();
+                      setInquiryToastMessage('All admission inquiries cleared.');
+                      setTimeout(() => setInquiryToastMessage(null), 3500);
+                    }
+                  }}
+                  className="px-3 py-2.5 rounded-xl text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-colors flex items-center gap-1.5 cursor-pointer"
+                  title="Wipe all inquiries"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Clear All</span>
+                </button>
+              )}
+
+              {/* Export CSV Button */}
+              <button
+                type="button"
+                onClick={exportInquiriesCSV}
+                className="px-3.5 py-2.5 rounded-xl text-xs font-bold text-[#12315A] bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+              >
+                <Download className="w-3.5 h-3.5 text-blue-700" />
+                <span>Export CSV</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Toast Notification Alert */}
+          {inquiryToastMessage && (
+            <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-950 text-xs font-bold flex items-center justify-between shadow-xs animate-fadeIn">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{inquiryToastMessage}</span>
+              </div>
+              <button
+                onClick={() => setInquiryToastMessage(null)}
+                className="text-emerald-700 hover:text-emerald-900 p-1"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
           {/* Search & Filter Bar */}
           <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
             <div className="relative w-full md:w-80">
@@ -700,13 +836,70 @@ export const AdminDashboardPage: React.FC = () => {
             </div>
           </div>
 
+          {/* Multi-Select Batch Actions Bar */}
+          {selectedInquiryIds.length > 0 && (
+            <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl flex items-center justify-between gap-3 text-xs animate-fadeIn shadow-xs">
+              <div className="flex items-center gap-2 text-rose-950 font-bold">
+                <CheckCircle2 className="w-4 h-4 text-rose-600" />
+                <span>{selectedInquiryIds.length} student inquiry record(s) selected</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedInquiryIds([])}
+                  className="px-3 py-1.5 rounded-xl text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 font-bold cursor-pointer"
+                >
+                  Deselect All
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (
+                      confirm(
+                        `Permanently delete all ${selectedInquiryIds.length} selected admission inquiry records?\n\nThis will remove them from local storage and Supabase database.`
+                      )
+                    ) {
+                      const count = selectedInquiryIds.length;
+                      await deleteMultipleInquiries(selectedInquiryIds);
+                      setSelectedInquiryIds([]);
+                      setInquiryToastMessage(`Successfully deleted ${count} selected inquiry record(s).`);
+                      setTimeout(() => setInquiryToastMessage(null), 3500);
+                    }
+                  }}
+                  className="px-4 py-1.5 rounded-xl text-white bg-rose-600 hover:bg-rose-700 font-bold flex items-center gap-1.5 shadow-xs cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete Selected ({selectedInquiryIds.length})</span>
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Inquiries Table */}
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 text-[10px] uppercase font-bold tracking-wider">
-                    <th className="py-3 px-4">Ref Number</th>
+                    <th className="py-3 px-3 w-8 text-center">
+                      <input
+                        type="checkbox"
+                        aria-label="Select all inquiries"
+                        checked={
+                          filteredInquiries.length > 0 &&
+                          filteredInquiries.every((i) => selectedInquiryIds.includes(i.id))
+                        }
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedInquiryIds(filteredInquiries.map((i) => i.id));
+                          } else {
+                            setSelectedInquiryIds([]);
+                          }
+                        }}
+                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer w-4 h-4"
+                      />
+                    </th>
+                    <th className="py-3 px-3">Ref Number</th>
                     <th className="py-3 px-4">Student Name</th>
                     <th className="py-3 px-4">Program & Level</th>
                     <th className="py-3 px-4">Payment Proof</th>
@@ -718,8 +911,28 @@ export const AdminDashboardPage: React.FC = () => {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filteredInquiries.map((inq) => (
-                    <tr key={inq.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="py-3 px-4 font-mono font-bold text-slate-800">
+                    <tr
+                      key={inq.id}
+                      className={`hover:bg-slate-50 transition-colors ${
+                        selectedInquiryIds.includes(inq.id) ? 'bg-rose-50/40' : ''
+                      }`}
+                    >
+                      <td className="py-3 px-3 text-center">
+                        <input
+                          type="checkbox"
+                          aria-label={`Select ${inq.referenceNumber}`}
+                          checked={selectedInquiryIds.includes(inq.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedInquiryIds((prev) => [...prev, inq.id]);
+                            } else {
+                              setSelectedInquiryIds((prev) => prev.filter((id) => id !== inq.id));
+                            }
+                          }}
+                          className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer w-4 h-4"
+                        />
+                      </td>
+                      <td className="py-3 px-3 font-mono font-bold text-slate-800">
                         {inq.referenceNumber}
                       </td>
                       <td className="py-3 px-4">
@@ -820,12 +1033,36 @@ export const AdminDashboardPage: React.FC = () => {
                         </select>
                       </td>
                       <td className="py-3 px-4 text-right">
-                        <button
-                          onClick={() => handleOpenInquiryDetail(inq)}
-                          className="px-2.5 py-1 rounded-lg text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors cursor-pointer"
-                        >
-                          {inq.hasPaymentProof && !inq.paymentVerified ? 'Verify Proof' : 'Details'}
-                        </button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => handleOpenInquiryDetail(inq)}
+                            className="px-2.5 py-1 rounded-lg text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors cursor-pointer"
+                          >
+                            {inq.hasPaymentProof && !inq.paymentVerified ? 'Verify Proof' : 'Details'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (
+                                confirm(
+                                  `Are you sure you want to permanently delete inquiry ${inq.referenceNumber} for ${inq.fullName}?`
+                                )
+                              ) {
+                                await deleteInquiry(inq.id);
+                                setSelectedInquiryIds((prev) => prev.filter((id) => id !== inq.id));
+                                setInquiryToastMessage(
+                                  `Inquiry ${inq.referenceNumber} (${inq.fullName}) deleted successfully.`
+                                );
+                                setTimeout(() => setInquiryToastMessage(null), 3500);
+                              }
+                            }}
+                            className="px-2.5 py-1 rounded-lg text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-colors flex items-center gap-1 cursor-pointer shadow-2xs"
+                            title={`Delete inquiry ${inq.referenceNumber}`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                            <span>Delete</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1218,7 +1455,29 @@ export const AdminDashboardPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="pt-2 border-t border-slate-100 flex justify-end">
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={async () => {
+                  if (
+                    confirm(
+                      `Permanently delete inquiry ${selectedInquiryDetail.referenceNumber} for ${selectedInquiryDetail.fullName}?`
+                    )
+                  ) {
+                    await deleteInquiry(selectedInquiryDetail.id);
+                    setSelectedInquiryDetail(null);
+                    setInquiryToastMessage(
+                      `Inquiry ${selectedInquiryDetail.referenceNumber} has been permanently deleted.`
+                    );
+                    setTimeout(() => setInquiryToastMessage(null), 3500);
+                  }
+                }}
+                className="px-3.5 py-2 rounded-xl font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 text-xs flex items-center gap-1.5 cursor-pointer border border-rose-200 transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                <span>Delete This Inquiry</span>
+              </button>
+
               <button
                 onClick={() => setSelectedInquiryDetail(null)}
                 className="px-5 py-2.5 rounded-xl font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 text-xs cursor-pointer"

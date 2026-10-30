@@ -111,6 +111,64 @@ export async function saveInquiryToSupabase(inquiry: AdmissionInquiry): Promise<
 }
 
 /**
+ * Deletes an admission inquiry from Supabase
+ */
+export async function deleteInquiryFromSupabase(id: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await supabase.from('admission_inquiries').delete().eq('id', id);
+    // Also remove from fallback app_storage if present
+    try {
+      await supabase.from('app_storage').delete().eq('key', `inquiry:${id}`);
+    } catch {
+      // ignore
+    }
+    if (error) {
+      console.warn('[Supabase] Could not delete inquiry from admission_inquiries table:', error.message);
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (err: any) {
+    console.error('[Supabase] Exception deleting inquiry:', err);
+    return { success: false, error: err?.message };
+  }
+}
+
+/**
+ * Deletes multiple admission inquiries by IDs from Supabase
+ */
+export async function deleteMultipleInquiriesFromSupabase(ids: string[]): Promise<{ success: boolean; error?: string }> {
+  try {
+    if (!ids.length) return { success: true };
+    const { error } = await supabase.from('admission_inquiries').delete().in('id', ids);
+    if (error) {
+      console.warn('[Supabase] Could not bulk delete inquiries:', error.message);
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (err: any) {
+    console.error('[Supabase] Exception bulk deleting inquiries:', err);
+    return { success: false, error: err?.message };
+  }
+}
+
+/**
+ * Clears all admission inquiries from Supabase
+ */
+export async function clearAllInquiriesFromSupabase(): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await supabase.from('admission_inquiries').delete().neq('id', '');
+    if (error) {
+      console.warn('[Supabase] Could not clear admission_inquiries:', error.message);
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (err: any) {
+    console.error('[Supabase] Exception clearing inquiries:', err);
+    return { success: false, error: err?.message };
+  }
+}
+
+/**
  * Saves or updates a mock test submission (student answer sheet / result) in Supabase
  */
 export async function saveMockSubmissionToSupabase(
