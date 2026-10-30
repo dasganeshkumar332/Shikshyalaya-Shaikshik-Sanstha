@@ -97,3 +97,25 @@ npm run build
    npm run build
    firebase deploy --only hosting
    ```
+
+---
+
+### 7. Netlify Deployment (Step-by-Step)
+
+The project includes `netlify.toml` and `public/_redirects` pre-configured for SPA client routing and HTTP caching headers.
+
+#### Build Settings
+- **Build command:** `npm run build`
+- **Publish directory:** `dist`
+- **Node version:** `20`
+
+#### Required Netlify Environment Variables
+In **Netlify Dashboard &rarr; Site Configuration &rarr; Environment variables**:
+- `VITE_SUPABASE_URL`: `https://pyjsnwazsbdaupjbaqcd.supabase.co`
+- `VITE_SUPABASE_ANON_KEY`: `sb_publishable_Sb_og4V9GxxLA_yiZCVMdQ_wfydVcil`
+- `NODE_VERSION`: `20`
+
+#### Quick Deploy Options
+1. **Option A (Git Connect):** Connect your GitHub/GitLab repo. Netlify reads `netlify.toml` automatically.
+2. **Option B (Drag and Drop):** Run `npm run build` and drag the resulting `dist/` directory directly into [app.netlify.com/drop](https://app.netlify.com/drop).
+

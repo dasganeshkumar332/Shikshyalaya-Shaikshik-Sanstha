@@ -44,6 +44,7 @@ export const UploadAnswerSheetPage: React.FC = () => {
 
   const [searchParams] = useSearchParams();
   const preselectedCourse = searchParams.get('course');
+  const preselectedYear = searchParams.get('year');
   const preselectedSubject = searchParams.get('subject');
   const preselectedTestId = searchParams.get('testId');
 
@@ -54,7 +55,7 @@ export const UploadAnswerSheetPage: React.FC = () => {
     preselectedCourse || 'bbs-tu'
   );
   const [selectedCourseType, setSelectedCourseType] = useState<CourseType>('New Course');
-  const [selectedYearOrSem, setSelectedYearOrSem] = useState<string>('1st Year');
+  const [selectedYearOrSem, setSelectedYearOrSem] = useState<string>(preselectedYear || '1st Year');
   const [selectedSubject, setSelectedSubject] = useState<string>(preselectedSubject || '');
   const [customSubject, setCustomSubject] = useState<string>('');
   const [subjectCode, setSubjectCode] = useState<string>('');
@@ -127,10 +128,16 @@ export const UploadAnswerSheetPage: React.FC = () => {
 
   // Sync selected term
   useEffect(() => {
-    if (availableTerms.length > 0 && !availableTerms.includes(selectedYearOrSem)) {
-      setSelectedYearOrSem(availableTerms[0]);
+    if (availableTerms.length > 0) {
+      if (preselectedYear && availableTerms.includes(preselectedYear)) {
+        setSelectedYearOrSem(preselectedYear);
+        return;
+      }
+      if (!availableTerms.includes(selectedYearOrSem)) {
+        setSelectedYearOrSem(availableTerms[0]);
+      }
     }
-  }, [availableTerms, selectedYearOrSem]);
+  }, [availableTerms, preselectedYear, selectedYearOrSem]);
 
   // Derived available subjects for the selected term & course
   const availableSubjects = React.useMemo(() => {

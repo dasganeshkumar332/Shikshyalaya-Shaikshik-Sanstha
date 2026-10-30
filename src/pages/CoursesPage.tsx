@@ -221,7 +221,8 @@ export const CoursesPage: React.FC = () => {
                 onChange={(e) => setSelectedCategory(e.target.value)}
                 className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs font-medium bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="ALL">All Categories (+2, Bachelor, Master)</option>
+                <option value="ALL">All Categories (+2, Bachelor, Master, Loksewa)</option>
+                <option value="loksewa">लोक सेवा आयोग (Loksewa Aayog Preparation)</option>
                 <option value="+2">+2 Higher Secondary</option>
                 <option value="bachelor">Bachelor Level</option>
                 <option value="master">Master Level</option>
@@ -231,14 +232,16 @@ export const CoursesPage: React.FC = () => {
             {/* University / Board */}
             <div>
               <label className="block text-slate-500 font-bold uppercase tracking-wider text-[10px] mb-1">
-                University or Board
+                University or Board / Commission
               </label>
               <select
                 value={selectedBoard}
                 onChange={(e) => setSelectedBoard(e.target.value)}
                 className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs font-medium bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="ALL">All Boards & Universities</option>
+                <option value="ALL">All Boards & Commissions</option>
+                <option value="Public Service Commission (Loksewa Aayog)">Public Service Commission (Loksewa Aayog)</option>
+                <option value="Teachers Service Commission (TSC)">Teachers Service Commission (TSC)</option>
                 <option value="Tribhuvan University (TU)">Tribhuvan University (TU)</option>
                 <option value="Pokhara University (PU)">Pokhara University (PU)</option>
                 <option value="National Examinations Board (NEB)">National Examinations Board (NEB)</option>
@@ -292,7 +295,10 @@ export const CoursesPage: React.FC = () => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredCourses.map((course) => {
-              const getCourseBadgeIcon = (slug: string) => {
+              const getCourseBadgeIcon = (slug: string, category?: string) => {
+                if (category === 'loksewa' || slug.startsWith('loksewa') || slug.includes('tsc')) {
+                  return { icon: Award, bg: 'bg-gradient-to-br from-amber-500 to-rose-600 text-white' };
+                }
                 switch (slug) {
                   case 'bbs-tu':
                   case '3-year-bbs-tu':
@@ -314,7 +320,7 @@ export const CoursesPage: React.FC = () => {
                     return { icon: BookOpen, bg: 'bg-gradient-to-br from-blue-600 to-blue-700 text-white' };
                 }
               };
-              const badgeInfo = getCourseBadgeIcon(course.slug);
+              const badgeInfo = getCourseBadgeIcon(course.slug, course.category);
               const BadgeIcon = badgeInfo.icon;
 
               return (

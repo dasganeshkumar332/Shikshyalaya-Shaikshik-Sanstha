@@ -20,7 +20,7 @@ export const INITIAL_SETTINGS: SiteSettings = {
   facebookUrl: 'https://www.facebook.com/profile.php?id=61559336878917',
   instagramUrl: 'https://instagram.com',
   youtubeUrl: 'https://www.youtube.com/@ShikshyalayaShaikshik/videos',
-  noticeMarqueeText: 'Feel the magic of learning. Admissions Open for Academic Programs: 4-Year BBS - TU, 3-Year BBS (TU Old Course), MBS - TU, BBA - TU, BBM - TU, +2 Science, +2 Management, and BBA Pokhara University. Contact: +977 9767648342',
+  noticeMarqueeText: 'Feel the magic of learning. Admissions Open for Academic & Competitive Programs: Loksewa Aayog (Nayab Subba, Section Officer, Kharidar, Banking), 4-Year BBS - TU, 3-Year BBS (TU Old Course), MBS - TU, BBA - TU, BBM - TU, +2 Science, +2 Management, and BBA Pokhara University. Contact: +977 9767648342',
   isNoticeMarqueeActive: true,
   onlineClassesEnabled: true,
   registrationOpen: true,
@@ -817,6 +817,727 @@ export const INITIAL_COURSES: Course[] = [
       'Daily 2-hour intensive problem sessions',
     ],
     metaDescription: '+2 Old Course NEB tuition classes in Kathmandu. Physics, Chemistry, Accounting & Math backpaper coaching.',
+  },
+
+  // ==========================================
+  // LOKSEWA AAYOG (PUBLIC SERVICE COMMISSION) NEPAL
+  // ==========================================
+  {
+    id: 'course-loksewa-level-6',
+    slug: 'loksewa-officer-level-6',
+    title: 'Loksewa 6th Level Officer (अधिकृत छैटौं तह – Level 6) Preparation',
+    devanagariTitle: 'लोक सेवा आयोग / प्रदेश तथा स्थानीय तह – अधिकृत छैटौं तह (तह ६) सम्पूर्ण तयारी',
+    courseType: 'New Course',
+    syllabusVersion: 'Official PSC Nepal & Provincial PSC (PPSC) 6th Level (अधिकृत छैटौं) Curriculum',
+    hasOldCourseOption: false,
+    newCourseNotes: 'Full curriculum preparation for Federal, Provincial (प्रदेश लोक सेवा आयोग) & Local Level (स्थानीय तह) Officer 6th Level: 1st Paper (GK & IQ), 2nd Paper (Governance System, Constitution & Local Administration), and 3rd Paper (Service Specific: General Administration, Accounting/Finance, Revenue & Education Administration).',
+    shortDescription: 'Targeted executive coaching for Loksewa Officer 6th Level (अधिकृत छैटौं तह - Level 6) under Federal PSC, Provincial PSC (Bagmati, Koshi, Gandaki, Lumbini, etc.), and Local Government Services, featuring analytical writing, local governance, and daily GK/IQ problem solving.',
+    longDescription: 'Officer 6th Level (अधिकृत छैटौं तह) is a crucial gazetted/officer rank in Nepal civil service, provincial governments (प्रदेश निजामती सेवा), and local executive offices (स्थानीय तह). Candidates require thorough command over constitutional structures, fiscal federalism, Local Government Operation Act 2074, administrative procedures, and rapid mental ability. Our classes are led by senior joint secretaries, under secretaries, and provincial civil service toppers.',
+    category: 'loksewa',
+    board: 'Public Service Commission (Loksewa Aayog)',
+    duration: '3.5 Months Comprehensive Program',
+    level: 'Civil & Provincial Service — Officer 6th Level (अधिकृत छैटौं तह)',
+    eligibleStudents: [
+      'Graduates with Bachelor’s degree in any faculty (Management, Humanities, Science, Education, Law) from a recognized university',
+      'Candidates appearing for Federal Civil Service 6th Level and Provincial PSC (प्रदेश लोक सेवा आयोग तह ६)',
+      'Aspirants targeting Local Government Service 6th Level Officer (स्थानीय तह अधिकृत छैटौं तह - प्रशासन, लेखा, राजस्व, शिक्षा)',
+      'Students qualifying 1st paper objective test preparing for 2nd and 3rd paper subjective written exams',
+    ],
+    subjectsOffered: [
+      {
+        name: 'General Knowledge (GK) & Mental Ability Test (IQ)',
+        code: 'LV6-GK-01',
+        semesterOrYear: '1st Paper (Objective - 100 Marks)',
+        courseType: 'New Course',
+        description: 'National and international contemporary affairs, geography, history and culture of Nepal, Constitution, federalism, environment, science and technology, and comprehensive verbal/numerical IQ reasoning.',
+      },
+      {
+        name: 'Governance System, Constitution & Public Administration',
+        code: 'LV6-GOV-02',
+        semesterOrYear: '2nd Paper (Subjective - 100 Marks)',
+        courseType: 'New Course',
+        description: 'State and Governance, Constitution of Nepal, Federal and Provincial Government systems, Good Governance Act, Citizen Charter, RTI, Public Policy, and Local Administration in Nepal.',
+      },
+      {
+        name: 'Service Related – General Administration & Local Governance (प्रशासन)',
+        code: 'LV6-ADM-03',
+        semesterOrYear: '3rd Paper (Subjective - 100 Marks)',
+        courseType: 'New Course',
+        description: 'Local Government Operation Act 2074, Civil Service regulations, personnel management, office drafting & Tippani, decision-making, and public ethics.',
+      },
+      {
+        name: 'Service Related – Accounting & Public Financial Management (लेखा)',
+        code: 'LV6-ACC-03',
+        semesterOrYear: '3rd Paper (Subjective - 100 Marks)',
+        courseType: 'New Course',
+        description: 'CGAS, Single Treasury Account (TSA), Public Procurement Act 2063 & Rules, internal/final audit, local level revenue mobilization, and SuTRA financial management.',
+      },
+      {
+        name: 'Service Related – Revenue Administration (राजस्व)',
+        code: 'LV6-REV-03',
+        semesterOrYear: '3rd Paper (Subjective - 100 Marks)',
+        courseType: 'New Course',
+        description: 'Direct & indirect taxation in Nepal, Income Tax Act, VAT, Customs, local tax administration (property tax, business tax), and fiscal equalization grants.',
+      },
+      {
+        name: 'Service Related – Education Administration (शिक्षा अधिकृत / प्रा.स.)',
+        code: 'LV6-EDU-03',
+        semesterOrYear: '3rd Paper (Subjective - 100 Marks)',
+        courseType: 'New Course',
+        description: 'Education Act & Rules, school education governance, curriculum development, teacher management, monitoring and evaluation of basic and secondary education.',
+      },
+    ],
+    classModes: ['Online', 'Offline', 'Hybrid'],
+    schedule: 'Morning Batch (5:30 AM – 8:30 AM) | Evening Batch (6:30 PM – 9:30 PM)',
+    feeInfo: 'Complete 3-Paper Package or 1st Paper GK/IQ bundle available. Official syllabus PDF, lecture notes & mock tests included.',
+    featured: true,
+    published: true,
+    assignedTeacherIds: ['teacher-1', 'teacher-2', 'teacher-6', 'teacher-7'],
+    features: [
+      'Guidance by serving Under Secretaries, Section Officers, and Provincial Rank Holders',
+      'Daily 50-MCQ speed drills on GK and IQ with negative marking simulation',
+      'Intensive training on Local Government Operation Act 2074 and SuTRA accounting',
+      'Weekly subjective paper evaluation with examiner commentary and scorecards',
+      'Special focus on analytical presentation (परिचय, कानुनी व्यवस्था, समस्या र निष्कर्ष)',
+      'Full video backup of every live lecture accessible 24/7 on student portal',
+    ],
+    metaDescription: 'Loksewa 6th Level Officer (अधिकृत छैटौं तह) Preparation in Kathmandu & Online. Federal, Provincial PSC (PPSC) and Local Level coaching.',
+  },
+  {
+    id: 'course-loksewa-nasu',
+    slug: 'loksewa-nayab-subba',
+    title: 'Loksewa Nayab Subba (नायब सुब्बा – Na.Su.) Preparation',
+    devanagariTitle: 'लोक सेवा आयोग – नायब सुब्बा (ना.सु.) सम्पूर्ण तयारी',
+    courseType: 'New Course',
+    syllabusVersion: 'Official PSC Nepal (Loksewa Aayog) 5th Level Revised Curriculum',
+    hasOldCourseOption: false,
+    newCourseNotes: 'Complete revised syllabus preparation for Loksewa Non-Gazetted 1st Class (Na.Su. / ५औं तह): Paper 1 (GK & IQ), Paper 2 (Contemporary Studies & Public Management), and Paper 3 (Service Related Subject for General Administration, Revenue & Accounts).',
+    shortDescription: 'Comprehensive, result-oriented preparation for Loksewa Nayab Subba (Na.Su. - 5th Level) civil service examinations under Public Service Commission (PSC Nepal), featuring daily GK/IQ tests, subjective answer writing drills, and past question analysis.',
+    longDescription: 'The Nayab Subba (Na.Su.) civil service examination conducted by Loksewa Aayog (Public Service Commission of Nepal) requires speed, sharp recall, and structured answer drafting. Shikshyalaya Shaikshik Sanstha delivers targeted Loksewa coaching guided by serving civil service officers, top-rankers, and seasoned GK/IQ mentors. Students receive daily practice sets, current affairs capsules, constitutional interpretation masterclasses, and weekly simulated model exams with personalized feedback.',
+    category: 'loksewa',
+    board: 'Public Service Commission (Loksewa Aayog)',
+    duration: '3.5 Months Intensive Course',
+    level: 'Civil Service Examination — Non-Gazetted 1st Class (५औं तह)',
+    eligibleStudents: [
+      'Candidates having completed +2 or Proficiency Certificate Level (PCL) in any discipline (Management, Humanities, Science, Education)',
+      'Aspirants preparing for Loksewa Na.Su. 1st Paper (GK & IQ objective screening)',
+      'Students qualifying for 2nd and 3rd Paper subjective written examinations (General Administration, Revenue, Accounts)',
+      'Working professionals seeking early morning (5:30 AM) or evening (7:00 PM) live batches',
+    ],
+    subjectsOffered: [
+      {
+        name: 'General Knowledge (GK) & Current Affairs',
+        code: 'NASU-GK-01',
+        semesterOrYear: '1st Paper (Objective - 100 Marks)',
+        courseType: 'New Course',
+        description: 'Geography of Nepal & World, History & Culture of Nepal, Constitution & Governance, Science & Technology, Environment & Sustainable Development, SAARC & International Orgs, and National/International Current Affairs.',
+      },
+      {
+        name: 'General Mental Ability Test (IQ)',
+        code: 'NASU-IQ-02',
+        semesterOrYear: '1st Paper (Objective - 100 Marks)',
+        courseType: 'New Course',
+        description: 'Verbal reasoning, numerical series, matrices, spatial orientation, coding-decoding, logical deduction, data interpretation, and problem-solving speed techniques.',
+      },
+      {
+        name: 'Contemporary Studies & Public Service Management',
+        code: 'NASU-SUB-02',
+        semesterOrYear: '2nd Paper (Subjective - 100 Marks)',
+        courseType: 'New Course',
+        description: 'Geographical, socio-economic and cultural aspects of Nepal; Public Administration principles, Office Management, citizen charter, RTI, Good Governance, and contemporary national development challenges.',
+      },
+      {
+        name: 'Service Related Subject – General Administration (प्रशासन)',
+        code: 'NASU-ADM-03',
+        semesterOrYear: '3rd Paper (Subjective - 100 Marks)',
+        courseType: 'New Course',
+        description: 'Civil Service Act & Regulations, administrative procedures, Tippani & official drafting, constitutional bodies, federal governance structure, and public financial management in Nepal.',
+      },
+      {
+        name: 'Service Related Subject – Accounts & Audit (लेखा)',
+        code: 'NASU-ACC-03',
+        semesterOrYear: '3rd Paper (Subjective - 100 Marks)',
+        courseType: 'New Course',
+        description: 'Government accounting system in Nepal (CGAS), Single Treasury Account (TSA), procurement laws (PPA/PPR), internal and statutory audit, fiscal responsibility, and financial reporting.',
+      },
+      {
+        name: 'Service Related Subject – Revenue Administration (राजस्व)',
+        code: 'NASU-REV-03',
+        semesterOrYear: '3rd Paper (Subjective - 100 Marks)',
+        courseType: 'New Course',
+        description: 'Income Tax Act 2058, Value Added Tax (VAT) Act 2052, Customs Act 2064, Excise Act 2058, non-tax revenue mobilization, and revenue leakages control.',
+      },
+    ],
+    classModes: ['Online', 'Offline', 'Hybrid'],
+    schedule: 'Morning Batch (5:30 AM – 8:30 AM) | Evening Batch (6:30 PM – 9:30 PM)',
+    feeInfo: 'Complete 3-Paper Package or 1st Paper GK/IQ bundle available. Digital notes and daily online mock tests included.',
+    featured: true,
+    published: true,
+    assignedTeacherIds: ['teacher-1', 'teacher-2', 'teacher-6'],
+    features: [
+      'Classes led by Under Secretaries, Section Officers, and Loksewa exam top rankers',
+      'Daily 50-question GK & IQ practice drills with instant answer keys',
+      'Weekly simulated Loksewa OMR mock tests on Saturdays with merit ranking',
+      'Comprehensive Loksewa GK & Contemporary Affairs booklet in PDF',
+      'Subjective answer writing formats (परिचय, व्यवस्था, समस्या र समाधानका उपाय)',
+      'Recorded video archives accessible 24/7 for regular revision',
+    ],
+    metaDescription: 'Loksewa Nayab Subba (Na.Su.) Preparation in Kathmandu & Online at Shikshyalaya. 1st Paper GK/IQ and 2nd/3rd Paper Subjective coaching.',
+  },
+  {
+    id: 'course-loksewa-officer',
+    slug: 'loksewa-section-officer',
+    title: 'Loksewa Section Officer (शाखा अधिकृत – Officer) Preparation',
+    devanagariTitle: 'लोक सेवा आयोग – शाखा अधिकृत (अधिकृत) सम्पूर्ण तयारी',
+    courseType: 'New Course',
+    syllabusVersion: 'Official PSC Nepal Gazetted 3rd Class (अधिकृत) Master Curriculum',
+    hasOldCourseOption: false,
+    newCourseNotes: 'Complete preparation for Loksewa Gazetted 3rd Class (शाखा अधिकृत): Administrative Aptitude Test (AAT - GK, IQ, English), Paper 2 (Governance System), Paper 3 (Contemporary Issues), and Paper 4 (Service Related Subjects).',
+    shortDescription: 'Prestigious civil service coaching for Loksewa Section Officer (शाखा अधिकृत - Gazetted 3rd Class), focusing on critical analytical writing, constitutional jurisprudence, policy evaluation, and administrative aptitude.',
+    longDescription: 'Section Officer (Shakha Adhikrit) is the premier administrative leadership entry examination in Nepal civil service. Success requires high-level conceptual clarity, policy analysis, constitutional synthesis, and impeccable presentation. Our faculty of Joint Secretaries, Under Secretaries, and academic policy experts guide aspirants through every nuance of administrative governance, fiscal federalism, international relations, and contemporary developmental dilemmas.',
+    category: 'loksewa',
+    board: 'Public Service Commission (Loksewa Aayog)',
+    duration: '4 Months Comprehensive Course',
+    level: 'Civil Service Examination — Gazetted 3rd Class (राजपत्राङ्कित तृतीय श्रेणी)',
+    eligibleStudents: [
+      'Graduates with a Bachelor’s Degree in any discipline from recognized universities (TU, PU, KU, etc.)',
+      'Civil service aspirants targeting General Administration, Foreign Affairs (परराष्ट्र), Revenue (राजस्व), or Judicial (न्याय) services',
+      'Candidates preparing for 1st Paper Administrative Aptitude Test (AAT)',
+      'Aspirants needing advanced coaching for 2nd, 3rd, and 4th subjective written papers and case presentations',
+    ],
+    subjectsOffered: [
+      {
+        name: 'Administrative Aptitude Test (AAT) – GK, IQ & English',
+        code: 'OFF-AAT-01',
+        semesterOrYear: '1st Paper (Objective - 100 Marks)',
+        courseType: 'New Course',
+        description: 'Comprehensive GK (Constitution, History, Geography, Environment, Geopolitics), Advanced Mental Ability Test (IQ, Data Sufficiency, Logical Reasoning), and English Language Competence.',
+      },
+      {
+        name: 'Governance System & Constitution (शासन प्रणाली)',
+        code: 'OFF-GOV-02',
+        semesterOrYear: '2nd Paper (Subjective - 100 Marks)',
+        courseType: 'New Course',
+        description: 'State and Governance, Constitution of Nepal, Federalism, Rule of Law, Human Rights, Democratic Institutions, Public Policy Formulation, and Administrative Ethics.',
+      },
+      {
+        name: 'Contemporary Issues & Development (समसामयिक मामिला)',
+        code: 'OFF-CON-03',
+        semesterOrYear: '3rd Paper (Subjective - 100 Marks)',
+        courseType: 'New Course',
+        description: 'Economic, Social, Environmental and International Relations dimensions: Fiscal policy, SDGs, climate change adaptation, poverty reduction, foreign policy of Nepal, and development planning.',
+      },
+      {
+        name: 'Service Related Subject – General Administration (प्रशासन)',
+        code: 'OFF-ADM-04',
+        semesterOrYear: '4th Paper (Subjective - 100 Marks)',
+        courseType: 'New Course',
+        description: 'Personnel administration, civil service reforms, organizational behavior, public financial management, performance audits, public procurement, and integrity systems.',
+      },
+      {
+        name: 'Service Related Subject – Revenue & Public Finance (राजस्व)',
+        code: 'OFF-REV-04',
+        semesterOrYear: '4th Paper (Subjective - 100 Marks)',
+        courseType: 'New Course',
+        description: 'Public finance theory, fiscal federalism, direct and indirect tax systems, Customs valuation, international trade agreements, and macroeconomic stability in Nepal.',
+      },
+      {
+        name: 'Service Related Subject – Foreign Affairs (परराष्ट्र मामिला)',
+        code: 'OFF-FOR-04',
+        semesterOrYear: '4th Paper (Subjective - 100 Marks)',
+        courseType: 'New Course',
+        description: 'International law, diplomacy & diplomatic etiquette, treaties and conventions, Nepal foreign policy, neighbor diplomacy (India-China), multilateralism, and economic diplomacy.',
+      },
+    ],
+    classModes: ['Online', 'Offline', 'Hybrid'],
+    schedule: 'Morning Batch (5:30 AM – 8:45 AM) | Evening Batch (6:30 PM – 9:45 PM)',
+    feeInfo: 'Complete 4-Paper Package or Module-Wise Enrollment. Includes printed study materials and weekly exam answer evaluations.',
+    featured: true,
+    published: true,
+    assignedTeacherIds: ['teacher-1', 'teacher-2', 'teacher-6', 'teacher-7'],
+    features: [
+      'Masterclasses delivered by seasoned Joint Secretaries, Under Secretaries, and Section Officers',
+      'Rigorous analytical essay and case study presentation workshops',
+      'Complete coverage of Constitution of Nepal, 15th/16th Periodic Plans, and National Budgets',
+      'Specialized English language and IQ shortcut techniques for Paper 1',
+      'Weekly subjective mock tests evaluated with line-by-line examiner commentary',
+      'Full-length interview, group discussion (GD), and presentation preparation',
+    ],
+    metaDescription: 'Loksewa Section Officer (शाखा अधिकृत) Preparation at Shikshyalaya Shaikshik Sanstha Kathmandu. AAT, Governance, Contemporary Issues & Service Papers.',
+  },
+  {
+    id: 'course-loksewa-kharidar',
+    slug: 'loksewa-kharidar',
+    title: 'Loksewa Kharidar (खरिदार – 4th Level) Preparation',
+    devanagariTitle: 'लोक सेवा आयोग – खरिदार (४औं तह) प्रारम्भिक तथा मुख्य परीक्षा',
+    courseType: 'New Course',
+    syllabusVersion: 'Official PSC Nepal Non-Gazetted 2nd Class (खरिदार) Curriculum',
+    hasOldCourseOption: false,
+    newCourseNotes: 'Covers entire revised syllabus: 1st Paper (General Knowledge and Basic Mental Ability), 2nd Paper (Basic Science, Mathematics & Office Management), and 3rd Paper (Job Knowledge & Official Procedures).',
+    shortDescription: 'Ideal stepping stone for government service: Comprehensive preparation for Loksewa Kharidar (Non-Gazetted 2nd Class - 4th Level) for SEE / SLC graduates, with daily numerical, math, and GK drills.',
+    longDescription: 'Kharidar is one of the most accessible and highly contested civil service entry routes in Nepal, open to anyone with an SEE/SLC qualification. Our program simplifies basic general science, school-level mathematics, mental ability, and government administrative office procedures so learners can score comfortably above cutoff marks and secure government service appointment.',
+    category: 'loksewa',
+    board: 'Public Service Commission (Loksewa Aayog)',
+    duration: '3 Months Foundation Course',
+    level: 'Civil Service Examination — Non-Gazetted 2nd Class (४औं तह)',
+    eligibleStudents: [
+      'Candidates having passed SEE / SLC or equivalent with minimum qualifying GPA',
+      'Aspirants seeking to start their civil service career in government administration',
+      'Students wanting structured practice in arithmetic, basic science, and general knowledge',
+      'Candidates clearing 1st phase objective test preparing for 2nd and 3rd paper written finals',
+    ],
+    subjectsOffered: [
+      {
+        name: 'General Knowledge & Basic Mental Ability',
+        code: 'KHAR-GK-01',
+        semesterOrYear: '1st Paper (Objective - 100 Marks)',
+        courseType: 'New Course',
+        description: 'Physical & political geography of Nepal, historical milestones, constitution basics, culture and religions, national events, and basic arithmetic mental ability (IQ).',
+      },
+      {
+        name: 'Basic Science & Mathematics',
+        code: 'KHAR-SCI-02',
+        semesterOrYear: '2nd Paper (Part 1 - 50 Marks)',
+        courseType: 'New Course',
+        description: 'Everyday physics, chemistry, biology, environment and ICT; Arithmetic: unitary method, percentages, profit & loss, simple and compound interest, ratios, and averages.',
+      },
+      {
+        name: 'Office Management & Communication',
+        code: 'KHAR-MGT-02',
+        semesterOrYear: '2nd Paper (Part 2 - 50 Marks)',
+        courseType: 'New Course',
+        description: 'Concept of office, filing and indexing, registration (Darta) & dispatch (Chalani), official letter drafting, citizen charters, and public relations.',
+      },
+      {
+        name: 'Job Knowledge & Official Procedures (कार्यज्ञान)',
+        code: 'KHAR-JOB-03',
+        semesterOrYear: '3rd Paper (Subjective - 100 Marks)',
+        courseType: 'New Course',
+        description: 'Constitution of Nepal, Civil Service Act, Good Governance Act, Right to Information, local government operations, budget preparation, and public service ethics.',
+      },
+    ],
+    classModes: ['Online', 'Offline', 'Hybrid'],
+    schedule: 'Morning Batch (6:00 AM – 8:30 AM) | Evening Batch (6:00 PM – 8:30 PM)',
+    feeInfo: 'Affordable foundation rates with complete study booklet package included.',
+    featured: true,
+    published: true,
+    assignedTeacherIds: ['teacher-2', 'teacher-6'],
+    features: [
+      'Accessible concept explanations suited for SEE / SLC passed candidates',
+      'Extensive step-by-step arithmetic and algebra problem solving',
+      'Daily 30-minute rapid GK quiz and memory booster techniques',
+      'Weekly handwritten subjective paper evaluation with corrections',
+      'Confidence building and positive exam mentality orientation',
+    ],
+    metaDescription: 'Loksewa Kharidar (खरिदार) Preparation in Kathmandu and Online at Shikshyalaya. Complete 1st, 2nd, and 3rd paper coaching.',
+  },
+  {
+    id: 'course-loksewa-rbb-level-4',
+    slug: 'loksewa-rbb-level-4',
+    title: 'RBB 4th Level (राष्ट्रिय वाणिज्य बैंक तह ४ सहायक / प्रशासन तथा नगद)',
+    devanagariTitle: 'राष्ट्रिय वाणिज्य बैंक – तह ४ सहायक (प्रशासन / नगद) सम्पूर्ण तयारी',
+    courseType: 'New Course',
+    syllabusVersion: 'Official PSC Nepal & Rastriya Banijya Bank (RBB) Level 4 Revised Syllabus',
+    hasOldCourseOption: false,
+    newCourseNotes: 'Targeted preparation for RBB Assistant 4th Level (प्रशासन तथा नगद): 1st Paper (Pre-test Objective: GK, Management, Accounting, Math, Computer & Banking Laws), and 2nd Paper (Subjective Written: Banking Operations, Accounting, Law, IT & Economics).',
+    shortDescription: 'Dedicated coaching for Rastriya Banijya Bank (RBB) Level 4 Assistant & Cash positions conducted under Loksewa Aayog, featuring daily MCQs, accounting ledgers, banking laws, and numerical problem drills.',
+    longDescription: 'Rastriya Banijya Bank Limited (RBB) is Nepal’s largest commercial bank with nationwide presence. Loksewa Aayog conducts the recruitment for Level 4 Assistant (प्रशासन / नगद). The exam consists of two phases: 1st Paper screening test (Pre-test) with 50 MCQs (100 marks) and 2nd Paper subjective written exam (100 marks). Our faculty consists of active RBB managers, Chartered Accountants, and central bank officers providing live classes, model exam evaluation, and PDF notes.',
+    category: 'loksewa',
+    board: 'Public Service Commission (Loksewa Aayog)',
+    duration: '2.5 Months Intensive Banking Course',
+    level: 'Banking Preparation — RBB Level 4 (रा.वा.बैंक तह ४ सहायक)',
+    eligibleStudents: [
+      'Candidates with +2 or equivalent in Management, Economics, Commerce, or other disciplines with minimum 2nd division/qualifying GPA',
+      'Aspirants preparing for RBB 4th Level Administration (सहायक प्रशासन) or Cash (सहायक नगद)',
+      'Students preparing for 1st Paper Pre-test screening exam and 2nd Paper subjective written test',
+      'Learners seeking high-scoring accounting formats and banking directive mastery',
+    ],
+    subjectsOffered: [
+      {
+        name: '1st Paper (Pre-Test Objective): General Knowledge, Management, Accounting, Math, IT & Banking',
+        code: 'RBB4-P1-MCQ',
+        semesterOrYear: '1st Paper (Pre-Test - 100 Marks)',
+        courseType: 'New Course',
+        description: '50 MCQs (2 marks each): Geography/History/Constitution of Nepal (10 Qs), Banking & Financial Systems (10 Qs), Accounting (10 Qs), Management (5 Qs), Mathematics (10 Qs), and Computer/IT (5 Qs) with 20% negative marking.',
+      },
+      {
+        name: '2nd Paper (Section A): Banking Operations, Financial System & Monetary Policy',
+        code: 'RBB4-P2-SEC-A',
+        semesterOrYear: '2nd Paper (Subjective - 100 Marks)',
+        courseType: 'New Course',
+        description: 'Functions of RBB, deposit products, loan classification & provisioning, KYC/AML procedures, letters of credit, bank guarantee, remittance, electronic banking (ConnectIPS, RTGS, mobile banking), and NRB Monetary Policy.',
+      },
+      {
+        name: '2nd Paper (Section B): Financial Accounting, Auditing & Mathematics',
+        code: 'RBB4-P2-SEC-B',
+        semesterOrYear: '2nd Paper (Subjective - 100 Marks)',
+        courseType: 'New Course',
+        description: 'Journal entries, bank reconciliation statements, trial balance, final accounts, ratio analysis, internal check/audit, and commercial arithmetic (interest, unitary method, profit & loss, discount).',
+      },
+      {
+        name: '2nd Paper (Section C): Management, Office Operation, ICT & Banking Acts',
+        code: 'RBB4-P2-SEC-C',
+        semesterOrYear: '2nd Paper (Subjective - 100 Marks)',
+        courseType: 'New Course',
+        description: 'Principles of management, human resource planning, customer care, official letter/memo drafting, computer concepts (MS Word/Excel, network security), NRB Act 2058, BAFIA 2073, and RBB Staff Bylaws.',
+      },
+    ],
+    classModes: ['Online', 'Offline', 'Hybrid'],
+    schedule: 'Morning: 6:00 AM – 8:30 AM | Evening: 6:30 PM – 9:00 PM',
+    feeInfo: 'Complete RBB Level 4 Pre-test + Written Package with printed books, model answers & PDF test evaluation.',
+    featured: true,
+    published: true,
+    assignedTeacherIds: ['teacher-1', 'teacher-2', 'teacher-6'],
+    features: [
+      'Classes by serving RBB Branch Managers, Chartered Accountants, and NRB officers',
+      'Daily 50-MCQ pre-test speed tests with automated scoring and ranking',
+      'In-depth numerical workshops for Banking Accounting and Commercial Math',
+      'Weekly handwritten subjective answer sheet evaluation with personalized feedback',
+      'Comprehensive RBB Level 4 GK, Banking, and Law PDF capsules included',
+    ],
+    metaDescription: 'RBB 4th Level (राष्ट्रिय वाणिज्य बैंक तह ४ सहायक) Preparation in Kathmandu & Online at Shikshyalaya. Complete Pre-test and 2nd Paper coaching.',
+  },
+  {
+    id: 'course-loksewa-rbb-level-6',
+    slug: 'loksewa-rbb-level-6',
+    title: 'RBB 6th Level (राष्ट्रिय वाणिज्य बैंक तह ६ अधिकृत - प्रशासन / लेखा / IT)',
+    devanagariTitle: 'राष्ट्रिय वाणिज्य बैंक – तह ६ अधिकृत (Officer Level 6) सम्पूर्ण तयारी',
+    courseType: 'New Course',
+    syllabusVersion: 'Official PSC Nepal & Rastriya Banijya Bank (RBB) Officer Level 6 Master Syllabus',
+    hasOldCourseOption: false,
+    newCourseNotes: 'Executive coaching for RBB Level 6 Officer (Senior Officer / अधिकृत छैटौं): 1st Paper (Banking Concept, Financial Analysis, Economics & Strategic Management - 100 Marks) and 2nd Paper (Service Specific: Administration, Accounts/Audit, or IT - 100 Marks).',
+    shortDescription: 'Prestigious banking officer preparation for Rastriya Banijya Bank (RBB) Level 6 Officer (अधिकृत छैटौं तह) conducted by Loksewa Aayog, emphasizing credit risk, financial statement analysis, corporate governance, and BAFIA.',
+    longDescription: 'Level 6 Officer in Rastriya Banijya Bank is a premier executive banking career in Nepal, offering high prestige, decision-making authority, and lucrative public banking benefits. Loksewa Aayog assesses candidates through comprehensive subjective written examinations requiring high-level analytical insight into central banking, credit appraisal (5 Cs of credit, loan syndication, debt service coverage ratio), non-performing asset management, treasury operations, and legal compliance. Our master faculty includes senior executives, retired bank directors, and top CAs.',
+    category: 'loksewa',
+    board: 'Public Service Commission (Loksewa Aayog)',
+    duration: '3.5 Months Comprehensive Program',
+    level: 'Banking Preparation — RBB Level 6 (रा.वा.बैंक तह ६ अधिकृत)',
+    eligibleStudents: [
+      'Graduates with Bachelor’s degree in Management, Commerce, Economics, Public Administration, Law, or IT from a recognized university',
+      'Candidates preparing for RBB Level 6 Officer (प्रशासन / लेखा / कानून / IT)',
+      'Aspirants seeking deep mastery of NRB Directives, Basel III capital adequacy, and credit underwriting',
+      'Working bank employees aiming for officer-level promotion through Loksewa open competition',
+    ],
+    subjectsOffered: [
+      {
+        name: '1st Paper (Part A): Banking Concept, Central Banking & Financial Systems',
+        code: 'RBB6-P1-SEC-A',
+        semesterOrYear: '1st Paper (Core - 100 Marks)',
+        courseType: 'New Course',
+        description: 'Evolution of commercial banking, central banking functions of NRB, monetary policy instruments (Repo, Reverse Repo, CRR, SLR), capital adequacy (Basel III framework), and payment systems in Nepal.',
+      },
+      {
+        name: '1st Paper (Part B): Financial Management, Credit Risk & Investment Analysis',
+        code: 'RBB6-P1-SEC-B',
+        semesterOrYear: '1st Paper (Core - 100 Marks)',
+        courseType: 'New Course',
+        description: 'Financial statement analysis (DuPont, cash flows, ratios), working capital financing, project appraisal (NPV, IRR, DSCR), credit risk assessment, collateral evaluation, and non-performing loan (NPL) resolution.',
+      },
+      {
+        name: '1st Paper (Part C): Economics, Development Planning & Public Finance',
+        code: 'RBB6-P1-SEC-C',
+        semesterOrYear: '1st Paper (Core - 100 Marks)',
+        courseType: 'New Course',
+        description: 'Macroeconomic indicators of Nepal (GDP, inflation, balance of payments, foreign remittance), 15th/16th Periodic Plans, government budget, and foreign exchange reserves management.',
+      },
+      {
+        name: '2nd Paper (Service Specific): Administration & Banking Regulations',
+        code: 'RBB6-P2-ADM',
+        semesterOrYear: '2nd Paper (Subjective - 100 Marks)',
+        courseType: 'New Course',
+        description: 'Strategic human resource management, organizational behavior, conflict management, decision-making, BAFIA 2073, NRB Act 2058, AML/CFT Act 2064, Banking Offence Act 2064, and RBB Corporate Governance.',
+      },
+      {
+        name: '2nd Paper (Service Specific): Accounting, Auditing & Financial Reporting (लेखा)',
+        code: 'RBB6-P2-ACC',
+        semesterOrYear: '2nd Paper (Subjective - 100 Marks)',
+        courseType: 'New Course',
+        description: 'NFRS for financial institutions, impairment of financial assets, consolidation of balance sheets, internal/external audit standards, tax audit, and forensic accounting.',
+      },
+    ],
+    classModes: ['Online', 'Offline', 'Hybrid'],
+    schedule: 'Morning: 5:30 AM – 8:30 AM | Evening: 6:30 PM – 9:30 PM',
+    feeInfo: 'Complete 2-Paper Officer Master Package. Includes extensive case study manuals, previous 10-year solved questions, and mock interview prep.',
+    featured: true,
+    published: true,
+    assignedTeacherIds: ['teacher-1', 'teacher-2', 'teacher-7'],
+    features: [
+      'Classes conducted by senior Joint Secretaries, RBB Executives, and Chartered Accountants',
+      'Advanced case analysis workshops on loan default, AML investigations, and ALM gap analysis',
+      'Weekly 3-hour subjective mock examinations with examiner line-by-line grading',
+      'Exhaustive analysis of NRB Unified Directives (Directives 1 through 21)',
+      'Interview coaching, group discussion (GD), and presentation skills orientation',
+    ],
+    metaDescription: 'RBB 6th Level Officer (राष्ट्रिय वाणिज्य बैंक तह ६ अधिकृत) Preparation in Kathmandu & Online. Complete Paper 1 & Paper 2 coaching by banking experts.',
+  },
+  {
+    id: 'course-loksewa-nbl-level-4',
+    slug: 'loksewa-nbl-level-4',
+    title: 'NBL 4th Level (नेपाल बैंक लिमिटेड तह ४ सहायक / कनिष्ठ सहायक)',
+    devanagariTitle: 'नेपाल बैंक लिमिटेड – तह ४ कनिष्ठ सहायक (Junior Assistant) सम्पूर्ण तयारी',
+    courseType: 'New Course',
+    syllabusVersion: 'Official PSC Nepal & Nepal Bank Limited (NBL) Level 4 Revised Syllabus',
+    hasOldCourseOption: false,
+    newCourseNotes: 'Targeted syllabus preparation for NBL Junior Assistant Level 4 (सहायक / कनिष्ठ सहायक): 1st Paper (Pre-test Objective: GK, IQ, Banking, Math & Computer) and 2nd Paper (Subjective Written: Banking Practice, Accountancy, Customer Relations & Business Writing).',
+    shortDescription: 'Result-oriented coaching for Nepal Bank Limited (NBL) 4th Level Junior Assistant under Loksewa Aayog, featuring pre-test screening drills, handwritten accounting practice, and banking service concepts.',
+    longDescription: 'Nepal Bank Limited (NBL), established in 1937 AD (1994 BS), is the pioneer commercial bank of Nepal. Recruitment for Level 4 Junior Assistant is conducted rigorously by Loksewa Aayog. Aspirants must clear the 1st Phase pre-test screening examination (50 MCQs, 100 marks) followed by the 2nd Phase subjective written exam (100 marks). Our institute delivers comprehensive training in banking operations, double-entry accounting, commercial arithmetic, and government banking regulations.',
+    category: 'loksewa',
+    board: 'Public Service Commission (Loksewa Aayog)',
+    duration: '2.5 Months Intensive Banking Course',
+    level: 'Banking Preparation — NBL Level 4 (नेपाल बैंक तह ४ सहायक)',
+    eligibleStudents: [
+      'Candidates having completed +2 or Intermediate in Management, Commerce, Economics, or other faculties with minimum 2nd division / GPA',
+      'Aspirants appearing for Nepal Bank Limited Level 4 Junior Assistant (कनिष्ठ सहायक)',
+      'Students wanting to master Pre-test 50-MCQ speed drills and 2nd Paper subjective question drafting',
+      'Learners seeking structured notes on Nepal Bank Limited history, products, and NRB directives',
+    ],
+    subjectsOffered: [
+      {
+        name: '1st Paper (Pre-test Objective): General Knowledge, Mental Ability (IQ), Banking, Math & IT',
+        code: 'NBL4-P1-MCQ',
+        semesterOrYear: '1st Paper (Pre-Test - 100 Marks)',
+        courseType: 'New Course',
+        description: '50 MCQs (2 marks each): Geography/History/Constitution of Nepal (10 Qs), Banking & Financial Sector (10 Qs), Accounting Concepts (10 Qs), Mathematics (10 Qs), Mental Ability / IQ (5 Qs), and Computer Science (5 Qs). Negative marking: 20%.',
+      },
+      {
+        name: '2nd Paper (Section A): Banking Business, Services & Nepal Financial Architecture',
+        code: 'NBL4-P2-SEC-A',
+        semesterOrYear: '2nd Paper (Subjective - 100 Marks)',
+        courseType: 'New Course',
+        description: 'Role and history of Nepal Bank Limited, types of deposit and credit accounts, loan repayment schedules, electronic clearing (ECC/IPS), mobile/internet banking, AML/KYC guidelines, and foreign remittance.',
+      },
+      {
+        name: '2nd Paper (Section B): Principles of Accounting, Auditing & Commercial Mathematics',
+        code: 'NBL4-P2-SEC-B',
+        semesterOrYear: '2nd Paper (Subjective - 100 Marks)',
+        courseType: 'New Course',
+        description: 'Bookkeeping principles, journal, cash book, bank reconciliation, trial balance, final accounts, voucher preparation, basic audit procedures, and business math (percentages, interest, ratios).',
+      },
+      {
+        name: '2nd Paper (Section C): Management, Office Management & Banking Legislation',
+        code: 'NBL4-P2-SEC-C',
+        semesterOrYear: '2nd Paper (Subjective - 100 Marks)',
+        courseType: 'New Course',
+        description: 'Customer relationship management (CRM), office filing, memo drafting, computer applications in banking, Nepal Bank Limited Act / Bylaws, BAFIA 2073, and NRB Directives.',
+      },
+    ],
+    classModes: ['Online', 'Offline', 'Hybrid'],
+    schedule: 'Morning: 6:00 AM – 8:30 AM | Evening: 6:30 PM – 9:00 PM',
+    feeInfo: 'Complete NBL 4th Level Package with printed question bank, lecture slides, and weekly OMR & subjective evaluations.',
+    featured: true,
+    published: true,
+    assignedTeacherIds: ['teacher-1', 'teacher-2', 'teacher-6'],
+    features: [
+      'Classes instructed by seasoned NBL Officers and experienced Banking trainers',
+      'Daily 50-MCQ pre-test speed tests with instant rank and negative marking analysis',
+      'Step-by-step guidance on accounting ledger format, final accounts, and BRS',
+      'Handwritten answer sheet submission with detailed grading and faculty commentary',
+      'Digital study booklet and past 8-year NBL question paper bank with model answers',
+    ],
+    metaDescription: 'NBL 4th Level (नेपाल बैंक लिमिटेड तह ४ सहायक) Preparation at Shikshyalaya Shaikshik Sanstha Kathmandu & Online. Complete Pre-test and written exam coaching.',
+  },
+  {
+    id: 'course-loksewa-nbl-level-6',
+    slug: 'loksewa-nbl-level-6',
+    title: 'NBL 6th Level (नेपाल बैंक लिमिटेड तह ६ अधिकृत / सहायक प्रबन्धक)',
+    devanagariTitle: 'नेपाल बैंक लिमिटेड – तह ६ सहायक प्रबन्धक (Assistant Manager / Officer) सम्पूर्ण तयारी',
+    courseType: 'New Course',
+    syllabusVersion: 'Official PSC Nepal & Nepal Bank Limited (NBL) Assistant Manager Level 6 Curriculum',
+    hasOldCourseOption: false,
+    newCourseNotes: 'Full syllabus training for NBL Level 6 Assistant Manager (तह ६ सहायक प्रबन्धक): 1st Paper (Management, Economics & Quantitative Analysis - 100 Marks) and 2nd Paper (Banking Operations, Credit Underwriting, Risk Management & Regulations - 100 Marks).',
+    shortDescription: 'Premier officer preparation for Nepal Bank Limited (NBL) Level 6 Assistant Manager (सहायक प्रबन्धक / अधिकृत) through Loksewa Aayog, emphasizing financial risk modeling, credit appraisal, treasury, and international trade finance.',
+    longDescription: 'Level 6 Assistant Manager (तह ६ सहायक प्रबन्धक) in Nepal Bank Limited is a high-level executive position with rapid career advancement to Senior Manager and Branch Head. The written examination conducted by Loksewa Aayog tests rigorous analytical capacity across corporate finance, credit underwriting (evaluating balance sheets, cash flow forecasts, debt service coverage), treasury management (forex exposure, ALM gap, CRR/SLR), trade finance (Letters of Credit, UCP 600, Incoterms), and regulatory compliance (BAFIA 2073, NRB Directives).',
+    category: 'loksewa',
+    board: 'Public Service Commission (Loksewa Aayog)',
+    duration: '3.5 Months Comprehensive Program',
+    level: 'Banking Preparation — NBL Level 6 (नेपाल बैंक तह ६ अधिकृत)',
+    eligibleStudents: [
+      'Graduates with Bachelor’s or Master’s degree in Management, Commerce, Economics, Public Administration, Law, or Information Technology',
+      'Candidates appearing for Nepal Bank Limited Level 6 Assistant Manager (तह ६ सहायक प्रबन्धक)',
+      'Bank officers preparing for departmental promotion or open competition banking exams',
+      'Aspirants seeking expertise in credit underwriting, NPA recovery, and central bank regulations',
+    ],
+    subjectsOffered: [
+      {
+        name: '1st Paper (Part A): Principles of Management, Organizational Strategy & HR',
+        code: 'NBL6-P1-SEC-A',
+        semesterOrYear: '1st Paper (Core - 100 Marks)',
+        courseType: 'New Course',
+        description: 'Strategic management models, corporate governance, change management, employee motivation, performance appraisal systems, and crisis leadership in banks.',
+      },
+      {
+        name: '1st Paper (Part B): Macroeconomics of Nepal, Financial Systems & Central Banking',
+        code: 'NBL6-P1-SEC-B',
+        semesterOrYear: '1st Paper (Core - 100 Marks)',
+        courseType: 'New Course',
+        description: 'Monetary policy instruments of NRB, inflation dynamics, foreign exchange management, current account & BOP analysis, capital market development (NEPSE), and national budget.',
+      },
+      {
+        name: '1st Paper (Part C): Quantitative Analysis, Research & Financial Mathematics',
+        code: 'NBL6-P1-SEC-C',
+        semesterOrYear: '1st Paper (Core - 100 Marks)',
+        courseType: 'New Course',
+        description: 'Time value of money, bond and stock valuation, statistical hypothesis testing, correlation/regression in business forecasting, and capital budgeting (NPV, IRR).',
+      },
+      {
+        name: '2nd Paper (Part A): Credit Appraisal, Loan Underwriting & Non-Performing Assets (NPA)',
+        code: 'NBL6-P2-SEC-A',
+        semesterOrYear: '2nd Paper (Subjective - 100 Marks)',
+        courseType: 'New Course',
+        description: 'Working capital financing (turnover method, MPBF), term loan appraisal, financial ratio analysis, collateral inspection, loan classification & provisioning, and recovery of bad loans.',
+      },
+      {
+        name: '2nd Paper (Part B): Treasury Operations, Trade Finance, Laws & Regulatory Framework',
+        code: 'NBL6-P2-SEC-B',
+        semesterOrYear: '2nd Paper (Subjective - 100 Marks)',
+        courseType: 'New Course',
+        description: 'Asset-Liability Management (ALM), liquidity ratios, Letters of Credit (LC) & Bank Guarantees, Incoterms, UCP 600, BAFIA 2073, NRB Act 2058, AML/CFT Act 2064, and NRB Unified Directives.',
+      },
+    ],
+    classModes: ['Online', 'Offline', 'Hybrid'],
+    schedule: 'Morning: 5:30 AM – 8:30 AM | Evening: 6:30 PM – 9:30 PM',
+    feeInfo: 'Complete Officer Master Course. Includes printed credit appraisal manuals, full case study solutions, and interview guidance.',
+    featured: true,
+    published: true,
+    assignedTeacherIds: ['teacher-1', 'teacher-2', 'teacher-7'],
+    features: [
+      'Masterclasses delivered by active Senior Managers, Treasury Heads, and Chartered Accountants',
+      'Practical credit proposal appraisal and financial health diagnosis exercises',
+      'Comprehensive coverage of NRB Unified Directives, Basel III framework, and AML/CFT laws',
+      'Weekly 3-hour subjective written mock tests with detailed individual feedback',
+      'Full guidance on case studies, group discussions (GD), and final interview presentation',
+    ],
+    metaDescription: 'NBL 6th Level Assistant Manager (नेपाल बैंक लिमिटेड तह ६ अधिकृत) Preparation at Shikshyalaya. Complete 1st & 2nd Paper coaching for Nepal Bank Limited.',
+  },
+  {
+    id: 'course-loksewa-banking',
+    slug: 'loksewa-banking-preparation',
+    title: 'Loksewa Banking Preparation (RBB, NBL, ADBL & NRB – Level 4 & 5)',
+    devanagariTitle: 'लोक सेवा / सरकारी बैंक सम्पूर्ण तयारी (RBB, NBL, ADBL, NRB तह ४ र ५)',
+    courseType: 'New Course',
+    syllabusVersion: 'Latest Public Bank Recruitment Syllabus (Rastriya Banijya Bank, NBL, Krishi Bikas Bank, NRB)',
+    hasOldCourseOption: false,
+    newCourseNotes: 'Complete preparation for Assistant (तह ४) and Senior Assistant / Officer (तह ५) across all major state-owned banks: Rastriya Banijya Bank (RBB), Nepal Bank Limited (NBL), Agricultural Development Bank (ADBL), and Nepal Rastra Bank (NRB).',
+    shortDescription: 'Comprehensive coaching for Nepal’s premier government and public banks (RBB, NBL, ADBL, NRB) for Assistant Level 4 & Senior Assistant Level 5, covering banking law, accounting, economics, and IT.',
+    longDescription: 'Public sector banking jobs in Nepal provide unmatched job security, high prestige, and excellent remuneration. Our specialized banking preparation batch is led by experienced Chartered Accountants, senior bankers, and NRB officers. The course covers core banking concepts, financial analysis, NRB directives, BAFIA, AML/CFT, economics, management, business math, and computer applications.',
+    category: 'loksewa',
+    board: 'Public Service Commission (Loksewa Aayog)',
+    duration: '2.5 Months Intensive Banking Course',
+    level: 'Public Enterprise Examination — Banking Level 4 & Level 5 (सहायक ४ र वरिष्ठ सहायक ५)',
+    eligibleStudents: [
+      'Candidates with +2 or Bachelor’s degree in Management, Commerce, Economics, or related subjects',
+      'Aspirants applying for Rastriya Banijya Bank (RBB) Cash / Administration Level 4 & 5',
+      'Candidates applying for Nepal Bank Limited (NBL) or Krishi Bikas Bank (ADBL) Assistant positions',
+      'Learners seeking mastery in NRB Unified Directives, BAFIA, and banking numericals',
+    ],
+    subjectsOffered: [
+      {
+        name: 'Banking Principles & Operations in Nepal',
+        code: 'BNK-OPS-01',
+        semesterOrYear: 'Level 4 & 5 (Core)',
+        courseType: 'New Course',
+        description: 'Evolution of banking in Nepal, functions of commercial banks, deposit products, lending and credit appraisal, KYC/AML compliance, remittance, letters of credit, and electronic banking.',
+      },
+      {
+        name: 'Financial Accounting & Reporting for Banks',
+        code: 'BNK-ACC-02',
+        semesterOrYear: 'Level 4 & 5 (Core)',
+        courseType: 'New Course',
+        description: 'Double entry system, journal, ledger, trial balance, bank reconciliation statement, cash flow statement, ratio analysis, and NFRS financial statements for financial institutions.',
+      },
+      {
+        name: 'Economics, Monetary Policy & Public Finance',
+        code: 'BNK-ECO-03',
+        semesterOrYear: 'Level 4 & 5 (Core)',
+        courseType: 'New Course',
+        description: 'Micro and macroeconomics, inflation, GDP/GNP, fiscal policy of Nepal, annual monetary policy of Nepal Rastra Bank, foreign exchange management, and economic indicators.',
+      },
+      {
+        name: 'Banking Laws & Regulations (NRB Directives, BAFIA)',
+        code: 'BNK-LAW-04',
+        semesterOrYear: 'Level 4 & 5 (Core)',
+        courseType: 'New Course',
+        description: 'Nepal Rastra Bank Act 2058, Bank and Financial Institutions Act (BAFIA) 2073, Anti-Money Laundering Act 2064, Banking Offence and Punishment Act 2064, and NRB Unified Directives.',
+      },
+      {
+        name: 'Management, Business Communication & IT',
+        code: 'BNK-MGT-05',
+        semesterOrYear: 'Level 4 & 5 (Core)',
+        courseType: 'New Course',
+        description: 'Principles of management, human resource management, motivation, leadership, official letter writing, memos, computer hardware/software, cyber security, and FinTech in banking.',
+      },
+      {
+        name: 'Mathematics & Mental Ability for Banking',
+        code: 'BNK-MTH-06',
+        semesterOrYear: 'Level 4 & 5 (Core)',
+        courseType: 'New Course',
+        description: 'Commercial arithmetic: simple and compound interest, time & work, unitary method, percentage, ratio & proportion, partnership, profit & loss, and quick calculation tricks.',
+      },
+    ],
+    classModes: ['Online', 'Offline', 'Hybrid'],
+    schedule: 'Morning Batch (6:00 AM – 8:30 AM) | Evening Batch (6:30 PM – 9:00 PM)',
+    feeInfo: 'All-inclusive bank-specific modules. Comprehensive PDF notes and bank model question banks provided.',
+    featured: true,
+    published: true,
+    assignedTeacherIds: ['teacher-1', 'teacher-2'],
+    features: [
+      'Classes led by active Branch Managers, Chartered Accountants & NRB officers',
+      'In-depth breakdown of NRB Unified Directives & latest Monetary Policy',
+      'Bank model question sets with standard answer templates',
+      'Comprehensive banking numerical and accounting practice sessions',
+      'Weekly simulated bank exam papers with time management training',
+    ],
+    metaDescription: 'Government Banking Exam Preparation (RBB, NBL, ADBL, NRB) in Kathmandu & Online. Level 4 Assistant & Level 5 Senior Assistant coaching.',
+  },
+  {
+    id: 'course-loksewa-tsc',
+    slug: 'teachers-service-commission-tsc',
+    title: 'Teachers Service Commission (शिक्षक सेवा आयोग – TSC) Preparation',
+    devanagariTitle: 'शिक्षक सेवा आयोग (TSC) – प्रा.वि., नि.मा.वि. र मा.वि. सम्पूर्ण तयारी',
+    courseType: 'New Course',
+    syllabusVersion: 'Official TSC Nepal (Shikshak Sewa Aayog) Revised Guidelines',
+    hasOldCourseOption: false,
+    newCourseNotes: 'Open competition teacher license and permanent teacher appointment preparation for Primary (प्रा.वि.), Lower Secondary (नि.मा.वि.), and Secondary (मा.वि.) levels.',
+    shortDescription: 'Dedicated coaching for Teachers Service Commission (TSC - शिक्षक सेवा आयोग) permanent appointment and teaching license exams across Primary, Lower Secondary, and Secondary levels.',
+    longDescription: 'Securing a permanent teaching position through Shikshak Sewa Aayog (TSC) provides honorable government employment in community schools across Nepal. Our specialized training program equips aspiring teachers with mastery of child psychology, curriculum pedagogy, educational administration, ICT in education, general knowledge, and subject-specific methodologies.',
+    category: 'loksewa',
+    board: 'Teachers Service Commission (TSC)',
+    duration: '3 Months Comprehensive Batch',
+    level: 'Teaching Service Examination — Primary, Lower Secondary & Secondary (प्रा.वि., नि.मा.वि., मा.वि.)',
+    eligibleStudents: [
+      'Candidates with Teaching License (अध्यापन अनुमतिपत्र) or appearing for Teacher License exam',
+      'Graduates with +2, Bachelor’s, or Master’s in Education or other faculties seeking permanent government teacher appointments',
+      'Teachers preparing for Primary (तह १), Lower Secondary (तह २), or Secondary (तह ३) written exams',
+    ],
+    subjectsOffered: [
+      {
+        name: 'General Examination (सामान्य परीक्षा - GK, Education & ICT)',
+        code: 'TSC-GEN-01',
+        semesterOrYear: '1st Paper (Objective - 100 Marks)',
+        courseType: 'New Course',
+        description: 'General knowledge of Nepal and world, Educational planning & administration, Learning theories & child psychology, Curriculum and instructional materials, Information & Communication Technology (ICT), and Constitution & Education Act/Rules.',
+      },
+      {
+        name: 'Subject-Wise Content & Pedagogy (विषयगत परीक्षा)',
+        code: 'TSC-SUB-02',
+        semesterOrYear: '2nd Paper (Subjective - 100 Marks)',
+        courseType: 'New Course',
+        description: 'Specialized subject content and pedagogical techniques for Nepali, English, Mathematics, Science, Social Studies, and Accountancy per official CDC school curricula.',
+      },
+    ],
+    classModes: ['Online', 'Offline', 'Hybrid'],
+    schedule: 'Morning Batch (5:30 AM – 8:00 AM) | Evening Batch (7:00 PM – 9:30 PM)',
+    feeInfo: 'Complete License & Permanent Teacher packages. Daily mock exams and unit lesson plans included.',
+    featured: false,
+    published: true,
+    assignedTeacherIds: ['teacher-6', 'teacher-7'],
+    features: [
+      'Delivered by Education Faculty professors, textbook authors & senior headmasters',
+      'Extensive focus on modern child psychology and teaching-learning pedagogy',
+      'Complete question bank of previous TSC permanent teacher examinations',
+      'Unit test series on educational acts, regulations, and school governance',
+    ],
+    metaDescription: 'Teachers Service Commission (TSC / शिक्षक सेवा आयोग) Preparation in Kathmandu & Online. Primary, Lower Secondary, and Secondary level batches.',
   },
 ];
 
@@ -2142,6 +2863,175 @@ export const INITIAL_STUDY_MATERIALS: StudyMaterial[] = [
     description: 'Treasury operations manual covering interest rate gap analysis, liquidity ratios (CRR, SLR, LDR), foreign currency exposure, and money market dealing.',
     published: true,
   },
+
+  // ==========================================
+  // LOKSEWA AAYOG & PUBLIC EXAMS STUDY MATERIALS
+  // ==========================================
+  {
+    id: 'mat-loksewa-1',
+    title: 'Loksewa 6th Level Officer – Complete Official Syllabus & Exam Pattern Guide [PDF Format]',
+    courseSlug: 'loksewa-officer-level-6',
+    courseName: 'Loksewa 6th Level Officer (अधिकृत छैटौं तह)',
+    board: 'Public Service Commission (Loksewa Aayog)',
+    subject: 'General Knowledge (GK) & Mental Ability Test (IQ)',
+    semesterOrYear: '1st Paper (Objective - 100 Marks)',
+    resourceType: 'PDF Notes',
+    accessLevel: 'Public',
+    fileSize: '3.4 MB',
+    uploadDate: '2026-10-26',
+    description: 'Official PSC Nepal & Provincial PSC (PPSC) 6th level syllabus breakdown, marks distribution grid, negative marking guidelines, and recommended references.',
+    published: true,
+  },
+  {
+    id: 'mat-loksewa-2',
+    title: 'Loksewa 6th Level (2nd Paper) – Governance System & Local Government Operation Act 2074 Master Notes',
+    courseSlug: 'loksewa-officer-level-6',
+    courseName: 'Loksewa 6th Level Officer (अधिकृत छैटौं तह)',
+    board: 'Public Service Commission (Loksewa Aayog)',
+    subject: 'Governance System, Constitution & Public Administration',
+    semesterOrYear: '2nd Paper (Subjective - 100 Marks)',
+    resourceType: 'PDF Notes',
+    accessLevel: 'Enrolled Students',
+    fileSize: '4.8 MB',
+    uploadDate: '2026-10-25',
+    description: 'In-depth notes on Constitution of Nepal, Intergovernmental fiscal relations, Citizen Charters, and 15 structured model answers for Paper 2.',
+    published: true,
+  },
+  {
+    id: 'mat-loksewa-3',
+    title: 'Loksewa Nayab Subba (1st Paper) – General Knowledge & IQ 1,000 High-Yield Question Bank',
+    courseSlug: 'loksewa-nayab-subba',
+    courseName: 'Loksewa Nayab Subba (ना.सु.)',
+    board: 'Public Service Commission (Loksewa Aayog)',
+    subject: 'General Knowledge (GK) & Current Affairs',
+    semesterOrYear: '1st Paper (Objective - 100 Marks)',
+    resourceType: 'Practice Questions',
+    accessLevel: 'Public',
+    fileSize: '5.2 MB',
+    uploadDate: '2026-10-24',
+    description: 'Topic-wise collection of 1,000 frequently asked multiple-choice questions on Nepal Geography, History, Constitution, Environment, and shortcut IQ reasoning.',
+    published: true,
+  },
+  {
+    id: 'mat-loksewa-4',
+    title: 'Loksewa Section Officer (AAT) – Administrative Aptitude Test & English Comprehension Workbook',
+    courseSlug: 'loksewa-section-officer',
+    courseName: 'Loksewa Section Officer (शाखा अधिकृत)',
+    board: 'Public Service Commission (Loksewa Aayog)',
+    subject: 'Administrative Aptitude Test (AAT) – GK, IQ & English',
+    semesterOrYear: '1st Paper (Objective - 100 Marks)',
+    resourceType: 'Model Question Papers',
+    accessLevel: 'Public',
+    fileSize: '4.1 MB',
+    uploadDate: '2026-10-23',
+    description: 'Full-length 1st Paper simulation sets including 50 GK questions, 30 IQ reasoning puzzles, and 20 English syntax/comprehension questions with answer keys.',
+    published: true,
+  },
+  {
+    id: 'mat-loksewa-5',
+    title: 'Loksewa Kharidar – Basic Science, Mathematics & Office Management Formula Handbook',
+    courseSlug: 'loksewa-kharidar',
+    courseName: 'Loksewa Kharidar (खरिदार)',
+    board: 'Public Service Commission (Loksewa Aayog)',
+    subject: 'Basic Science & Mathematics',
+    semesterOrYear: '2nd Paper (Part 1 - 50 Marks)',
+    resourceType: 'Revision Materials',
+    accessLevel: 'Public',
+    fileSize: '2.8 MB',
+    uploadDate: '2026-10-22',
+    description: 'Quick arithmetic cheat-sheet covering unitary method, profit & loss, percentage, simple interest, everyday science facts, and office filing procedures.',
+    published: true,
+  },
+  {
+    id: 'mat-loksewa-6',
+    title: 'Government Banking (RBB, NBL, ADBL, NRB) – Banking Acts, BAFIA & Directives Master Capsule',
+    courseSlug: 'loksewa-banking-preparation',
+    courseName: 'Loksewa Banking Preparation (Level 4 & 5)',
+    board: 'Public Service Commission (Loksewa Aayog)',
+    subject: 'Banking Laws & Regulations (NRB Directives, BAFIA)',
+    semesterOrYear: 'Level 4 & 5 (Core)',
+    resourceType: 'PDF Notes',
+    accessLevel: 'Enrolled Students',
+    fileSize: '3.9 MB',
+    uploadDate: '2026-10-21',
+    description: 'Summarized provisions of NRB Act 2058, BAFIA 2073, AML/CFT Act 2064, and latest Nepal Rastra Bank Unified Directives for Level 4 & 5 exams.',
+    published: true,
+  },
+  {
+    id: 'mat-loksewa-7',
+    title: 'Teachers Service Commission (TSC) – Child Psychology & Teaching Methodology Solved Papers',
+    courseSlug: 'teachers-service-commission-tsc',
+    courseName: 'Teachers Service Commission (TSC)',
+    board: 'Teachers Service Commission (TSC)',
+    subject: 'General Examination (सामान्य परीक्षा - GK, Education & ICT)',
+    semesterOrYear: '1st Paper (Objective - 100 Marks)',
+    resourceType: 'Past Papers',
+    accessLevel: 'Public',
+    fileSize: '3.6 MB',
+    uploadDate: '2026-10-20',
+    description: 'Previous 5 years TSC Primary, Lower Secondary, and Secondary examination questions with verified answers and educational philosophy summaries.',
+    published: true,
+  },
+  {
+    id: 'mat-loksewa-rbb-4',
+    title: 'RBB 4th Level Assistant – Pre-Test 500 High-Yield MCQs & 2nd Paper Model Solutions [PDF]',
+    courseSlug: 'loksewa-rbb-level-4',
+    courseName: 'RBB 4th Level (रा.वा.बैंक तह ४ सहायक)',
+    board: 'Public Service Commission & RBB',
+    subject: '1st Paper (Pre-Test Objective): General Knowledge, Management, Accounting, Math, IT & Banking',
+    semesterOrYear: '1st Paper (Pre-Test - 100 Marks)',
+    resourceType: 'Model Question Papers',
+    accessLevel: 'Public',
+    fileSize: '4.2 MB',
+    uploadDate: '2026-10-26',
+    description: 'Complete RBB Level 4 Pre-test practice compilation covering Banking, Accounting principles, Commercial arithmetic, Computer shortcuts, and 2nd Paper subjective question patterns.',
+    published: true,
+  },
+  {
+    id: 'mat-loksewa-rbb-6',
+    title: 'RBB 6th Level Officer – Credit Appraisal, Basel III Capital & NRB Directives Master Handbook',
+    courseSlug: 'loksewa-rbb-level-6',
+    courseName: 'RBB 6th Level (रा.वा.बैंक तह ६ अधिकृत)',
+    board: 'Public Service Commission & RBB',
+    subject: '1st Paper (Part B): Financial Management, Credit Risk & Investment Analysis',
+    semesterOrYear: '1st Paper (Core - 100 Marks)',
+    resourceType: 'PDF Notes',
+    accessLevel: 'Enrolled Students',
+    fileSize: '5.1 MB',
+    uploadDate: '2026-10-26',
+    description: 'Executive analytical notes for RBB Officer Level 6 on credit risk evaluation (5 Cs of credit, DSCR, cash flows), non-performing loan resolution, BAFIA 2073, and NRB Unified Directives.',
+    published: true,
+  },
+  {
+    id: 'mat-loksewa-nbl-4',
+    title: 'NBL 4th Level Junior Assistant – Banking Business, Bookkeeping & Model MCQ Bank [PDF]',
+    courseSlug: 'loksewa-nbl-level-4',
+    courseName: 'NBL 4th Level (नेपाल बैंक तह ४ सहायक)',
+    board: 'Public Service Commission & NBL',
+    subject: '1st Paper (Pre-test Objective): General Knowledge, Mental Ability (IQ), Banking, Math & IT',
+    semesterOrYear: '1st Paper (Pre-Test - 100 Marks)',
+    resourceType: 'Practice Questions',
+    accessLevel: 'Public',
+    fileSize: '3.8 MB',
+    uploadDate: '2026-10-25',
+    description: 'High-scoring notes for Nepal Bank Limited Junior Assistant: Pre-test MCQs, double-entry bookkeeping ledgers, bank reconciliation statement rules, and customer care principles.',
+    published: true,
+  },
+  {
+    id: 'mat-loksewa-nbl-6',
+    title: 'NBL 6th Level Assistant Manager – Treasury Operations, Trade Finance & Macroeconomics Capsule',
+    courseSlug: 'loksewa-nbl-level-6',
+    courseName: 'NBL 6th Level (नेपाल बैंक तह ६ अधिकृत)',
+    board: 'Public Service Commission & NBL',
+    subject: '2nd Paper (Part B): Treasury Operations, Trade Finance, Laws & Regulatory Framework',
+    semesterOrYear: '2nd Paper (Subjective - 100 Marks)',
+    resourceType: 'PDF Notes',
+    accessLevel: 'Enrolled Students',
+    fileSize: '4.6 MB',
+    uploadDate: '2026-10-25',
+    description: 'Comprehensive study manual for NBL Assistant Manager: ALM liquidity gaps, Letters of Credit (UCP 600), Incoterms, AML/CFT risk management, and monetary policy mechanisms in Nepal.',
+    published: true,
+  },
 ];
 
 export const INITIAL_GALLERY: GalleryItem[] = [
@@ -2879,6 +3769,293 @@ GROUP 'C': Comprehensive Analytical Problems (2 x 15 = 30 Marks)
     published: true,
     createdAt: '2026-10-22T08:00:00Z',
     updatedAt: '2026-10-24T09:00:00Z',
+  },
+  {
+    id: 'mock-test-6',
+    title: 'Loksewa Nayab Subba (1st Paper) – General Knowledge & IQ Model Examination',
+    courseSlug: 'loksewa-nayab-subba',
+    courseName: 'Loksewa Nayab Subba (नायब सुब्बा – Na.Su.) Preparation',
+    courseType: 'New Course',
+    semesterOrYear: '1st Paper (Objective - 100 Marks)',
+    subject: 'General Knowledge (GK) & Current Affairs',
+    subjectCode: 'NASU-GK-01',
+    examDate: '2026-10-31',
+    startTime: '08:00 AM',
+    durationMinutes: 45,
+    fullMarks: 100,
+    passMarks: 40,
+    instructions: [
+      'Official Loksewa Aayog 1st Paper screening format: 50 Multiple Choice Questions (2 marks each).',
+      'Negative marking: 20% mark (0.4 marks) will be deducted for each incorrect answer.',
+      'Calculators, mobile devices, and reference books are strictly prohibited.',
+      'Darken the OMR bubbles or mark answers clearly. Upload scanned answer sheet within 45 minutes.'
+    ],
+    questionPaperName: 'Loksewa_NaSu_1stPaper_GK_IQ_Model_Exam.pdf',
+    questionPaperSize: '1.4 MB',
+    questionText: `PUBLIC SERVICE COMMISSION (LOKSEWA AAYOG) NEPAL
+Non-Gazetted 1st Class (Nayab Subba) Model Examination
+Paper 1: General Knowledge (GK) and General Mental Ability (IQ)
+Full Marks: 100 | Pass Marks: 40 | Time: 45 Minutes | Questions: 50 MCQs
+
+Section 1: General Knowledge (30 Questions x 2 = 60 Marks)
+1. In which geographical ecological region does Nepal's lowest altitude point (Kechana Kalan, 58m) lie?
+   (A) Terai (B) Inner Terai (C) Chure (D) Bhabar
+2. Under Article 17 of the Constitution of Nepal, how many fundamental freedoms are guaranteed?
+   (A) 5 (B) 6 (C) 7 (D) 8
+3. Which national park in Nepal was designated as a UNESCO Natural World Heritage Site in 1984?
+   (A) Chitwan National Park (B) Sagarmatha National Park (C) Bardiya National Park (D) Shey Phoksundo
+4. What is the target year for Nepal to graduate from Least Developed Country (LDC) status?
+   (A) 2026 (B) 2030 (C) 2032 (D) 2028
+5. Who was the first elected Prime Minister of Nepal?
+   (A) Matrika Prasad Koirala (B) Bishweshwar Prasad Koirala (C) Tanka Prasad Acharya (D) Subarna Shamsher
+
+Section 2: Mental Ability & IQ (20 Questions x 2 = 40 Marks)
+6. Number Series: 3, 7, 15, 31, 63, ?
+   (A) 95 (B) 127 (C) 125 (D) 128
+7. If 'NEPAL' is coded as 'OGQBN', how is 'KATHMANDU' coded under the same rule?
+8. Coding and direction sense: A civil servant walks 20m North, turns right and walks 30m, then turns right again and walks 20m. How far is he from his initial office entrance?`,
+    status: 'Upcoming',
+    published: true,
+    createdAt: '2026-10-24T10:00:00Z',
+    updatedAt: '2026-10-25T12:00:00Z',
+  },
+  {
+    id: 'mock-test-7',
+    title: 'Loksewa Section Officer (2nd Paper) – Governance System & Constitution Model Exam',
+    courseSlug: 'loksewa-section-officer',
+    courseName: 'Loksewa Section Officer (शाखा अधिकृत – Officer) Preparation',
+    courseType: 'New Course',
+    semesterOrYear: '2nd Paper (Subjective - 100 Marks)',
+    subject: 'Governance System & Constitution (शासन प्रणाली)',
+    subjectCode: 'OFF-GOV-02',
+    examDate: '2026-11-02',
+    startTime: '01:00 PM',
+    durationMinutes: 180,
+    fullMarks: 100,
+    passMarks: 40,
+    instructions: [
+      'Official Gazetted 3rd Class (Section Officer) subjective paper pattern: 10 questions x 10 marks = 100 marks.',
+      'Answers must follow standard Loksewa presentation: Introduction, Constitutional/Legal Provisions, Existing Bottlenecks, and Pragmatic Way Forward.',
+      'Time management: Spend roughly 17 minutes per 10-mark question.',
+      'Submit scanned handwritten PDF answer sheet before the timer runs out.'
+    ],
+    questionPaperName: 'Loksewa_Section_Officer_Paper2_Governance_Model.pdf',
+    questionPaperSize: '1.9 MB',
+    questionText: `PUBLIC SERVICE COMMISSION (LOKSEWA AAYOG)
+Gazetted 3rd Class (Section Officer) Pre-Board Subjective Examination
+Paper 2: Governance System (शासन प्रणाली र संविधान)
+Full Marks: 100 | Time: 3 Hours | Attempt ALL 10 Questions (10 x 10 = 100 Marks)
+
+Section A: State and Governance (40 Marks)
+1. (10 Marks) "Federalism in Nepal is rooted in the principles of cooperation, coexistence, and coordination." Critically examine the intergovernmental fiscal relationships among federal, provincial, and local levels under the Constitution of Nepal.
+2. (10 Marks) What is Good Governance? Discuss the core institutional and procedural mechanisms in Nepal established to ensure transparency and combat public corruption.
+3. (10 Marks) Analyze the challenges encountered in service delivery at the local government level in Nepal and propose actionable reforms to strengthen Citizen Charters.
+4. (10 Marks) Explain the role of an independent judiciary and judicial review in upholding constitutional supremacy in Nepal.
+
+Section B: Public Administration and Management (30 Marks)
+5. (10 Marks) Discuss the concept of New Public Management (NPM) and evaluate its relevance and limitations in reforming Nepal's civil service administration.
+6. (10 Marks) What is Public Procurement? Explain the fundamental principles of transparency, competition, and value for money enshrined in the Public Procurement Act 2063.
+7. (10 Marks) Highlight the significance of Right to Information (RTI) in fostering accountability and institutional integrity in public bodies.
+
+Section C: Contemporary Administrative Issues (30 Marks)
+8. (10 Marks) Examine the ethical dilemmas faced by civil servants in policy implementation and suggest strategies to foster bureaucratic integrity.
+9. (10 Marks) Discuss the potential and security safeguards of e-Governance (Digital Nepal Framework) in public service delivery.
+10. (10 Marks) Draft an administrative official memo (टिप्पणी) proposing the establishment of a citizen grievance redressal cell at a district administrative office.`,
+    status: 'Upcoming',
+    published: true,
+    createdAt: '2026-10-25T11:00:00Z',
+    updatedAt: '2026-10-26T14:00:00Z',
+  },
+  {
+    id: 'mock-test-8',
+    title: 'Loksewa 6th Level Officer (अधिकृत छैटौं तह) – Model Exam on General Knowledge & Mental Ability (GK & IQ)',
+    courseSlug: 'loksewa-officer-level-6',
+    courseName: 'Loksewa 6th Level Officer (अधिकृत छैटौं तह)',
+    courseType: 'New Course',
+    semesterOrYear: '1st Paper (Objective - 100 Marks)',
+    subject: 'General Knowledge (GK) & Mental Ability Test (IQ)',
+    subjectCode: 'LV6-GK-01',
+    examDate: '2026-11-04',
+    startTime: '08:00 AM',
+    durationMinutes: 45,
+    fullMarks: 100,
+    passMarks: 40,
+    instructions: [
+      'Official 6th Level (अधिकृत छैटौं तह) 1st Paper screening pattern: 50 MCQs x 2 marks = 100 marks.',
+      'Time duration is exactly 45 minutes.',
+      'Negative marking: 20% mark (0.4 mark) will be deducted for each incorrect answer.',
+      'Questions cover Nepal Constitution, Federalism, Geography, History, Local Governance, Science & Technology, and Logical IQ.'
+    ],
+    questionPaperName: 'Loksewa_6th_Level_Officer_Paper1_GK_IQ_Model.pdf',
+    questionPaperSize: '1.7 MB',
+    questionText: `PUBLIC SERVICE COMMISSION & PROVINCIAL PSC (LOKSEWA AAYOG)
+Officer 6th Level (अधिकृत छैटौं तह) Model Examination
+Paper 1: General Knowledge (GK) & General Mental Ability (IQ)
+Total MCQs: 50 | Time: 45 Minutes | Full Marks: 100 | Negative Marking: 20%
+
+Section 1: General Knowledge (GK) [30 Questions = 60 Marks]
+Q1. Under the Constitution of Nepal, what is the total number of items included in the exclusive powers of the Local Level (Schedule 8)?
+(A) 21 (B) 22 (C) 23 (D) 24
+
+Q2. Which mountain peak is situated between the border of Nepal and the Tibet Autonomous Region of China with an elevation of 8,201 meters?
+(A) Lhotse (B) Cho Oyu (C) Makalu (D) Manaslu
+
+Q3. In which year was the Local Government Operation Act (स्थानीय सरकार सञ्चालन ऐन) enacted in Nepal?
+(A) 2072 BS (B) 2074 BS (C) 2075 BS (D) 2076 BS
+
+Q4. What is the constitutional quorum required for introducing a bill in the Federal Parliament of Nepal?
+(A) One-fourth of the total membership (B) One-third (C) Two-thirds (D) One-half
+
+Q5. Who was the first elected Prime Minister of Nepal under democratic constitution?
+(A) Matrika Prasad Koirala (B) Bishweshwar Prasad Koirala (C) Tanka Prasad Acharya (D) Subarna Shamsher
+
+Q6. Under the Sustainable Development Goals (SDGs), Goal 16 specifically targets which area?
+(A) Climate Action (B) Peace, Justice and Strong Institutions (C) Quality Education (D) Zero Hunger
+
+Q7. Which tier of government is primarily responsible for basic and secondary education management in Nepal?
+(A) Federal Government (B) Provincial Government (C) Local Level (D) Joint Committee
+
+Q8. Which lake in Nepal is the world's highest altitude freshwater lake located at 4,919 meters in Manang?
+(A) Tilicho Lake (B) Rara Lake (C) Shey Phoksundo Lake (D) Gosaikunda
+
+Section 2: Mental Ability & Logical Reasoning (IQ) [20 Questions = 40 Marks]
+Q9. Complete the numerical sequence: 3, 7, 15, 31, 63, ___?
+(A) 95 (B) 127 (C) 128 (D) 144
+
+Q10. If OFFICER is coded as PGGJDFS, how will LOKSEWA be coded in the same pattern?
+(A) MPLTFXB (B) MPMSFXB (C) MQLTFYA (D) NOLTFZB
+
+Q11. A local ward office budget allocation of Rs. 4,800,000 is distributed among infrastructure, health, and education in the ratio 5:3:2. How much is allocated to health?
+(A) Rs. 1,440,000 (B) Rs. 960,000 (C) Rs. 2,400,000 (D) Rs. 1,200,000
+
+Q12. If 12 civil officers can audit 36 ward projects in 6 days, how many projects can 16 officers audit in 8 days working at the same pace?
+(A) 64 projects (B) 72 projects (C) 80 projects (D) 96 projects`,
+    status: 'Upcoming',
+    published: true,
+    createdAt: '2026-10-26T12:00:00Z',
+    updatedAt: '2026-10-26T12:00:00Z',
+  },
+  {
+    id: 'mock-test-rbb-4',
+    title: 'RBB 4th Level Assistant – Pre-Test (MCQ) Speed Simulation Exam',
+    courseSlug: 'loksewa-rbb-level-4',
+    courseName: 'RBB 4th Level (रा.वा.बैंक तह ४ सहायक)',
+    courseType: 'New Course',
+    semesterOrYear: '1st Paper (Pre-Test - 100 Marks)',
+    subject: '1st Paper (Pre-Test Objective): General Knowledge, Management, Accounting, Math, IT & Banking',
+    subjectCode: 'RBB4-P1-MCQ',
+    examDate: '2026-11-06',
+    startTime: '07:30 AM',
+    durationMinutes: 45,
+    fullMarks: 100,
+    passMarks: 40,
+    instructions: [
+      'Official RBB Level 4 Pre-Test format: 50 Multiple Choice Questions (2 marks each = 100 Marks).',
+      'Time Duration: Exactly 45 minutes.',
+      'Negative Marking: 20% mark (0.4 marks) deducted for every incorrect response.',
+      'Includes GK, Banking History & Operations, Accounting Principles, Commercial Math, and Computer basics.'
+    ],
+    questionPaperName: 'RBB_4th_Level_PreTest_Model_Exam_2083.pdf',
+    questionPaperSize: '1.5 MB',
+    questionText: `PUBLIC SERVICE COMMISSION & RASTRIYA BANIJYA BANK
+RBB Assistant 4th Level (प्रशासन / नगद) Pre-Test Model Examination
+Time: 45 Minutes | Total Marks: 100 | Questions: 50 MCQs | Negative Marking: 20%
+
+Section 1: Banking & General Knowledge (20 Questions = 40 Marks)
+1. On which date was Rastriya Banijya Bank established?
+   (A) 2022 Magh 10 BS (B) 2023 Magh 10 BS (C) 2021 Baishakh 1 BS (D) 2024 Ashoj 1 BS
+2. What is the current Cash Reserve Ratio (CRR) required for commercial banks in Nepal?
+   (A) 3.0% (B) 4.0% (C) 5.0% (D) 6.0%
+3. Under BAFIA 2073, who holds authority to issue operating licenses to commercial banks?
+   (A) Ministry of Finance (B) Nepal Rastra Bank (C) Company Registrar Office (D) SEBON
+4. Which type of negotiable instrument is governed by Section 2 of Negotiable Instruments Act 2034?
+   (A) Promissory Note (B) Cheque (C) Bill of Exchange (D) All of the above
+
+Section 2: Accounting & Commercial Mathematics (20 Questions = 40 Marks)
+5. Outstanding expenses appearing in the trial balance are shown in which financial statement?
+   (A) Trading A/C only (B) Balance Sheet liability side only (C) P&L A/C debit only (D) Both P&L and Balance Sheet
+6. If the simple interest on Rs. 40,000 for 2 years at 10% is Rs. 8,000, what is the compound interest compounded annually?
+   (A) Rs. 8,200 (B) Rs. 8,400 (C) Rs. 8,600 (D) Rs. 8,800
+
+Section 3: Computer & Office Management (10 Questions = 20 Marks)
+7. What is the keyboard shortcut to permanently delete a file bypassing the Recycle Bin in Windows?
+   (A) Ctrl + Delete (B) Shift + Delete (C) Alt + Delete (D) Ctrl + Shift + D
+8. Which electronic interbank fund transfer system in Nepal facilitates real-time high-value settlements?
+   (A) RTGS (B) ConnectIPS (C) NCHL-IPS (D) SWIFT`,
+    status: 'Upcoming',
+    published: true,
+    createdAt: '2026-10-26T15:00:00Z',
+    updatedAt: '2026-10-26T15:00:00Z',
+  },
+  {
+    id: 'mock-test-rbb-6',
+    title: 'RBB 6th Level Officer – Credit Appraisal & Banking Laws Subjective Written Model Exam',
+    courseSlug: 'loksewa-rbb-level-6',
+    courseName: 'RBB 6th Level (रा.वा.बैंक तह ६ अधिकृत)',
+    courseType: 'New Course',
+    semesterOrYear: '2nd Paper (Subjective - 100 Marks)',
+    subject: '2nd Paper (Service Specific): Administration & Banking Regulations',
+    subjectCode: 'RBB6-P2-ADM',
+    examDate: '2026-11-08',
+    startTime: '01:00 PM',
+    durationMinutes: 180,
+    fullMarks: 100,
+    passMarks: 40,
+    instructions: [
+      'Official Loksewa Aayog Subjective Paper pattern for Officer 6th Level: 10 questions x 10 marks = 100 Marks.',
+      'Answers must follow standard structured presentation: Conceptual Overview, Statutory Provisions, Analytical Case Application, and Recommendations.',
+      'Upload high-resolution scanned handwritten PDF before the timer expires.'
+    ],
+    questionPaperName: 'RBB_6th_Level_Officer_Paper2_Subjective_Model.pdf',
+    questionPaperSize: '1.8 MB',
+    questionText: `PUBLIC SERVICE COMMISSION & RASTRIYA BANIJYA BANK
+Officer 6th Level (अधिकृत छैटौं तह) Written Examination
+Subject: Banking Operations, Credit Risk & Regulations (10 x 10 = 100 Marks) | Time: 3 Hours
+
+1. (10 Marks) Explain the 5 Cs of Credit (Character, Capacity, Capital, Collateral, Condition). How does a loan underwriting officer assess creditworthiness of a corporate borrower seeking term loan financing?
+2. (10 Marks) What is Non-Performing Loan (NPL)? Discuss the classification of loans into Pass, Watchlist, Substandard, Doubtful, and Loss categories and their corresponding provisioning rates according to NRB Directive No. 2.
+3. (10 Marks) Define Asset-Liability Management (ALM). Explain how interest rate sensitivity and liquidity maturity ladders are managed by commercial banks in Nepal.
+4. (10 Marks) Highlight the major provisions of the Anti-Money Laundering (AML/CFT) Act 2064 regarding Suspicious Transaction Reporting (STR) and Threshold Transaction Reporting (TTR).
+5. (10 Marks) Discuss the role and constitutional autonomy of Nepal Rastra Bank as the central bank under the NRB Act 2058.`,
+    status: 'Upcoming',
+    published: true,
+    createdAt: '2026-10-26T16:00:00Z',
+    updatedAt: '2026-10-26T16:00:00Z',
+  },
+  {
+    id: 'mock-test-nbl-4',
+    title: 'NBL 4th Level Junior Assistant – Banking Practice & Accounting Subjective Model Exam',
+    courseSlug: 'loksewa-nbl-level-4',
+    courseName: 'NBL 4th Level (नेपाल बैंक तह ४ सहायक)',
+    courseType: 'New Course',
+    semesterOrYear: '2nd Paper (Subjective - 100 Marks)',
+    subject: '2nd Paper (Section B): Principles of Accounting, Auditing & Commercial Mathematics',
+    subjectCode: 'NBL4-P2-SEC-B',
+    examDate: '2026-11-10',
+    startTime: '08:00 AM',
+    durationMinutes: 180,
+    fullMarks: 100,
+    passMarks: 40,
+    instructions: [
+      'Official Nepal Bank Limited 2nd Paper written format (10 questions x 10 marks).',
+      'Neat working notes and accounting ledgers must be presented.',
+      'Submit scanned handwritten PDF answer sheets before deadline.'
+    ],
+    questionPaperName: 'NBL_4th_Level_JuniorAssistant_Paper2_Model.pdf',
+    questionPaperSize: '1.6 MB',
+    questionText: `PUBLIC SERVICE COMMISSION & NEPAL BANK LIMITED
+Junior Assistant 4th Level (सहायक / कनिष्ठ सहायक) Written Model Exam
+Paper 2: Banking Business, Accounting & Official Drafting | Time: 3 Hours | Full Marks: 100
+
+1. (10 Marks) Highlight the historical importance of Nepal Bank Limited as the first commercial bank of Nepal. Explain the primary functions performed by modern commercial bank branches.
+2. (10 Marks) What is a Bank Reconciliation Statement (BRS)? Enumerate five common causes of divergence between the cash book balance and the bank passbook balance with adjustment rules.
+3. (10 Marks) Explain Know Your Customer (KYC) norms. Why is KYC verification indispensable in preventing financial crimes and terrorist financing?
+4. (10 Marks) Differentiate between General Crossing, Special Crossing, and Restrictive Crossing of cheques with illustrative diagrams.
+5. (10 Marks) Draft an official administrative letter from a Branch Manager to a commercial borrower requesting renewal of overdue working capital credit facility.`,
+    status: 'Upcoming',
+    published: true,
+    createdAt: '2026-10-26T17:00:00Z',
+    updatedAt: '2026-10-26T17:00:00Z',
   }
 ];
 

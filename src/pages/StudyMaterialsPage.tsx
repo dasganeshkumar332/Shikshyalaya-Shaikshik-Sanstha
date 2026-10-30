@@ -71,6 +71,26 @@ export const StudyMaterialsPage: React.FC = () => {
         return '+2 Management (NEB)';
       case 'bba-pokhara-university':
         return 'BBA - Pokhara University (PU)';
+      case 'loksewa-officer-level-6':
+        return 'Loksewa 6th Level Officer (अधिकृत छैटौं)';
+      case 'loksewa-nayab-subba':
+        return 'Loksewa Nayab Subba (ना.सु.)';
+      case 'loksewa-section-officer':
+        return 'Loksewa Section Officer (शाखा अधिकृत)';
+      case 'loksewa-kharidar':
+        return 'Loksewa Kharidar (खरिदार)';
+      case 'loksewa-rbb-level-4':
+        return 'RBB 4th Level (रा.वा.बैंक तह ४)';
+      case 'loksewa-rbb-level-6':
+        return 'RBB 6th Level (रा.वा.बैंक तह ६)';
+      case 'loksewa-nbl-level-4':
+        return 'NBL 4th Level (नेपाल बैंक तह ४)';
+      case 'loksewa-nbl-level-6':
+        return 'NBL 6th Level (नेपाल बैंक तह ६)';
+      case 'loksewa-banking-preparation':
+        return 'Loksewa Banking (RBB, NBL, ADBL, NRB)';
+      case 'teachers-service-commission-tsc':
+        return 'TSC (शिक्षक सेवा आयोग)';
       default:
         return c.title.replace(/4 Years Program on |4 Semester on |8 Semester on |8 Semesters Program/gi, '').trim();
     }
@@ -78,6 +98,7 @@ export const StudyMaterialsPage: React.FC = () => {
 
   // Label for the Year / Semester filter column
   const yearOrSemesterLabel = useMemo(() => {
+    if (selectedCourse.startsWith('loksewa') || selectedCourse.includes('tsc')) return 'Paper / Exam Level';
     if (selectedCourse === 'bbs-tu') return 'Year (BBS)';
     if (selectedCourse === 'mbs-tu') return 'Semester (MBS)';
     if (selectedCourse === 'bba-tu') return 'Semester (BBA)';
@@ -89,6 +110,11 @@ export const StudyMaterialsPage: React.FC = () => {
 
   // Dynamic Year or Semester options strictly as per the selected course
   const availableYearsOrSemesters = useMemo(() => {
+    if (selectedCourse.startsWith('loksewa') || selectedCourse.includes('tsc')) {
+      const targetCourse = courses.find((c) => c.slug === selectedCourse);
+      const terms = Array.from(new Set(targetCourse?.subjectsOffered?.map((s) => s.semesterOrYear).filter(Boolean))) as string[];
+      return terms.length > 0 ? terms : ['1st Paper (Objective - 100 Marks)', '2nd Paper (Subjective - 100 Marks)'];
+    }
     if (selectedCourse === 'bbs-tu') {
       return ['1st Year', '2nd Year', '3rd Year', '4th Year'];
     }
@@ -115,9 +141,10 @@ export const StudyMaterialsPage: React.FC = () => {
       '1st Year', '2nd Year', '3rd Year', '4th Year',
       '1st Semester', '2nd Semester', '3rd Semester', '4th Semester',
       '5th Semester', '6th Semester', '7th Semester', '8th Semester',
-      'Grade 11', 'Grade 12'
+      'Grade 11', 'Grade 12',
+      '1st Paper (Objective - 100 Marks)', '2nd Paper (Subjective - 100 Marks)'
     ];
-  }, [selectedCourse]);
+  }, [selectedCourse, courses]);
 
   // Flexible matcher between material/subject semester/year and target filter
   const matchesYearOrSemester = (itemYearOrSem?: string, target?: string) => {

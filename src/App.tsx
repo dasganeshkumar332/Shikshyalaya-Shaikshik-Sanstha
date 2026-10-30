@@ -9,6 +9,7 @@ import { HomePage } from './pages/HomePage';
 import { AboutPage } from './pages/AboutPage';
 import { CoursesPage } from './pages/CoursesPage';
 import { CourseDetailPage } from './pages/CourseDetailPage';
+import { LoksewaHubPage } from './pages/LoksewaHubPage';
 import { TeachersPage } from './pages/TeachersPage';
 import { OnlineClassesPage } from './pages/OnlineClassesPage';
 import { StudyMaterialsPage } from './pages/StudyMaterialsPage';
@@ -66,6 +67,10 @@ export function App() {
               <Route path="/courses/plus-two-management" element={<CourseDetailPage />} />
               <Route path="/courses/bba-pokhara-university" element={<CourseDetailPage />} />
               <Route path="/courses/:slug" element={<CourseDetailPage />} />
+
+              {/* Dedicated Loksewa Aayog Hub & Exam Routes */}
+              <Route path="/loksewa" element={<LoksewaHubPage />} />
+              <Route path="/loksewa/:slug" element={<CourseDetailPage />} />
 
               {/* Teachers */}
               <Route path="/teachers" element={<TeachersPage />} />

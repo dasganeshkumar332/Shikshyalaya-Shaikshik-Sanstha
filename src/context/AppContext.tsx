@@ -28,6 +28,17 @@ import {
   INITIAL_MOCK_TESTS,
   INITIAL_MOCK_TEST_SUBMISSIONS,
 } from '../data/initialData';
+import { checkSupabaseConnection, SupabaseConnectionStatus } from '../lib/supabase';
+import {
+  saveInquiryToSupabase,
+  saveMockSubmissionToSupabase,
+  saveContactMessageToSupabase,
+  saveStudentGroupToSupabase,
+  saveSettingsToSupabase,
+  syncAllDataToSupabase,
+  fetchInquiriesFromSupabase,
+  fetchSubmissionsFromSupabase,
+} from '../services/supabaseService';
 
 interface AppContextType {
   settings: SiteSettings;
@@ -152,6 +163,11 @@ interface AppContextType {
 
   language: 'en' | 'ne';
   toggleLanguage: () => void;
+
+  // Supabase Database Connection & Storage
+  supabaseStatus: SupabaseConnectionStatus | null;
+  checkSupabaseStatus: () => Promise<SupabaseConnectionStatus>;
+  syncAllToSupabase: () => Promise<{ success: boolean; syncedCounts: Record<string, number>; errors: string[] }>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -451,9 +467,69 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(STORAGE_KEYS.MOCK_SUBMISSIONS, JSON.stringify(mockTestSubmissions));
   }, [mockTestSubmissions]);
 
+  // Supabase Connection & Cloud Synchronization
+  const [supabaseStatus, setSupabaseStatus] = useState<SupabaseConnectionStatus | null>(null);
+
+  const checkSupabaseStatus = async (): Promise<SupabaseConnectionStatus> => {
+    const status = await checkSupabaseConnection();
+    setSupabaseStatus(status);
+    return status;
+  };
+
+  const syncAllToSupabase = async () => {
+    const res = await syncAllDataToSupabase({
+      inquiries,
+      mockSubmissions: mockTestSubmissions,
+      contactMessages,
+      studentGroups,
+      mockTests,
+      notices,
+      studyMaterials,
+      settings,
+    });
+    // Re-verify status
+    await checkSupabaseStatus();
+    return res;
+  };
+
+  // Test Supabase connection and pull cloud updates on mount
+  useEffect(() => {
+    checkSupabaseConnection().then((status) => {
+      setSupabaseStatus(status);
+    });
+
+    // Check if remote inquiries exist to merge
+    fetchInquiriesFromSupabase().then((remoteInqs) => {
+      if (remoteInqs && remoteInqs.length > 0) {
+        setInquiries((localInqs) => {
+          const map = new Map<string, AdmissionInquiry>();
+          localInqs.forEach((i) => map.set(i.id, i));
+          remoteInqs.forEach((i) => map.set(i.id, i));
+          return Array.from(map.values());
+        });
+      }
+    });
+
+    // Check if remote mock submissions exist to merge
+    fetchSubmissionsFromSupabase().then((remoteSubs) => {
+      if (remoteSubs && remoteSubs.length > 0) {
+        setMockTestSubmissions((localSubs) => {
+          const map = new Map<string, MockTestSubmission>();
+          localSubs.forEach((s) => map.set(s.id, s));
+          remoteSubs.forEach((s) => map.set(s.id, s));
+          return Array.from(map.values());
+        });
+      }
+    });
+  }, []);
+
   // Actions
   const updateSettings = (newSettings: Partial<SiteSettings>) => {
-    setSettings((prev) => ({ ...prev, ...newSettings }));
+    setSettings((prev) => {
+      const next = { ...prev, ...newSettings };
+      saveSettingsToSupabase(next).catch(console.warn);
+      return next;
+    });
   };
 
   const resetSettings = () => {
@@ -584,6 +660,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setInquiries((prev) => [newInquiry, ...prev]);
+    saveInquiryToSupabase(newInquiry).catch(console.warn);
     return refNum;
   };
 
@@ -600,12 +677,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               by: currentUser?.name || 'Administrator',
             });
           }
-          return {
+          const updated = {
             ...inq,
             status,
             adminNotes: notes,
             updatedAt: now,
           };
+          saveInquiryToSupabase(updated).catch(console.warn);
+          return updated;
         }
         return inq;
       })
@@ -646,6 +725,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             updatedAt: now,
           };
           verifiedInquiry = updated;
+          saveInquiryToSupabase(updated).catch(console.warn);
           return updated;
         }
         return inq;
@@ -676,11 +756,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               addedAt: now,
               notes: 'Auto-added upon verified enrollment',
             };
-            return {
+            const updatedGroup = {
               ...g,
               members: [newMem, ...g.members],
               updatedAt: now,
             };
+            saveStudentGroupToSupabase(updatedGroup).catch(console.warn);
+            return updatedGroup;
           }
           return g;
         })
@@ -735,6 +817,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updatedAt: now,
     };
     setInquiries((prev) => prev.map((i) => (i.id === target.id ? updated : i)));
+    saveInquiryToSupabase(updated).catch(console.warn);
     return {
       success: true,
       message: 'Payment voucher uploaded successfully! Pending administrative verification.',
@@ -746,7 +829,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setInquiries((prev) =>
       prev.map((inq) => {
         if (inq.id === id) {
-          return {
+          const updated = {
             ...inq,
             adminNotes: [
               ...(inq.adminNotes || []),
@@ -758,6 +841,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             ],
             updatedAt: new Date().toISOString(),
           };
+          saveInquiryToSupabase(updated).catch(console.warn);
+          return updated;
         }
         return inq;
       })
@@ -823,6 +908,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString(),
     };
     setContactMessages((prev) => [newMsg, ...prev]);
+    saveContactMessageToSupabase(newMsg).catch(console.warn);
   };
 
   // Student Group Management
@@ -854,12 +940,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updatedAt: now,
     };
     setStudentGroups((prev) => [newGroup, ...prev]);
+    saveStudentGroupToSupabase(newGroup).catch(console.warn);
   };
 
   const updateStudentGroup = (id: string, updates: Partial<StudentGroup>) => {
     const now = new Date().toISOString();
     setStudentGroups((prev) =>
-      prev.map((g) => (g.id === id ? { ...g, ...updates, updatedAt: now } : g))
+      prev.map((g) => {
+        if (g.id === id) {
+          const updated = { ...g, ...updates, updatedAt: now };
+          saveStudentGroupToSupabase(updated).catch(console.warn);
+          return updated;
+        }
+        return g;
+      })
     );
   };
 
@@ -1284,6 +1378,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       evaluationStatus: 'Submitted',
     };
     setMockTestSubmissions((prev) => [newSubmission, ...prev]);
+    saveMockSubmissionToSupabase(newSubmission).catch(console.warn);
     return {
       success: true,
       submissionId: id,
@@ -1303,20 +1398,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   ) => {
     setMockTestSubmissions((prev) =>
-      prev.map((s) =>
-        s.id === submissionId
-          ? {
-              ...s,
-              marksObtained: gradeData.marksObtained,
-              evaluationStatus: gradeData.evaluationStatus,
-              feedbackRemarks: gradeData.feedbackRemarks,
-              evaluatedBy: gradeData.evaluatedBy || 'Teacher / Examiner',
-              evaluatedAt: new Date().toISOString(),
-              evaluatedPaperUrl: gradeData.evaluatedPaperUrl || s.evaluatedPaperUrl,
-              evaluatedPaperName: gradeData.evaluatedPaperName || s.evaluatedPaperName,
-            }
-          : s
-      )
+      prev.map((s) => {
+        if (s.id === submissionId) {
+          const updated = {
+            ...s,
+            marksObtained: gradeData.marksObtained,
+            evaluationStatus: gradeData.evaluationStatus,
+            feedbackRemarks: gradeData.feedbackRemarks,
+            evaluatedBy: gradeData.evaluatedBy || 'Teacher / Examiner',
+            evaluatedAt: new Date().toISOString(),
+            evaluatedPaperUrl: gradeData.evaluatedPaperUrl || s.evaluatedPaperUrl,
+            evaluatedPaperName: gradeData.evaluatedPaperName || s.evaluatedPaperName,
+          };
+          saveMockSubmissionToSupabase(updated).catch(console.warn);
+          return updated;
+        }
+        return s;
+      })
     );
   };
 
@@ -1344,20 +1442,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
 
     if (existingIndex >= 0) {
+      let updatedItem: MockTestSubmission | null = null;
       setMockTestSubmissions((prev) => {
         const copy = [...prev];
-        copy[existingIndex] = {
+        const updated = {
           ...copy[existingIndex],
           marksObtained: resultData.marksObtained,
           feedbackRemarks: resultData.feedbackRemarks,
           evaluatedBy: resultData.evaluatedBy,
-          evaluationStatus: 'Evaluated',
+          evaluationStatus: 'Evaluated' as const,
           evaluatedAt: new Date().toISOString(),
           evaluatedPaperUrl: resultData.evaluatedPaperUrl || copy[existingIndex].evaluatedPaperUrl,
           evaluatedPaperName: resultData.evaluatedPaperName || copy[existingIndex].evaluatedPaperName,
         };
+        copy[existingIndex] = updated;
+        updatedItem = updated;
         return copy;
       });
+      if (updatedItem) {
+        saveMockSubmissionToSupabase(updatedItem).catch(console.warn);
+      }
       return { success: true, message: `Marks and examiner feedback updated for ${resultData.studentName}.` };
     }
 
@@ -1386,6 +1490,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setMockTestSubmissions((prev) => [newSub, ...prev]);
+    saveMockSubmissionToSupabase(newSub).catch(console.warn);
     return { success: true, message: `Official evaluation result published for ${resultData.studentName}.` };
   };
 
@@ -1455,6 +1560,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         logout,
         language,
         toggleLanguage,
+        supabaseStatus,
+        checkSupabaseStatus,
+        syncAllToSupabase,
       }}
     >
       {children}

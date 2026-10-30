@@ -23,12 +23,61 @@ import {
   Calculator,
   Landmark,
   FileText,
+  Shield,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { InstituteLogo } from '../components/common/InstituteLogo';
 
 export const getCourseBadge = (slug: string) => {
   switch (slug) {
+    case 'loksewa-officer-level-6':
+      return {
+        icon: Sparkles,
+        shortLabel: 'Loksewa 6th Level',
+        badgeColor: 'bg-amber-100 text-amber-900 border-amber-400',
+        iconBg: 'bg-gradient-to-br from-amber-500 to-amber-600 text-slate-950 shadow-amber-200',
+        accentColor: 'text-amber-800',
+      };
+    case 'loksewa-nayab-subba':
+      return {
+        icon: Shield,
+        shortLabel: 'Loksewa Na.Su.',
+        badgeColor: 'bg-emerald-100 text-emerald-900 border-emerald-300',
+        iconBg: 'bg-gradient-to-br from-emerald-600 to-teal-700 text-white shadow-emerald-200',
+        accentColor: 'text-emerald-700',
+      };
+    case 'loksewa-section-officer':
+      return {
+        icon: Landmark,
+        shortLabel: 'Section Officer',
+        badgeColor: 'bg-blue-100 text-blue-900 border-blue-300',
+        iconBg: 'bg-gradient-to-br from-blue-700 to-indigo-800 text-white shadow-blue-200',
+        accentColor: 'text-blue-700',
+      };
+    case 'loksewa-kharidar':
+      return {
+        icon: FileText,
+        shortLabel: 'Loksewa Kharidar',
+        badgeColor: 'bg-amber-100 text-amber-900 border-amber-300',
+        iconBg: 'bg-gradient-to-br from-amber-600 to-amber-700 text-white shadow-amber-200',
+        accentColor: 'text-amber-700',
+      };
+    case 'loksewa-banking-preparation':
+      return {
+        icon: Briefcase,
+        shortLabel: 'Loksewa Banking',
+        badgeColor: 'bg-cyan-100 text-cyan-900 border-cyan-300',
+        iconBg: 'bg-gradient-to-br from-cyan-600 to-blue-700 text-white shadow-cyan-200',
+        accentColor: 'text-cyan-700',
+      };
+    case 'teachers-service-commission-tsc':
+      return {
+        icon: GraduationCap,
+        shortLabel: 'TSC (शिक्षक सेवा)',
+        badgeColor: 'bg-rose-100 text-rose-900 border-rose-300',
+        iconBg: 'bg-gradient-to-br from-rose-600 to-red-700 text-white shadow-rose-200',
+        accentColor: 'text-rose-700',
+      };
     case 'bbs-tu':
       return {
         icon: Award,
@@ -589,6 +638,96 @@ export const HomePage: React.FC = () => {
                 <p className="text-[11px] text-slate-600 mt-2 line-clamp-1">
                   Comprehensive PU Curriculum Support
                 </p>
+              </Link>
+            </div>
+          </div>
+
+          {/* Dedicated Loksewa Aayog & Public Exams Ribbon */}
+          <div className="mt-4 pt-4 border-t border-slate-200/80 bg-gradient-to-r from-emerald-50/60 via-amber-50/50 to-blue-50/60 rounded-xl p-3 sm:p-4 border border-emerald-200/50">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-2.5">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 animate-pulse" />
+                <span className="text-xs font-black uppercase tracking-wider text-emerald-900">
+                  लोक सेवा आयोग नेपाल (Loksewa Aayog & Competitive Examinations)
+                </span>
+                <span className="text-[10px] font-bold bg-amber-400 text-slate-950 px-2 py-0.5 rounded-full shadow-xs">
+                  ६औं तह New Batches Open
+                </span>
+              </div>
+              <Link
+                to="/loksewa"
+                className="text-xs font-bold text-emerald-800 hover:text-emerald-950 inline-flex items-center gap-1 group self-start md:self-auto bg-white/70 hover:bg-white px-2.5 py-1 rounded-lg border border-emerald-200 transition-colors"
+              >
+                <span>Visit Loksewa Hub & Resources</span>
+                <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+              <Link
+                to="/courses/loksewa-officer-level-6"
+                className="p-2.5 rounded-lg bg-amber-50 border-2 border-amber-400 hover:border-amber-500 hover:shadow-xs transition-all text-left group"
+              >
+                <div className="flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-600 group-hover:scale-110 transition-transform" />
+                  <span className="text-xs font-black text-amber-950 group-hover:text-amber-800">अधिकृत ६औं तह</span>
+                </div>
+                <p className="text-[10px] text-amber-800 font-bold mt-0.5 truncate">Federal & Province</p>
+              </Link>
+
+              <Link
+                to="/courses/loksewa-nayab-subba"
+                className="p-2.5 rounded-lg bg-white border border-emerald-200 hover:border-emerald-500 hover:shadow-xs transition-all text-left group"
+              >
+                <div className="flex items-center gap-1.5">
+                  <Shield className="w-3.5 h-3.5 text-emerald-600 group-hover:scale-110 transition-transform" />
+                  <span className="text-xs font-bold text-slate-900 group-hover:text-emerald-700">नायब सुब्बा (Na.Su.)</span>
+                </div>
+                <p className="text-[10px] text-slate-500 mt-0.5 truncate">5th Level Non-Gazetted</p>
+              </Link>
+
+              <Link
+                to="/courses/loksewa-section-officer"
+                className="p-2.5 rounded-lg bg-white border border-blue-200 hover:border-blue-500 hover:shadow-xs transition-all text-left group"
+              >
+                <div className="flex items-center gap-1.5">
+                  <Landmark className="w-3.5 h-3.5 text-blue-600 group-hover:scale-110 transition-transform" />
+                  <span className="text-xs font-bold text-slate-900 group-hover:text-blue-700">शाखा अधिकृत</span>
+                </div>
+                <p className="text-[10px] text-slate-500 mt-0.5 truncate">Gazetted 3rd Class</p>
+              </Link>
+
+              <Link
+                to="/courses/loksewa-kharidar"
+                className="p-2.5 rounded-lg bg-white border border-amber-200 hover:border-amber-500 hover:shadow-xs transition-all text-left group"
+              >
+                <div className="flex items-center gap-1.5">
+                  <FileText className="w-3.5 h-3.5 text-amber-600 group-hover:scale-110 transition-transform" />
+                  <span className="text-xs font-bold text-slate-900 group-hover:text-amber-700">खरिदार (Kharidar)</span>
+                </div>
+                <p className="text-[10px] text-slate-500 mt-0.5 truncate">4th Level Non-Gazetted</p>
+              </Link>
+
+              <Link
+                to="/courses/loksewa-banking-preparation"
+                className="p-2.5 rounded-lg bg-white border border-cyan-200 hover:border-cyan-500 hover:shadow-xs transition-all text-left group"
+              >
+                <div className="flex items-center gap-1.5">
+                  <Briefcase className="w-3.5 h-3.5 text-cyan-600 group-hover:scale-110 transition-transform" />
+                  <span className="text-xs font-bold text-slate-900 group-hover:text-cyan-700">सरकारी बैंक तयारी</span>
+                </div>
+                <p className="text-[10px] text-slate-500 mt-0.5 truncate">RBB, NBL, ADBL, NRB</p>
+              </Link>
+
+              <Link
+                to="/courses/teachers-service-commission-tsc"
+                className="p-2.5 rounded-lg bg-white border border-rose-200 hover:border-rose-500 hover:shadow-xs transition-all text-left group"
+              >
+                <div className="flex items-center gap-1.5">
+                  <GraduationCap className="w-3.5 h-3.5 text-rose-600 group-hover:scale-110 transition-transform" />
+                  <span className="text-xs font-bold text-slate-900 group-hover:text-rose-700">शिक्षक सेवा (TSC)</span>
+                </div>
+                <p className="text-[10px] text-slate-500 mt-0.5 truncate">Primary & Secondary</p>
               </Link>
             </div>
           </div>

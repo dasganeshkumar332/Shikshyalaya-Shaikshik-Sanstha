@@ -11,6 +11,7 @@ import {
   Clock,
   BookOpen,
   ShieldCheck,
+  Shield,
   Phone,
   Mail,
   Copy,
@@ -944,80 +945,99 @@ export const AdmissionPage: React.FC = () => {
                   <span className="text-[11px] text-slate-400 font-normal">Step 2 of 4</span>
                 </h3>
 
-                {/* Syllabus / Course Type Selector */}
-                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="block font-bold text-slate-800 text-xs">
-                      Curriculum / Syllabus Category <span className="text-rose-500">*</span>
-                    </label>
-                    <span className="text-[10px] font-semibold text-slate-500">
-                      Regular Semester or Backpaper Exam
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setCourseType('New Course');
-                        // If current was an old course slug, switch to regular counterpart if available
-                        if (selectedCourseSlug.endsWith('-old')) {
-                          const regularSlug = selectedCourseSlug.replace('-old', '');
-                          if (courses.some((c) => c.slug === regularSlug)) {
-                            setSelectedCourseSlug(regularSlug);
+                {/* Syllabus / Course Type Selector (Shown only for Academic Courses with Old/New variants) */}
+                {currentCourse?.category !== 'loksewa' ? (
+                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="block font-bold text-slate-800 text-xs">
+                        Curriculum / Syllabus Category <span className="text-rose-500">*</span>
+                      </label>
+                      <span className="text-[10px] font-semibold text-slate-500">
+                        Regular Semester or Backpaper Exam
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCourseType('New Course');
+                          if (selectedCourseSlug.endsWith('-old')) {
+                            const regularSlug = selectedCourseSlug.replace('-old', '');
+                            if (courses.some((c) => c.slug === regularSlug)) {
+                              setSelectedCourseSlug(regularSlug);
+                            }
                           }
-                        }
-                      }}
-                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                        courseType === 'New Course'
-                          ? 'border-blue-600 bg-blue-50/60 ring-2 ring-blue-500/20'
-                          : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-600'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-xs text-[#12315A]">New Course</span>
-                        {courseType === 'New Course' && (
-                          <span className="w-2 h-2 rounded-full bg-blue-600" />
-                        )}
-                      </div>
-                      <p className="text-[11px] text-slate-500 mt-0.5">
-                        Regular Current Semester / CBCS Annual Syllabus
-                      </p>
-                    </button>
+                        }}
+                        className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                          courseType === 'New Course'
+                            ? 'border-blue-600 bg-blue-50/60 ring-2 ring-blue-500/20'
+                            : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-600'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-xs text-[#12315A]">New Course</span>
+                          {courseType === 'New Course' && (
+                            <span className="w-2 h-2 rounded-full bg-blue-600" />
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          Regular Current Semester / CBCS Annual Syllabus
+                        </p>
+                      </button>
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setCourseType('Old Course');
-                        // If current has an old course variant, suggest/switch to it
-                        const oldSlug = `${selectedCourseSlug}-old`;
-                        if (courses.some((c) => c.slug === oldSlug)) {
-                          setSelectedCourseSlug(oldSlug);
-                        }
-                      }}
-                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                        courseType === 'Old Course'
-                          ? 'border-amber-600 bg-amber-50/60 ring-2 ring-amber-500/20'
-                          : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-600'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-xs text-amber-900">Old Course (Backpaper Prep)</span>
-                        {courseType === 'Old Course' && (
-                          <span className="w-2 h-2 rounded-full bg-amber-600" />
-                        )}
-                      </div>
-                      <p className="text-[11px] text-slate-500 mt-0.5">
-                        Annual / Prior Syllabus for Backlog & Chance Exams
-                      </p>
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCourseType('Old Course');
+                          const oldSlug = `${selectedCourseSlug}-old`;
+                          if (courses.some((c) => c.slug === oldSlug)) {
+                            setSelectedCourseSlug(oldSlug);
+                          }
+                        }}
+                        className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                          courseType === 'Old Course'
+                            ? 'border-amber-600 bg-amber-50/60 ring-2 ring-amber-500/20'
+                            : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-600'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-xs text-amber-900">Old Course (Backpaper Prep)</span>
+                          {courseType === 'Old Course' && (
+                            <span className="w-2 h-2 rounded-full bg-amber-600" />
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          Annual / Prior Syllabus for Backlog & Chance Exams
+                        </p>
+                      </button>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="bg-amber-50/80 border border-amber-300 rounded-2xl p-3.5 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 font-bold text-xs text-amber-950">
+                        <Shield className="w-4 h-4 text-amber-600" />
+                        <span>लोक सेवा आयोग / सरकारी सेवा परीक्षा तयारी (Public Service Commission)</span>
+                      </div>
+                      <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-amber-400 text-slate-950">
+                        Official PSC Syllabus
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-amber-900">
+                      You are enrolling in specialized Loksewa preparation. Includes daily live whiteboard streaming, OMR mock tests, handwritten PDF subjective evaluation, and authentic study packages.
+                    </p>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block font-bold text-slate-700 mb-1.5 flex items-center justify-between">
-                      <span>Target Academic Course <span className="text-rose-500">*</span></span>
-                      {currentCourse?.courseType && (
+                      <span>{currentCourse?.category === 'loksewa' ? 'Target Loksewa Examination' : 'Target Academic Course'} <span className="text-rose-500">*</span></span>
+                      {currentCourse?.category === 'loksewa' ? (
+                        <span className="text-[10px] font-bold px-2 py-0.2 rounded bg-amber-100 text-amber-900 border border-amber-200">
+                          {currentCourse.level}
+                        </span>
+                      ) : currentCourse?.courseType && (
                         <span className={`text-[10px] font-bold px-2 py-0.2 rounded ${
                           currentCourse.courseType === 'Old Course'
                             ? 'bg-amber-100 text-amber-800'
@@ -1039,18 +1059,34 @@ export const AdmissionPage: React.FC = () => {
                       }}
                       className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm bg-white font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
                     >
-                      {courses.map((course) => (
-                        <option key={course.slug} value={course.slug}>
-                          {course.title} ({course.board}) {course.courseType ? `[${course.courseType}]` : ''}
-                        </option>
-                      ))}
+                      <optgroup label="🏦 Loksewa Banking Preparation (सरकारी बैंक तयारी - RBB, NBL & NRB)">
+                        {courses.filter((c) => c.category === 'loksewa' && (c.slug.includes('rbb') || c.slug.includes('nbl') || c.slug.includes('bank'))).map((course) => (
+                          <option key={course.slug} value={course.slug}>
+                            {course.title}
+                          </option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="🛡️ Loksewa Civil & Provincial Services (निजामती तथा स्थानीय तह - ६औं तह, अधिकृत, ना.सु., खरिदार, TSC)">
+                        {courses.filter((c) => c.category === 'loksewa' && !(c.slug.includes('rbb') || c.slug.includes('nbl') || c.slug.includes('bank'))).map((course) => (
+                          <option key={course.slug} value={course.slug}>
+                            {course.title}
+                          </option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="Academic Degree Programs (TU, PU, NEB)">
+                        {courses.filter((c) => c.category !== 'loksewa').map((course) => (
+                          <option key={course.slug} value={course.slug}>
+                            {course.title} ({course.board}) {course.courseType ? `[${course.courseType}]` : ''}
+                          </option>
+                        ))}
+                      </optgroup>
                     </select>
                   </div>
 
                   <div>
                     <label className="block font-bold text-slate-700 mb-1.5 flex items-center justify-between">
-                      <span>Academic Year / Semester / Term <span className="text-rose-500">*</span></span>
-                      <span className="text-[10px] text-blue-600 font-semibold">{availableTerms.length} Terms available</span>
+                      <span>{currentCourse?.category === 'loksewa' ? 'Target Paper / Examination Level' : 'Academic Year / Semester / Term'} <span className="text-rose-500">*</span></span>
+                      <span className="text-[10px] text-blue-600 font-semibold">{availableTerms.length} options available</span>
                     </label>
                     <select
                       value={selectedTerm}
@@ -1062,7 +1098,7 @@ export const AdmissionPage: React.FC = () => {
                           {term}
                         </option>
                       ))}
-                      <option value="ALL">All Semesters / Full Curriculum</option>
+                      <option value="ALL">All Papers / Complete Course Package</option>
                     </select>
                   </div>
                 </div>

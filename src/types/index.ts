@@ -1,6 +1,11 @@
-export type CourseCategory = '+2' | 'bachelor' | 'master';
+export type CourseCategory = '+2' | 'bachelor' | 'master' | 'loksewa';
 
-export type UniversityBoard = 'Tribhuvan University (TU)' | 'Pokhara University (PU)' | 'National Examinations Board (NEB)';
+export type UniversityBoard =
+  | 'Tribhuvan University (TU)'
+  | 'Pokhara University (PU)'
+  | 'National Examinations Board (NEB)'
+  | 'Public Service Commission (Loksewa Aayog)'
+  | 'Teachers Service Commission (TSC)';
 
 export type ClassMode = 'Online' | 'Offline' | 'Hybrid';
 

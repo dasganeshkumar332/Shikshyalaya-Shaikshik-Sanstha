@@ -45,12 +45,14 @@ export const MockTestsPage: React.FC = () => {
 
   // Filters
   const [selectedCourseSlug, setSelectedCourseSlug] = useState<string>(searchParams.get('course') || 'ALL');
+  const [selectedYearOrSem, setSelectedYearOrSem] = useState<string>(searchParams.get('year') || 'ALL');
   const [selectedSubject, setSelectedSubject] = useState<string>(searchParams.get('subject') || 'ALL');
   const [selectedCourseType, setSelectedCourseType] = useState<string>(searchParams.get('type') || 'ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Course & Subject Quick Attender / Uploader Widget State
+  // Course, Year & Subject Quick Attender / Uploader Widget State
   const [quickCourseSlug, setQuickCourseSlug] = useState<string>(courses[0]?.slug || '3-year-bbs-tu');
+  const [quickYearOrSem, setQuickYearOrSem] = useState<string>('ALL');
   const [quickSubject, setQuickSubject] = useState<string>('');
 
   // Active Exam Modal State
@@ -80,64 +82,129 @@ export const MockTestsPage: React.FC = () => {
   // Timer interval ref
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Available subjects for the active course filter
+  // Available Years / Semesters for the active course filter
+  const availableYearsAndSemesters = useMemo(() => {
+    if (selectedCourseSlug !== 'ALL') {
+      const course = courses.find((c) => c.slug === selectedCourseSlug);
+      const termsFromCourse = (course?.subjectsOffered || [])
+        .map((s) => s.semesterOrYear)
+        .filter(Boolean) as string[];
+      const termsFromTests = mockTests
+        .filter((t) => t.courseSlug === selectedCourseSlug)
+        .map((t) => t.semesterOrYear)
+        .filter(Boolean) as string[];
+      return Array.from(new Set([...termsFromCourse, ...termsFromTests])).sort();
+    }
+    const set = new Set<string>();
+    courses.forEach((c) => {
+      c.subjectsOffered?.forEach((s) => {
+        if (s.semesterOrYear) set.add(s.semesterOrYear);
+      });
+    });
+    mockTests.forEach((t) => {
+      if (t.semesterOrYear) set.add(t.semesterOrYear);
+    });
+    return Array.from(set).filter(Boolean).sort();
+  }, [courses, mockTests, selectedCourseSlug]);
+
+  // Reset year filter if selected course changes and year is not in available list
+  useEffect(() => {
+    if (selectedYearOrSem !== 'ALL' && availableYearsAndSemesters.length > 0 && !availableYearsAndSemesters.includes(selectedYearOrSem)) {
+      setSelectedYearOrSem('ALL');
+    }
+  }, [selectedCourseSlug, availableYearsAndSemesters, selectedYearOrSem]);
+
+  // Available subjects for active course & active year/semester filter
   const availableSubjects = useMemo(() => {
     if (selectedCourseSlug !== 'ALL') {
       const course = courses.find((c) => c.slug === selectedCourseSlug);
-      const subsFromCourse = (course?.subjectsOffered || []).map((s) => s.name);
-      const subsFromTests = mockTests
-        .filter((t) => t.courseSlug === selectedCourseSlug)
-        .map((t) => t.subject);
+      let courseSubs = course?.subjectsOffered || [];
+      if (selectedYearOrSem !== 'ALL') {
+        courseSubs = courseSubs.filter((s) => s.semesterOrYear === selectedYearOrSem);
+      }
+      const subsFromCourse = courseSubs.map((s) => s.name);
+      let testsForCourse = mockTests.filter((t) => t.courseSlug === selectedCourseSlug);
+      if (selectedYearOrSem !== 'ALL') {
+        testsForCourse = testsForCourse.filter((t) => t.semesterOrYear === selectedYearOrSem);
+      }
+      const subsFromTests = testsForCourse.map((t) => t.subject);
       const combined = Array.from(new Set([...subsFromCourse, ...subsFromTests])).filter(Boolean);
       return combined.sort();
     }
     const set = new Set<string>();
     courses.forEach((c) => {
-      c.subjectsOffered?.forEach((s) => set.add(s.name));
+      c.subjectsOffered?.forEach((s) => {
+        if (selectedYearOrSem === 'ALL' || s.semesterOrYear === selectedYearOrSem) {
+          set.add(s.name);
+        }
+      });
     });
     mockTests.forEach((t) => {
-      if (t.subject) set.add(t.subject);
+      if (t.subject && (selectedYearOrSem === 'ALL' || t.semesterOrYear === selectedYearOrSem)) {
+        set.add(t.subject);
+      }
     });
     return Array.from(set).filter(Boolean).sort();
-  }, [courses, mockTests, selectedCourseSlug]);
+  }, [courses, mockTests, selectedCourseSlug, selectedYearOrSem]);
 
-  // Reset subject filter if selected course changes and subject is not in available subjects
+  // Reset subject filter if selected course or year changes and subject is not in available subjects
   useEffect(() => {
     if (selectedSubject !== 'ALL' && availableSubjects.length > 0 && !availableSubjects.includes(selectedSubject)) {
       setSelectedSubject('ALL');
     }
-  }, [selectedCourseSlug, availableSubjects, selectedSubject]);
+  }, [selectedCourseSlug, selectedYearOrSem, availableSubjects, selectedSubject]);
 
-  // Quick selector subjects
+  // Quick selector available years and semesters
+  const quickCourseYearsAndSemesters = useMemo(() => {
+    const course = courses.find((c) => c.slug === quickCourseSlug);
+    if (!course) return [];
+    const terms = (course.subjectsOffered || [])
+      .map((s) => s.semesterOrYear)
+      .filter(Boolean) as string[];
+    const termsFromTests = mockTests
+      .filter((t) => t.courseSlug === quickCourseSlug)
+      .map((t) => t.semesterOrYear)
+      .filter(Boolean) as string[];
+    return Array.from(new Set([...terms, ...termsFromTests])).filter(Boolean).sort();
+  }, [courses, mockTests, quickCourseSlug]);
+
+  // Quick selector subjects filtered by quickYearOrSem
   const quickCourseSubjects = useMemo(() => {
     const course = courses.find((c) => c.slug === quickCourseSlug);
     if (!course) return [];
-    const subs = (course.subjectsOffered || []).map((s) => s.name);
-    const subsFromTests = mockTests
-      .filter((t) => t.courseSlug === quickCourseSlug)
-      .map((t) => t.subject);
-    return Array.from(new Set([...subs, ...subsFromTests])).filter(Boolean).sort();
-  }, [courses, mockTests, quickCourseSlug]);
+    let subs = course.subjectsOffered || [];
+    if (quickYearOrSem !== 'ALL') {
+      subs = subs.filter((s) => s.semesterOrYear === quickYearOrSem);
+    }
+    const subNames = subs.map((s) => s.name);
+    let tests = mockTests.filter((t) => t.courseSlug === quickCourseSlug);
+    if (quickYearOrSem !== 'ALL') {
+      tests = tests.filter((t) => t.semesterOrYear === quickYearOrSem);
+    }
+    const subsFromTests = tests.map((t) => t.subject);
+    return Array.from(new Set([...subNames, ...subsFromTests])).filter(Boolean).sort();
+  }, [courses, mockTests, quickCourseSlug, quickYearOrSem]);
 
-  // Keep quick subject updated when course changes
+  // Keep quick subject updated when course or year changes
   useEffect(() => {
     if (quickCourseSubjects.length > 0 && (!quickSubject || !quickCourseSubjects.includes(quickSubject))) {
       setQuickSubject(quickCourseSubjects[0]);
     }
   }, [quickCourseSubjects, quickSubject]);
 
-  // Matching mock tests for quick course & subject
+  // Matching mock tests for quick course, year & subject
   const quickMatchingTests = useMemo(() => {
     if (!quickCourseSlug || !quickSubject) return [];
     const qSubLower = quickSubject.toLowerCase();
     return mockTests.filter(
       (t) =>
         t.courseSlug === quickCourseSlug &&
+        (quickYearOrSem === 'ALL' || t.semesterOrYear === quickYearOrSem || t.title.toLowerCase().includes(quickYearOrSem.toLowerCase())) &&
         (t.subject.toLowerCase() === qSubLower ||
           t.subject.toLowerCase().includes(qSubLower) ||
           t.title.toLowerCase().includes(qSubLower))
     );
-  }, [mockTests, quickCourseSlug, quickSubject]);
+  }, [mockTests, quickCourseSlug, quickYearOrSem, quickSubject]);
 
   // Filtered mock tests
   const filteredTests = useMemo(() => {
@@ -150,6 +217,13 @@ export const MockTestsPage: React.FC = () => {
       .filter((t) => {
         if (selectedCourseType === 'ALL') return true;
         return t.courseType === selectedCourseType;
+      })
+      .filter((t) => {
+        if (selectedYearOrSem === 'ALL') return true;
+        return (
+          t.semesterOrYear === selectedYearOrSem ||
+          t.title.toLowerCase().includes(selectedYearOrSem.toLowerCase())
+        );
       })
       .filter((t) => {
         if (selectedSubject === 'ALL') return true;
@@ -167,13 +241,14 @@ export const MockTestsPage: React.FC = () => {
           t.title.toLowerCase().includes(q) ||
           t.subject.toLowerCase().includes(q) ||
           t.courseName.toLowerCase().includes(q) ||
+          (t.semesterOrYear && t.semesterOrYear.toLowerCase().includes(q)) ||
           (t.instructions &&
             (Array.isArray(t.instructions)
               ? t.instructions.some((inst) => inst.toLowerCase().includes(q))
               : t.instructions.toLowerCase().includes(q)))
         );
       });
-  }, [mockTests, selectedCourseSlug, selectedCourseType, selectedSubject, searchQuery]);
+  }, [mockTests, selectedCourseSlug, selectedCourseType, selectedYearOrSem, selectedSubject, searchQuery]);
 
   // Private evaluated results visible to the logged-in student ONLY
   const myEvaluatedSubmissions = useMemo(() => {
@@ -466,19 +541,21 @@ export const MockTestsPage: React.FC = () => {
                 </Link>
               </div>
 
-              {/* Course & Subject Interactive Selectors */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 pt-2">
+              {/* Course, Year & Subject Interactive Selectors */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-12 gap-3 pt-2">
                 {/* 1. Course Selector */}
-                <div className="sm:col-span-1 lg:col-span-6 space-y-1">
+                <div className="sm:col-span-1 lg:col-span-4 space-y-1">
                   <label className="text-[11px] font-bold text-blue-200 uppercase tracking-wider flex items-center gap-1">
                     <BookOpen className="w-3 h-3 text-amber-300" />
-                    <span>1. Select Academic Program / Course:</span>
+                    <span>1. Select Program / Course:</span>
                   </label>
                   <select
                     value={quickCourseSlug}
                     onChange={(e) => {
                       setQuickCourseSlug(e.target.value);
                       setSelectedCourseSlug(e.target.value);
+                      setQuickYearOrSem('ALL');
+                      setSelectedYearOrSem('ALL');
                     }}
                     className="w-full px-3.5 py-2.5 rounded-xl bg-white text-slate-900 text-xs sm:text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-amber-400 border border-white/20 shadow-xs"
                   >
@@ -490,11 +567,34 @@ export const MockTestsPage: React.FC = () => {
                   </select>
                 </div>
 
-                {/* 2. Subject Selector */}
-                <div className="sm:col-span-1 lg:col-span-6 space-y-1">
+                {/* 2. Year or Semester Selector */}
+                <div className="sm:col-span-1 lg:col-span-4 space-y-1">
+                  <label className="text-[11px] font-bold text-blue-200 uppercase tracking-wider flex items-center gap-1">
+                    <GraduationCap className="w-3 h-3 text-amber-300" />
+                    <span>2. Select Year / Semester:</span>
+                  </label>
+                  <select
+                    value={quickYearOrSem}
+                    onChange={(e) => {
+                      setQuickYearOrSem(e.target.value);
+                      setSelectedYearOrSem(e.target.value);
+                    }}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-white text-slate-900 text-xs sm:text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-amber-400 border border-white/20 shadow-xs"
+                  >
+                    <option value="ALL">All Years & Semesters</option>
+                    {quickCourseYearsAndSemesters.map((term) => (
+                      <option key={term} value={term}>
+                        {term}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 3. Subject Selector */}
+                <div className="sm:col-span-1 lg:col-span-4 space-y-1">
                   <label className="text-[11px] font-bold text-blue-200 uppercase tracking-wider flex items-center gap-1">
                     <FileText className="w-3 h-3 text-amber-300" />
-                    <span>2. Select Subject (Curriculum & Backpapers):</span>
+                    <span>3. Select Subject:</span>
                   </label>
                   <select
                     value={quickSubject}
@@ -505,7 +605,7 @@ export const MockTestsPage: React.FC = () => {
                     className="w-full px-3.5 py-2.5 rounded-xl bg-white text-slate-900 text-xs sm:text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-amber-400 border border-white/20 shadow-xs"
                   >
                     {quickCourseSubjects.length === 0 ? (
-                      <option value="">No subjects registered</option>
+                      <option value="">No subjects found</option>
                     ) : (
                       quickCourseSubjects.map((sub) => (
                         <option key={sub} value={sub}>
@@ -527,6 +627,11 @@ export const MockTestsPage: React.FC = () => {
                     <span className="text-xs font-extrabold text-white bg-white/20 px-2.5 py-0.5 rounded-lg">
                       {quickSubject || 'All Subjects'}
                     </span>
+                    {quickYearOrSem !== 'ALL' && (
+                      <span className="text-xs font-extrabold text-amber-950 bg-amber-400 px-2 py-0.5 rounded-lg">
+                        {quickYearOrSem}
+                      </span>
+                    )}
                     <span className="text-[11px] text-blue-200">
                       ({courses.find((c) => c.slug === quickCourseSlug)?.title})
                     </span>
@@ -551,7 +656,7 @@ export const MockTestsPage: React.FC = () => {
                   )}
 
                   <Link
-                    to={`/upload-answer-sheet?course=${quickCourseSlug}&subject=${encodeURIComponent(quickSubject)}`}
+                    to={`/upload-answer-sheet?course=${quickCourseSlug}&year=${encodeURIComponent(quickYearOrSem !== 'ALL' ? quickYearOrSem : '')}&subject=${encodeURIComponent(quickSubject)}`}
                     className="flex-1 md:flex-none px-4 py-2 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 transition-colors flex items-center justify-center gap-1.5 shadow-sm"
                   >
                     <Upload className="w-3.5 h-3.5" />
@@ -589,13 +694,15 @@ export const MockTestsPage: React.FC = () => {
               </div>
 
               {/* Course Selector */}
-              <div className="shrink-0 sm:w-60">
+              <div className="shrink-0 sm:w-52">
                 <select
                   value={selectedCourseSlug}
                   onChange={(e) => {
                     setSelectedCourseSlug(e.target.value);
                     if (e.target.value !== 'ALL') {
                       setQuickCourseSlug(e.target.value);
+                      setSelectedYearOrSem('ALL');
+                      setQuickYearOrSem('ALL');
                     }
                   }}
                   aria-label="Filter by Course"
@@ -610,8 +717,28 @@ export const MockTestsPage: React.FC = () => {
                 </select>
               </div>
 
+              {/* Year or Semester Selector */}
+              <div className="shrink-0 sm:w-44">
+                <select
+                  value={selectedYearOrSem}
+                  onChange={(e) => {
+                    setSelectedYearOrSem(e.target.value);
+                    setQuickYearOrSem(e.target.value);
+                  }}
+                  aria-label="Filter by Year or Semester"
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-xs font-medium bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="ALL">All Years & Semesters ({availableYearsAndSemesters.length})</option>
+                  {availableYearsAndSemesters.map((term) => (
+                    <option key={term} value={term}>
+                      {term}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               {/* Subject Selector */}
-              <div className="shrink-0 sm:w-60">
+              <div className="shrink-0 sm:w-52">
                 <select
                   value={selectedSubject}
                   onChange={(e) => {
@@ -633,11 +760,13 @@ export const MockTestsPage: React.FC = () => {
               </div>
 
               {/* Reset */}
-              {(searchQuery || selectedCourseSlug !== 'ALL' || selectedCourseType !== 'ALL' || selectedSubject !== 'ALL') && (
+              {(searchQuery || selectedCourseSlug !== 'ALL' || selectedYearOrSem !== 'ALL' || selectedCourseType !== 'ALL' || selectedSubject !== 'ALL') && (
                 <button
                   onClick={() => {
                     setSearchQuery('');
                     setSelectedCourseSlug('ALL');
+                    setSelectedYearOrSem('ALL');
+                    setQuickYearOrSem('ALL');
                     setSelectedSubject('ALL');
                     setSelectedCourseType('ALL');
                   }}
@@ -726,9 +855,19 @@ export const MockTestsPage: React.FC = () => {
                         <h3 className="text-base font-bold text-[#12315A] group-hover:text-blue-700 transition-colors line-clamp-2">
                           {test.title}
                         </h3>
-                        <p className="text-xs font-semibold text-slate-600 mt-1">
-                          {test.subject} • <span className="text-slate-500">{test.courseName}</span>
-                        </p>
+                        <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                          <span className="text-[11px] font-bold text-blue-800 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
+                            Subject: {test.subject}
+                          </span>
+                          {test.semesterOrYear && (
+                            <span className="text-[11px] font-bold text-amber-900 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                              {test.semesterOrYear}
+                            </span>
+                          )}
+                          <span className="text-xs text-slate-500 font-medium">
+                            • {test.courseName}
+                          </span>
+                        </div>
                       </div>
 
                       {/* Content & Marks */}
@@ -805,7 +944,7 @@ export const MockTestsPage: React.FC = () => {
 
                         {/* Direct PDF Answer Sheet Upload Button for this specific Course & Subject */}
                         <Link
-                          to={`/upload-answer-sheet?course=${test.courseSlug}&subject=${encodeURIComponent(test.subject)}`}
+                          to={`/upload-answer-sheet?course=${test.courseSlug}&year=${encodeURIComponent(test.semesterOrYear || '')}&subject=${encodeURIComponent(test.subject)}`}
                           className="w-full px-3 py-2 rounded-xl text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-colors flex items-center justify-center gap-1.5"
                         >
                           <Upload className="w-3.5 h-3.5 text-rose-600" />

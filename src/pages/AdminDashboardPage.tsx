@@ -43,8 +43,19 @@ import {
   Clock,
   Award,
   HelpCircle,
+  Database,
+  RefreshCw,
+  Cloud,
+  Server,
+  Globe,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import {
+  SUPABASE_PROJECT_ID,
+  SUPABASE_URL,
+  SUPABASE_ANON_KEY,
+  SUPABASE_SQL_SCHEMA,
+} from '../lib/supabase';
 import { InquiryStatus, Course, Teacher, Notice, StudyMaterial, StudentGroup, StudentGroupMember, CourseType, MockTest, MockTestSubmission } from '../types';
 
 export const AdminDashboardPage: React.FC = () => {
@@ -96,6 +107,9 @@ export const AdminDashboardPage: React.FC = () => {
     mockTestSubmissions,
     gradeMockTestSubmission,
     uploadMockTestResult,
+    supabaseStatus,
+    checkSupabaseStatus,
+    syncAllToSupabase,
   } = useApp();
 
   // Admin authentication state
@@ -104,8 +118,17 @@ export const AdminDashboardPage: React.FC = () => {
 
   // Active dashboard tab
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'inquiries' | 'courses' | 'groups' | 'mock-tests' | 'teachers' | 'notices' | 'materials' | 'settings'
+    'overview' | 'inquiries' | 'courses' | 'groups' | 'mock-tests' | 'teachers' | 'notices' | 'materials' | 'settings' | 'database'
   >('overview');
+
+  // Supabase management states
+  const [isTestingSupabase, setIsTestingSupabase] = useState(false);
+  const [isSyncingSupabase, setIsSyncingSupabase] = useState(false);
+  const [supabaseSyncMessage, setSupabaseSyncMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [copiedSqlSchema, setCopiedSqlSchema] = useState(false);
+  const [copiedSupabaseKey, setCopiedSupabaseKey] = useState(false);
+  const [copiedNetlifySnippet, setCopiedNetlifySnippet] = useState(false);
+  const [supabaseTestFeedback, setSupabaseTestFeedback] = useState<string | null>(null);
 
   // Inquiries filter state
   const [inquirySearch, setInquirySearch] = useState('');
@@ -151,20 +174,52 @@ export const AdminDashboardPage: React.FC = () => {
   const [gradingSubmission, setGradingSubmission] = useState<MockTestSubmission | null>(null);
   const [isDirectResultModalOpen, setIsDirectResultModalOpen] = useState(false);
   const [mockTestCourseFilter, setMockTestCourseFilter] = useState('ALL');
+  const [mockTestYearFilter, setMockTestYearFilter] = useState('ALL');
   const [mockTestSubjectFilter, setMockTestSubjectFilter] = useState('ALL');
   const [mockTestTypeFilter, setMockTestTypeFilter] = useState<'ALL' | 'New Course' | 'Old Course'>('ALL');
   const [mockTestEvaluationStatusFilter, setMockTestEvaluationStatusFilter] = useState<'ALL' | 'Submitted' | 'Evaluated'>('ALL');
   const [mockTestSubView, setMockTestSubView] = useState<'tests' | 'answer-sheets'>('tests');
   const [mockTestSearch, setMockTestSearch] = useState('');
 
-  // Derived subjects for admin mock test & submission filtering
+  // Derived available Years / Semesters for admin filtering
+  const adminMockTestYears = useMemo(() => {
+    if (mockTestCourseFilter !== 'ALL') {
+      const course = courses.find((c) => c.slug === mockTestCourseFilter);
+      const termsFromCourse = (course?.subjectsOffered || [])
+        .map((s) => s.semesterOrYear)
+        .filter(Boolean) as string[];
+      const termsFromTests = mockTests
+        .filter((t) => t.courseSlug === mockTestCourseFilter)
+        .map((t) => t.semesterOrYear)
+        .filter(Boolean) as string[];
+      return Array.from(new Set([...termsFromCourse, ...termsFromTests])).sort();
+    }
+    const set = new Set<string>();
+    courses.forEach((c) => {
+      c.subjectsOffered?.forEach((s) => {
+        if (s.semesterOrYear) set.add(s.semesterOrYear);
+      });
+    });
+    mockTests.forEach((t) => {
+      if (t.semesterOrYear) set.add(t.semesterOrYear);
+    });
+    return Array.from(set).filter(Boolean).sort();
+  }, [courses, mockTests, mockTestCourseFilter]);
+
+  // Derived subjects for admin mock test & submission filtering (refined by course and year)
   const adminMockTestSubjects = useMemo(() => {
     if (mockTestCourseFilter !== 'ALL') {
       const course = courses.find((c) => c.slug === mockTestCourseFilter);
-      const subsFromCourse = (course?.subjectsOffered || []).map((s) => s.name);
-      const subsFromTests = mockTests
-        .filter((t) => t.courseSlug === mockTestCourseFilter)
-        .map((t) => t.subject);
+      let courseSubs = course?.subjectsOffered || [];
+      if (mockTestYearFilter !== 'ALL') {
+        courseSubs = courseSubs.filter((s) => s.semesterOrYear === mockTestYearFilter);
+      }
+      const subsFromCourse = courseSubs.map((s) => s.name);
+      let tests = mockTests.filter((t) => t.courseSlug === mockTestCourseFilter);
+      if (mockTestYearFilter !== 'ALL') {
+        tests = tests.filter((t) => t.semesterOrYear === mockTestYearFilter);
+      }
+      const subsFromTests = tests.map((t) => t.subject);
       const subsFromSubmissions = mockTestSubmissions
         .filter((s) => s.courseSlug === mockTestCourseFilter)
         .map((s) => s.subject || '')
@@ -173,23 +228,35 @@ export const AdminDashboardPage: React.FC = () => {
     }
     const set = new Set<string>();
     courses.forEach((c) => {
-      c.subjectsOffered?.forEach((s) => set.add(s.name));
+      c.subjectsOffered?.forEach((s) => {
+        if (mockTestYearFilter === 'ALL' || s.semesterOrYear === mockTestYearFilter) {
+          set.add(s.name);
+        }
+      });
     });
     mockTests.forEach((t) => {
-      if (t.subject) set.add(t.subject);
+      if (t.subject && (mockTestYearFilter === 'ALL' || t.semesterOrYear === mockTestYearFilter)) {
+        set.add(t.subject);
+      }
     });
     mockTestSubmissions.forEach((s) => {
       if (s.subject) set.add(s.subject);
     });
     return Array.from(set).filter(Boolean).sort();
-  }, [courses, mockTests, mockTestSubmissions, mockTestCourseFilter]);
+  }, [courses, mockTests, mockTestSubmissions, mockTestCourseFilter, mockTestYearFilter]);
 
-  // Keep admin subject filter in sync with course filter
+  // Keep admin year and subject filter in sync with course filter
+  useEffect(() => {
+    if (mockTestYearFilter !== 'ALL' && adminMockTestYears.length > 0 && !adminMockTestYears.includes(mockTestYearFilter)) {
+      setMockTestYearFilter('ALL');
+    }
+  }, [mockTestCourseFilter, adminMockTestYears, mockTestYearFilter]);
+
   useEffect(() => {
     if (mockTestSubjectFilter !== 'ALL' && adminMockTestSubjects.length > 0 && !adminMockTestSubjects.includes(mockTestSubjectFilter)) {
       setMockTestSubjectFilter('ALL');
     }
-  }, [mockTestCourseFilter, adminMockTestSubjects, mockTestSubjectFilter]);
+  }, [mockTestCourseFilter, mockTestYearFilter, adminMockTestSubjects, mockTestSubjectFilter]);
 
   // Settings form local state
   const [tempSettings, setTempSettings] = useState(settings);
@@ -363,6 +430,7 @@ export const AdminDashboardPage: React.FC = () => {
           { id: 'notices', label: `Notices (${notices.length})`, icon: Bell },
           { id: 'materials', label: `Study Materials (${studyMaterials.length})`, icon: FileText },
           { id: 'settings', label: 'Website Settings', icon: Settings },
+          { id: 'database', label: 'Supabase Database', icon: Database },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -2260,6 +2328,456 @@ export const AdminDashboardPage: React.FC = () => {
         </div>
       )}
 
+      {/* TAB 8: SUPABASE CLOUD DATABASE & REAL-TIME STORAGE */}
+      {activeTab === 'database' && (
+        <div className="space-y-6 animate-fadeIn text-xs sm:text-sm">
+          {/* Header Card */}
+          <div className="bg-gradient-to-r from-[#12315A] to-[#1e4976] text-white p-6 sm:p-8 rounded-3xl shadow-xl space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-start sm:items-center gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-400 text-slate-950 flex items-center justify-center font-bold shadow-md shrink-0">
+                  <Database className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-lg sm:text-xl font-bold text-white">
+                      Supabase PostgreSQL Cloud Database
+                    </h3>
+                    <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-emerald-400 text-slate-950 flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-slate-950 animate-pulse" />
+                      <span>{supabaseStatus?.connected ? 'Online & Configured' : 'Configured'}</span>
+                    </span>
+                  </div>
+                  <p className="text-xs text-blue-200 mt-1">
+                    Project ID: <strong className="font-mono text-white">{SUPABASE_PROJECT_ID}</strong> •
+                    Storage Endpoint: <span className="font-mono text-blue-100">{SUPABASE_URL}</span>
+                  </p>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  disabled={isTestingSupabase}
+                  onClick={async () => {
+                    setIsTestingSupabase(true);
+                    setSupabaseTestFeedback(null);
+                    try {
+                      const res = await checkSupabaseStatus();
+                      setSupabaseTestFeedback(
+                        res.connected
+                          ? `✅ Connection confirmed: Reachable at ${res.url} (${new Date().toLocaleTimeString()})`
+                          : `⚠️ Connection test notice: ${res.message}`
+                      );
+                    } catch (e: any) {
+                      setSupabaseTestFeedback(`❌ Connection test failed: ${e?.message}`);
+                    } finally {
+                      setIsTestingSupabase(false);
+                    }
+                  }}
+                  className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-all cursor-pointer"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isTestingSupabase ? 'animate-spin' : ''}`} />
+                  <span>{isTestingSupabase ? 'Testing...' : 'Test Connection'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={isSyncingSupabase}
+                  onClick={async () => {
+                    setIsSyncingSupabase(true);
+                    setSupabaseSyncMessage(null);
+                    try {
+                      const result = await syncAllToSupabase();
+                      if (result.success || Object.values(result.syncedCounts).some((c) => c > 0)) {
+                        const total = Object.values(result.syncedCounts).reduce((a, b) => a + b, 0);
+                        setSupabaseSyncMessage({
+                          type: 'success',
+                          text: `Successfully synced ${total} records into your Supabase project (Inquiries: ${result.syncedCounts.inquiries}, Submissions: ${result.syncedCounts.mockSubmissions}, Groups: ${result.syncedCounts.studentGroups}, Contacts: ${result.syncedCounts.contactMessages}, Settings: ${result.syncedCounts.settings})!`,
+                        });
+                      } else {
+                        setSupabaseSyncMessage({
+                          type: 'error',
+                          text: result.errors[0] || 'Sync completed with notice. Ensure your database tables exist via the SQL schema below.',
+                        });
+                      }
+                    } catch (err: any) {
+                      setSupabaseSyncMessage({
+                        type: 'error',
+                        text: `Sync error: ${err?.message}`,
+                      });
+                    } finally {
+                      setIsSyncingSupabase(false);
+                    }
+                  }}
+                  className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold bg-emerald-400 hover:bg-emerald-300 text-slate-950 shadow-md transition-all cursor-pointer font-black"
+                >
+                  <Cloud className="w-3.5 h-3.5" />
+                  <span>{isSyncingSupabase ? 'Syncing Records...' : 'Sync All Details to Supabase'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Live Feedback Alerts */}
+            {supabaseTestFeedback && (
+              <div className="p-3 rounded-xl bg-white/10 border border-white/20 text-xs font-semibold text-white animate-fadeIn flex items-center justify-between">
+                <span>{supabaseTestFeedback}</span>
+                <button onClick={() => setSupabaseTestFeedback(null)} className="text-white/70 hover:text-white">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
+            {supabaseSyncMessage && (
+              <div
+                className={`p-3.5 rounded-xl text-xs font-bold animate-fadeIn flex items-center justify-between shadow-xs ${
+                  supabaseSyncMessage.type === 'success'
+                    ? 'bg-emerald-500 text-slate-950 border border-emerald-400'
+                    : 'bg-rose-500 text-white border border-rose-400'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
+                  <span>{supabaseSyncMessage.text}</span>
+                </div>
+                <button onClick={() => setSupabaseSyncMessage(null)} className="opacity-70 hover:opacity-100">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Configuration & Credentials Details */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-2">
+              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                Supabase Project ID
+              </span>
+              <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                <code className="font-mono font-bold text-slate-900 text-xs">{SUPABASE_PROJECT_ID}</code>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(SUPABASE_PROJECT_ID);
+                    alert('Copied Project ID: ' + SUPABASE_PROJECT_ID);
+                  }}
+                  className="p-1 text-slate-400 hover:text-blue-700"
+                  title="Copy Project ID"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <p className="text-[11px] text-slate-500">
+                Identifies your hosted Supabase PostgreSQL project instance.
+              </p>
+            </div>
+
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-2">
+              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                Database REST / API Endpoint
+              </span>
+              <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                <code className="font-mono font-bold text-slate-900 text-xs truncate mr-1">
+                  {SUPABASE_URL}
+                </code>
+                <a
+                  href={`https://supabase.com/dashboard/project/${SUPABASE_PROJECT_ID}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-1 text-slate-400 hover:text-blue-700 shrink-0"
+                  title="Open Supabase Dashboard"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              </div>
+              <p className="text-[11px] text-slate-500">
+                All data packets, student records, and submissions route to this URL.
+              </p>
+            </div>
+
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-2">
+              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                Publishable API Key
+              </span>
+              <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                <code className="font-mono text-xs text-slate-700 truncate mr-1">
+                  {SUPABASE_ANON_KEY.slice(0, 16)}•••••••••
+                </code>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(SUPABASE_ANON_KEY);
+                    setCopiedSupabaseKey(true);
+                    setTimeout(() => setCopiedSupabaseKey(false), 2500);
+                  }}
+                  className="p-1 text-slate-400 hover:text-blue-700 shrink-0"
+                  title="Copy API Key"
+                >
+                  {copiedSupabaseKey ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+              <p className="text-[11px] text-slate-500">
+                Client authorization key configured for live writes.
+              </p>
+            </div>
+          </div>
+
+          {/* Database Tables & Live Records Inventory */}
+          <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+              <div>
+                <h4 className="font-bold text-slate-900 text-sm">
+                  Supabase Data Tables & Real-Time Sync Inventory
+                </h4>
+                <p className="text-xs text-slate-400">
+                  Every admission form, PDF answer sheet, contact message, and cohort is stored both in Supabase and offline cache.
+                </p>
+              </div>
+              <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+                Dual Storage Active (Cloud + Local Cache)
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50/60 space-y-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Table: admission_inquiries</span>
+                <p className="text-xl font-black text-[#12315A]">{inquiries.length}</p>
+                <p className="text-[11px] text-slate-500">Student admissions & vouchers</p>
+              </div>
+
+              <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50/60 space-y-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Table: mock_test_submissions</span>
+                <p className="text-xl font-black text-blue-700">{mockTestSubmissions.length}</p>
+                <p className="text-[11px] text-slate-500">Uploaded answer sheets & grades</p>
+              </div>
+
+              <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50/60 space-y-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Table: contact_messages</span>
+                <p className="text-xl font-black text-purple-700">{contactMessages.length}</p>
+                <p className="text-[11px] text-slate-500">Contact form submissions</p>
+              </div>
+
+              <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50/60 space-y-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Table: student_groups</span>
+                <p className="text-xl font-black text-amber-700">{studentGroups.length}</p>
+                <p className="text-[11px] text-slate-500">Batch groups & student rosters</p>
+              </div>
+
+              <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50/60 space-y-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Table: mock_tests</span>
+                <p className="text-xl font-black text-slate-800">{mockTests.length}</p>
+                <p className="text-[11px] text-slate-500">Live timed exam question papers</p>
+              </div>
+
+              <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50/60 space-y-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Table: notices</span>
+                <p className="text-xl font-black text-slate-800">{notices.length}</p>
+                <p className="text-[11px] text-slate-500">Announcements & circulars</p>
+              </div>
+
+              <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50/60 space-y-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Table: study_materials</span>
+                <p className="text-xl font-black text-slate-800">{studyMaterials.length}</p>
+                <p className="text-[11px] text-slate-500">Notes & PDF syllabi</p>
+              </div>
+
+              <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50/60 space-y-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Table: site_settings</span>
+                <p className="text-xl font-black text-slate-800">1</p>
+                <p className="text-[11px] text-slate-500">Institute config & contacts</p>
+              </div>
+            </div>
+          </div>
+
+          {/* SQL Editor Instructions & Schema Script */}
+          <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                  <Server className="w-4 h-4 text-blue-600" />
+                  <span>One-Click SQL Schema for Supabase SQL Editor</span>
+                </h4>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  If you are initializing a brand new Supabase project, execute this SQL in your Supabase Dashboard to create all tables and RLS security policies.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(SUPABASE_SQL_SCHEMA);
+                  setCopiedSqlSchema(true);
+                  setTimeout(() => setCopiedSqlSchema(false), 2500);
+                }}
+                className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold bg-[#12315A] hover:bg-blue-900 text-white shadow-xs transition-colors shrink-0 cursor-pointer"
+              >
+                {copiedSqlSchema ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                <span>{copiedSqlSchema ? 'Copied SQL Script!' : 'Copy Complete SQL Script'}</span>
+              </button>
+            </div>
+
+            {/* Quick 3-step guide */}
+            <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-200 space-y-2 text-xs">
+              <p className="font-bold text-amber-950">How to initialize tables in your Supabase account (1 minute):</p>
+              <ol className="list-decimal list-inside space-y-1 text-slate-700">
+                <li>
+                  Open your{' '}
+                  <a
+                    href={`https://supabase.com/dashboard/project/${SUPABASE_PROJECT_ID}/sql/new`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-bold text-blue-700 underline"
+                  >
+                    Supabase SQL Editor (Click here) &rarr;
+                  </a>
+                </li>
+                <li>Click <strong>New Query</strong>, paste the copied SQL schema below, and click <strong>Run</strong>.</li>
+                <li>
+                  Once run, click <strong>"Sync All Details to Supabase"</strong> above. All student inquiries, answer sheets, and messages will immediately populate your Supabase dashboard!
+                </li>
+              </ol>
+            </div>
+
+            {/* Read-only SQL Code preview */}
+            <div className="relative">
+              <pre className="p-4 rounded-2xl bg-slate-900 text-slate-200 font-mono text-[11px] max-h-60 overflow-y-auto leading-relaxed border border-slate-800">
+                {SUPABASE_SQL_SCHEMA}
+              </pre>
+            </div>
+          </div>
+
+          {/* Netlify Deployment Section */}
+          <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-teal-500/10 text-teal-600 flex items-center justify-center font-bold">
+                  <Globe className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-bold text-slate-900 text-base">Netlify Production Deployment</h4>
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200">
+                      <span className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-pulse"></span>
+                      <span>Configured & Ready</span>
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Pre-configured with <code className="text-teal-700 font-mono font-bold">netlify.toml</code>, SPA catch-all redirect <code className="text-teal-700 font-mono font-bold">public/_redirects</code>, and production headers.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const envSnippet = `VITE_SUPABASE_URL=https://pyjsnwazsbdaupjbaqcd.supabase.co\nVITE_SUPABASE_ANON_KEY=sb_publishable_Sb_og4V9GxxLA_yiZCVMdQ_wfydVcil\nNODE_VERSION=20`;
+                    navigator.clipboard.writeText(envSnippet);
+                    setCopiedNetlifySnippet(true);
+                    setTimeout(() => setCopiedNetlifySnippet(false), 2500);
+                  }}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-teal-600 hover:bg-teal-700 text-white shadow-xs transition-colors cursor-pointer"
+                >
+                  {copiedNetlifySnippet ? <Check className="w-4 h-4 text-emerald-300" /> : <Copy className="w-4 h-4" />}
+                  <span>{copiedNetlifySnippet ? 'Copied Netlify Env!' : 'Copy Netlify Environment Variables'}</span>
+                </button>
+
+                <a
+                  href="https://app.netlify.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Open Netlify</span>
+                </a>
+              </div>
+            </div>
+
+            {/* Netlify Build Settings Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
+                <span className="text-[10px] uppercase font-bold text-slate-400">Build Command</span>
+                <p className="font-mono font-bold text-xs text-slate-900">npm run build</p>
+                <p className="text-[10px] text-slate-500">Compiles Vite + Tailwind CSS</p>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
+                <span className="text-[10px] uppercase font-bold text-slate-400">Publish Directory</span>
+                <p className="font-mono font-bold text-xs text-slate-900">dist</p>
+                <p className="text-[10px] text-slate-500">Output production directory</p>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
+                <span className="text-[10px] uppercase font-bold text-slate-400">Node Version</span>
+                <p className="font-mono font-bold text-xs text-slate-900">20</p>
+                <p className="text-[10px] text-slate-500">Defined in netlify.toml</p>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
+                <span className="text-[10px] uppercase font-bold text-slate-400">SPA Route Fallback</span>
+                <p className="font-mono font-bold text-xs text-slate-900">/* &rarr; /index.html 200</p>
+                <p className="text-[10px] text-slate-500">Prevents 404 on page refresh</p>
+              </div>
+            </div>
+
+            {/* Netlify Environment Variables Box */}
+            <div className="p-4 rounded-2xl bg-slate-900 text-slate-200 space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-teal-400 text-xs uppercase tracking-wider">
+                  Netlify Site configuration &rarr; Environment variables:
+                </span>
+                <span className="text-[10px] text-slate-400 font-mono">Key-Value Pairs</span>
+              </div>
+              <div className="divide-y divide-slate-800 font-mono text-[11px]">
+                <div className="py-1.5 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                  <span className="text-teal-300 font-bold">VITE_SUPABASE_URL</span>
+                  <span className="text-slate-300 text-right truncate">https://pyjsnwazsbdaupjbaqcd.supabase.co</span>
+                </div>
+                <div className="py-1.5 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                  <span className="text-teal-300 font-bold">VITE_SUPABASE_ANON_KEY</span>
+                  <span className="text-slate-300 text-right truncate">sb_publishable_Sb_og4V9GxxLA_yiZCVMdQ_wfydVcil</span>
+                </div>
+                <div className="py-1.5 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                  <span className="text-teal-300 font-bold">NODE_VERSION</span>
+                  <span className="text-slate-300 text-right">20</span>
+                </div>
+              </div>
+            </div>
+
+            {/* 2 Deployment Options Guide */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+              <div className="p-4 rounded-2xl bg-blue-50/60 border border-blue-200 space-y-2">
+                <p className="font-bold text-blue-950 flex items-center gap-1.5">
+                  <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold">1</span>
+                  <span>Option A: Deploy via GitHub / GitLab</span>
+                </p>
+                <ol className="list-decimal list-inside space-y-1 text-slate-700 text-[11px]">
+                  <li>Push your repository to GitHub.</li>
+                  <li>In Netlify, click <strong>"Add new site" &rarr; "Import an existing project"</strong>.</li>
+                  <li>Select your repo; Netlify will auto-detect settings from <code className="font-bold">netlify.toml</code>.</li>
+                  <li>Add the 2 Supabase environment variables shown above and click <strong>Deploy</strong>.</li>
+                </ol>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200 space-y-2">
+                <p className="font-bold text-emerald-950 flex items-center gap-1.5">
+                  <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] font-bold">2</span>
+                  <span>Option B: Direct Drag & Drop Deploy</span>
+                </p>
+                <ol className="list-decimal list-inside space-y-1 text-slate-700 text-[11px]">
+                  <li>Run <code className="font-bold">npm run build</code> to generate the <code className="font-bold">dist</code> folder.</li>
+                  <li>Go to <a href="https://app.netlify.com/drop" target="_blank" rel="noreferrer" className="text-emerald-700 font-bold underline">app.netlify.com/drop</a>.</li>
+                  <li>Drag and drop the entire <strong>dist</strong> folder into Netlify.</li>
+                  <li>Your site is instantly live with custom subdomain and free HTTPS SSL!</li>
+                </ol>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* TAB: MOCK TESTS & TIMED EXAMINATIONS */}
       {activeTab === 'mock-tests' && (
         <div className="space-y-6">
@@ -2399,6 +2917,21 @@ export const AdminDashboardPage: React.FC = () => {
                 ))}
               </select>
 
+              {/* Year / Semester filter */}
+              <select
+                value={mockTestYearFilter}
+                onChange={(e) => setMockTestYearFilter(e.target.value)}
+                aria-label="Filter by Year or Semester"
+                className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium bg-white text-slate-700"
+              >
+                <option value="ALL">All Years / Semesters ({adminMockTestYears.length})</option>
+                {adminMockTestYears.map((yr: string) => (
+                  <option key={yr} value={yr}>
+                    {yr}
+                  </option>
+                ))}
+              </select>
+
               {/* Subject filter */}
               <select
                 value={mockTestSubjectFilter}
@@ -2442,6 +2975,7 @@ export const AdminDashboardPage: React.FC = () => {
 
               {/* Reset Filters */}
               {(mockTestCourseFilter !== 'ALL' ||
+                mockTestYearFilter !== 'ALL' ||
                 mockTestSubjectFilter !== 'ALL' ||
                 mockTestTypeFilter !== 'ALL' ||
                 mockTestEvaluationStatusFilter !== 'ALL' ||
@@ -2450,6 +2984,7 @@ export const AdminDashboardPage: React.FC = () => {
                   type="button"
                   onClick={() => {
                     setMockTestCourseFilter('ALL');
+                    setMockTestYearFilter('ALL');
                     setMockTestSubjectFilter('ALL');
                     setMockTestTypeFilter('ALL');
                     setMockTestEvaluationStatusFilter('ALL');
@@ -2483,6 +3018,7 @@ export const AdminDashboardPage: React.FC = () => {
                     {mockTests
                       .filter((t) => {
                         if (mockTestCourseFilter !== 'ALL' && t.courseSlug !== mockTestCourseFilter) return false;
+                        if (mockTestYearFilter !== 'ALL' && t.semesterOrYear && t.semesterOrYear !== mockTestYearFilter) return false;
                         if (mockTestSubjectFilter !== 'ALL' && t.subject !== mockTestSubjectFilter) return false;
                         if (mockTestTypeFilter !== 'ALL' && t.courseType !== mockTestTypeFilter) return false;
                         if (!mockTestSearch.trim()) return true;
@@ -2490,7 +3026,8 @@ export const AdminDashboardPage: React.FC = () => {
                         return (
                           t.title.toLowerCase().includes(q) ||
                           t.subject.toLowerCase().includes(q) ||
-                          t.courseName.toLowerCase().includes(q)
+                          t.courseName.toLowerCase().includes(q) ||
+                          (t.semesterOrYear && t.semesterOrYear.toLowerCase().includes(q))
                         );
                       })
                       .map((test) => {
@@ -2501,9 +3038,16 @@ export const AdminDashboardPage: React.FC = () => {
                           <tr key={test.id} className="hover:bg-slate-50/80 transition-colors">
                             <td className="py-3 px-4">
                               <p className="font-bold text-slate-900">{test.title}</p>
-                              <p className="text-[11px] text-blue-700 font-bold mt-0.5">
-                                Subject: {test.subject}
-                              </p>
+                              <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                                <p className="text-[11px] text-blue-700 font-bold">
+                                  Subject: {test.subject}
+                                </p>
+                                {test.semesterOrYear && (
+                                  <span className="text-[10px] font-semibold text-purple-700 bg-purple-50 px-2 py-0.2 rounded-full border border-purple-200">
+                                    {test.semesterOrYear}
+                                  </span>
+                                )}
+                              </div>
                             </td>
 
                             <td className="py-3 px-4">
@@ -2612,7 +3156,7 @@ export const AdminDashboardPage: React.FC = () => {
                       Faculty Examiner Answer Sheet Evaluation Queue
                     </h3>
                     <p className="text-xs text-slate-500">
-                      Filtered by Course: <strong>{mockTestCourseFilter}</strong> • Subject: <strong>{mockTestSubjectFilter}</strong>
+                      Filtered by Course: <strong>{mockTestCourseFilter}</strong> • Year/Sem: <strong>{mockTestYearFilter}</strong> • Subject: <strong>{mockTestSubjectFilter}</strong>
                     </p>
                   </div>
                 </div>
@@ -2622,6 +3166,11 @@ export const AdminDashboardPage: React.FC = () => {
                     Showing {
                       mockTestSubmissions.filter((sub) => {
                         if (mockTestCourseFilter !== 'ALL' && sub.courseSlug !== mockTestCourseFilter) return false;
+                        if (mockTestYearFilter !== 'ALL') {
+                          const tTest = mockTests.find((t) => t.id === sub.mockTestId || t.id === sub.testId);
+                          const subYr = (sub as any).semesterOrYear || tTest?.semesterOrYear;
+                          if (subYr && subYr !== mockTestYearFilter) return false;
+                        }
                         if (mockTestSubjectFilter !== 'ALL') {
                           const sSub = (sub.subject || '').toLowerCase();
                           const fSub = mockTestSubjectFilter.toLowerCase();
@@ -2648,7 +3197,7 @@ export const AdminDashboardPage: React.FC = () => {
                   <thead>
                     <tr className="border-b border-slate-100 bg-slate-50 text-slate-500 text-[10px] uppercase font-bold tracking-wider">
                       <th className="py-3 px-4">Student & Roll No</th>
-                      <th className="py-3 px-4">Course & Stream</th>
+                      <th className="py-3 px-4">Course & Academic Level</th>
                       <th className="py-3 px-4">Exam Subject</th>
                       <th className="py-3 px-4">Uploaded PDF Paper</th>
                       <th className="py-3 px-4">Evaluation Status</th>
@@ -2659,6 +3208,11 @@ export const AdminDashboardPage: React.FC = () => {
                     {(() => {
                       const filteredSubmissions = mockTestSubmissions.filter((sub) => {
                         if (mockTestCourseFilter !== 'ALL' && sub.courseSlug !== mockTestCourseFilter) return false;
+                        if (mockTestYearFilter !== 'ALL') {
+                          const tTest = mockTests.find((t) => t.id === sub.mockTestId || t.id === sub.testId);
+                          const subYr = (sub as any).semesterOrYear || tTest?.semesterOrYear;
+                          if (subYr && subYr !== mockTestYearFilter) return false;
+                        }
                         if (mockTestSubjectFilter !== 'ALL') {
                           const sSub = (sub.subject || '').toLowerCase();
                           const fSub = mockTestSubjectFilter.toLowerCase();
@@ -2681,8 +3235,8 @@ export const AdminDashboardPage: React.FC = () => {
                           <tr>
                             <td colSpan={6} className="py-12 text-center text-slate-400">
                               <FileCheck className="w-8 h-8 mx-auto mb-2 text-slate-300" />
-                              <p className="font-bold text-slate-700">No student answer sheets match the selected Course & Subject filters.</p>
-                              <p className="text-xs text-slate-400 mt-1">Try selecting "All Subjects" or choosing a different academic stream.</p>
+                              <p className="font-bold text-slate-700">No student answer sheets match the selected Course, Year/Semester & Subject filters.</p>
+                              <p className="text-xs text-slate-400 mt-1">Try selecting "All Years / Semesters" or "All Subjects" to broaden your view.</p>
                             </td>
                           </tr>
                         );
@@ -2692,6 +3246,7 @@ export const AdminDashboardPage: React.FC = () => {
                         const targetTest = mockTests.find((t) => t.id === sub.mockTestId || t.id === sub.testId);
                         const courseObj = courses.find((c) => c.slug === sub.courseSlug);
                         const fullMarks = targetTest?.fullMarks || 100;
+                        const submissionYearOrSem = (sub as any).semesterOrYear || targetTest?.semesterOrYear;
 
                         return (
                           <tr key={sub.id} className="hover:bg-slate-50/80 transition-colors">
@@ -2716,15 +3271,22 @@ export const AdminDashboardPage: React.FC = () => {
                               <p className="font-medium text-slate-700">
                                 {courseObj?.title || sub.courseSlug}
                               </p>
-                              <span
-                                className={`inline-block mt-0.5 text-[9px] font-bold px-2 py-0.2 rounded-full uppercase ${
-                                  sub.courseType === 'Old Course'
-                                    ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                                    : 'bg-blue-100 text-blue-900 border border-blue-200'
-                                }`}
-                              >
-                                {sub.courseType || 'New Course'}
-                              </span>
+                              <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                                <span
+                                  className={`inline-block text-[9px] font-bold px-2 py-0.2 rounded-full uppercase ${
+                                    sub.courseType === 'Old Course'
+                                      ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                                      : 'bg-blue-100 text-blue-900 border border-blue-200'
+                                  }`}
+                                >
+                                  {sub.courseType || 'New Course'}
+                                </span>
+                                {submissionYearOrSem && (
+                                  <span className="inline-block text-[9px] font-bold px-2 py-0.2 rounded-full bg-purple-50 text-purple-800 border border-purple-200">
+                                    {submissionYearOrSem}
+                                  </span>
+                                )}
+                              </div>
                             </td>
 
                             <td className="py-3 px-4">
@@ -3293,6 +3855,7 @@ export const AdminDashboardPage: React.FC = () => {
                 const matchedCourse = courses.find((c) => c.slug === courseSlug);
                 const courseName = matchedCourse?.title || 'Academic Course';
                 const courseType = (form.elements.namedItem('courseType') as HTMLSelectElement).value as CourseType;
+                const semesterOrYear = (form.elements.namedItem('semesterOrYear') as HTMLInputElement)?.value;
                 const subject = (form.elements.namedItem('subject') as HTMLInputElement).value;
                 const durationMinutes = Number((form.elements.namedItem('durationMinutes') as HTMLInputElement).value);
                 const fullMarks = Number((form.elements.namedItem('fullMarks') as HTMLInputElement).value);
@@ -3307,6 +3870,7 @@ export const AdminDashboardPage: React.FC = () => {
                     courseSlug,
                     courseName,
                     courseType,
+                    semesterOrYear: semesterOrYear?.trim() || undefined,
                     subject,
                     durationMinutes,
                     fullMarks,
@@ -3321,6 +3885,7 @@ export const AdminDashboardPage: React.FC = () => {
                     courseSlug,
                     courseName,
                     courseType,
+                    semesterOrYear: semesterOrYear?.trim() || undefined,
                     subject,
                     durationMinutes,
                     fullMarks,
@@ -3382,7 +3947,26 @@ export const AdminDashboardPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Academic Year or Semester (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    name="semesterOrYear"
+                    list="courseYearsDatalist"
+                    defaultValue={editingMockTest?.semesterOrYear || ''}
+                    placeholder="e.g. 1st Year, 2nd Year, Grade 11, 1st Sem..."
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200"
+                  />
+                  <datalist id="courseYearsDatalist">
+                    {adminMockTestYears.map((yr: string) => (
+                      <option key={yr} value={yr} />
+                    ))}
+                  </datalist>
+                </div>
+
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Subject Name *</label>
                   <input
@@ -3400,7 +3984,9 @@ export const AdminDashboardPage: React.FC = () => {
                     ))}
                   </datalist>
                 </div>
+              </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Time Limit (Minutes) *</label>
                   <input
