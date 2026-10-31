@@ -1214,17 +1214,32 @@ export const StudyMaterialsPage: React.FC = () => {
             <div className="flex items-center gap-3 pt-1">
               <button
                 onClick={() => {
-                  const blob = new Blob([
-                    `SHIKSHYALAYA SHAIKSHIK SANSTHA\nDocument: ${downloadSuccessModal.title}\nCourse: ${downloadSuccessModal.courseName}\nSubject: ${downloadSuccessModal.subject} (${downloadSuccessModal.semesterOrYear})\nAccess Level: Authorized Enrolled Student\n`
-                  ], { type: 'text/plain' });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = `${downloadSuccessModal.subject.replace(/\s+/g, '_')}_${downloadSuccessModal.title.replace(/\s+/g, '_')}.txt`;
-                  document.body.appendChild(a);
-                  a.click();
-                  document.body.removeChild(a);
-                  URL.revokeObjectURL(url);
+                  if (downloadSuccessModal.downloadUrl) {
+                    const a = document.createElement('a');
+                    a.href = downloadSuccessModal.downloadUrl;
+                    const fileName =
+                      downloadSuccessModal.fileName ||
+                      downloadSuccessModal.attachmentName ||
+                      `${downloadSuccessModal.subject.replace(/\s+/g, '_')}_${downloadSuccessModal.title.replace(/\s+/g, '_')}`;
+                    a.download = fileName;
+                    a.target = '_blank';
+                    a.rel = 'noreferrer';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                  } else {
+                    const blob = new Blob([
+                      `SHIKSHYALAYA SHAIKSHIK SANSTHA\nDocument: ${downloadSuccessModal.title}\nCourse: ${downloadSuccessModal.courseName}\nSubject: ${downloadSuccessModal.subject} (${downloadSuccessModal.semesterOrYear})\nAccess Level: Authorized Enrolled Student\n`
+                    ], { type: 'text/plain' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${downloadSuccessModal.subject.replace(/\s+/g, '_')}_${downloadSuccessModal.title.replace(/\s+/g, '_')}.txt`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                  }
                   setDownloadSuccessModal(null);
                 }}
                 className="flex-1 py-2.5 rounded-xl font-bold text-xs text-white bg-[#12315A] hover:bg-blue-900 transition-colors shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"

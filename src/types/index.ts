@@ -138,11 +138,24 @@ export interface StudyMaterial {
   board: string;
   subject: string;
   semesterOrYear: string;
-  resourceType: 'PDF Notes' | 'Lecture Slides' | 'Practice Questions' | 'Model Question Papers' | 'Past Papers' | 'Assignments' | 'Revision Materials' | 'Recorded Videos';
+  resourceType:
+    | 'PDF Notes'
+    | 'Word Document / Notes'
+    | 'Image / Handwritten Solutions'
+    | 'Lecture Slides'
+    | 'Practice Questions'
+    | 'Model Question Papers'
+    | 'Past Papers'
+    | 'Assignments'
+    | 'Revision Materials'
+    | 'Recorded Videos';
   accessLevel: 'Public' | 'Enrolled Students' | 'Restricted';
   fileSize: string;
   uploadDate: string;
   downloadUrl?: string;
+  fileName?: string;
+  attachmentName?: string;
+  fileType?: string;
   description: string;
   published: boolean;
 }
@@ -265,6 +278,7 @@ export interface MockTest {
   questionPaperName?: string;
   questionFileName?: string;
   questionPaperSize?: string;
+  questionFileType?: string;
   questionText?: string;
   modelAnswerUrl?: string;
   status?: 'Upcoming' | 'Live / In-Progress' | 'Evaluation Closed' | 'Archived';

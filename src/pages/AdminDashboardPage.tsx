@@ -48,6 +48,8 @@ import {
   Cloud,
   Server,
   Globe,
+  Upload,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import {
@@ -4091,258 +4093,22 @@ export const AdminDashboardPage: React.FC = () => {
 
       {/* CREATE / EDIT MOCK TEST MODAL */}
       {isMockTestModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200 relative max-h-[90vh] overflow-y-auto space-y-4 text-xs sm:text-sm">
-            <button
-              type="button"
-              onClick={() => setIsMockTestModalOpen(false)}
-              className="absolute top-5 right-5 p-1.5 text-slate-400 hover:text-slate-700 cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <h3 className="text-lg font-bold text-[#12315A]">
-              {editingMockTest ? 'Edit Mock Test' : 'Upload Questions / Create Mock Test'}
-            </h3>
-
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const form = e.currentTarget;
-                const title = (form.elements.namedItem('title') as HTMLInputElement).value;
-                const courseSlug = (form.elements.namedItem('courseSlug') as HTMLSelectElement).value;
-                const matchedCourse = courses.find((c) => c.slug === courseSlug);
-                const courseName = matchedCourse?.title || 'Academic Course';
-                const courseType = (form.elements.namedItem('courseType') as HTMLSelectElement).value as CourseType;
-                const semesterOrYear = (form.elements.namedItem('semesterOrYear') as HTMLInputElement)?.value;
-                const subject = (form.elements.namedItem('subject') as HTMLInputElement).value;
-                const durationMinutes = Number((form.elements.namedItem('durationMinutes') as HTMLInputElement).value);
-                const fullMarks = Number((form.elements.namedItem('fullMarks') as HTMLInputElement).value);
-                const passMarks = Number((form.elements.namedItem('passMarks') as HTMLInputElement).value);
-                const questionPaperUrl = (form.elements.namedItem('questionPaperUrl') as HTMLInputElement).value;
-                const instructions = (form.elements.namedItem('instructions') as HTMLTextAreaElement).value;
-                const questionText = (form.elements.namedItem('questionText') as HTMLTextAreaElement).value;
-
-                if (editingMockTest) {
-                  updateMockTest(editingMockTest.id, {
-                    title,
-                    courseSlug,
-                    courseName,
-                    courseType,
-                    semesterOrYear: semesterOrYear?.trim() || undefined,
-                    subject,
-                    durationMinutes,
-                    fullMarks,
-                    passMarks,
-                    questionPaperUrl: questionPaperUrl || undefined,
-                    instructions: instructions.includes('\n') ? instructions.split('\n').filter(Boolean) : [instructions],
-                    questionText,
-                  });
-                } else {
-                  addMockTest({
-                    title,
-                    courseSlug,
-                    courseName,
-                    courseType,
-                    semesterOrYear: semesterOrYear?.trim() || undefined,
-                    subject,
-                    durationMinutes,
-                    fullMarks,
-                    passMarks,
-                    questionPaperUrl: questionPaperUrl || undefined,
-                    questionFileName: questionPaperUrl ? 'Official_Question_Paper.pdf' : undefined,
-                    instructions: instructions.includes('\n') ? instructions.split('\n').filter(Boolean) : [instructions],
-                    questionText,
-                    published: true,
-                  });
-                }
-
-                setIsMockTestModalOpen(false);
-              }}
-              className="space-y-3.5"
-            >
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Mock Test Examination Title *</label>
-                <input
-                  type="text"
-                  name="title"
-                  required
-                  defaultValue={editingMockTest?.title || ''}
-                  placeholder="e.g. BBS 4th Year Corporate Finance Pre-Board Model Exam"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Target Academic Course *</label>
-                  <select
-                    name="courseSlug"
-                    required
-                    defaultValue={editingMockTest?.courseSlug || courses[0]?.slug}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
-                  >
-                    {courses.map((c) => (
-                      <option key={c.id} value={c.slug}>
-                        {c.title} ({c.board})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">
-                    Syllabus Stream (New vs. Old Course) *
-                  </label>
-                  <select
-                    name="courseType"
-                    required
-                    defaultValue={editingMockTest?.courseType || 'New Course'}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
-                  >
-                    <option value="New Course">New Course (Current Regular Syllabus)</option>
-                    <option value="Old Course">Old Course (Backpaper Examination Prep)</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">
-                    Academic Year or Semester (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    name="semesterOrYear"
-                    list="courseYearsDatalist"
-                    defaultValue={editingMockTest?.semesterOrYear || ''}
-                    placeholder="e.g. 1st Year, 2nd Year, Grade 11, 1st Sem..."
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200"
-                  />
-                  <datalist id="courseYearsDatalist">
-                    {adminMockTestYears.map((yr: string) => (
-                      <option key={yr} value={yr} />
-                    ))}
-                  </datalist>
-                </div>
-
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Subject Name *</label>
-                  <input
-                    type="text"
-                    name="subject"
-                    required
-                    list="courseSubjectsDatalist"
-                    defaultValue={editingMockTest?.subject || ''}
-                    placeholder="e.g. Cost and Management Accounting"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200"
-                  />
-                  <datalist id="courseSubjectsDatalist">
-                    {adminMockTestSubjects.map((sub: string) => (
-                      <option key={sub} value={sub} />
-                    ))}
-                  </datalist>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Time Limit (Minutes) *</label>
-                  <input
-                    type="number"
-                    name="durationMinutes"
-                    required
-                    min={10}
-                    max={360}
-                    defaultValue={editingMockTest?.durationMinutes || 180}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Full / Pass Marks *</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      name="fullMarks"
-                      required
-                      min={10}
-                      defaultValue={editingMockTest?.fullMarks || 100}
-                      className="w-1/2 px-2.5 py-2 rounded-xl border border-slate-200"
-                      placeholder="Full"
-                    />
-                    <input
-                      type="number"
-                      name="passMarks"
-                      required
-                      min={5}
-                      defaultValue={editingMockTest?.passMarks || 40}
-                      className="w-1/2 px-2.5 py-2 rounded-xl border border-slate-200"
-                      placeholder="Pass"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  Question Paper PDF URL (Optional link or uploaded file)
-                </label>
-                <input
-                  type="url"
-                  name="questionPaperUrl"
-                  defaultValue={editingMockTest?.questionPaperUrl || ''}
-                  placeholder="https://example.com/question-papers/tu_bbs_model_2026.pdf"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 font-mono text-xs"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Exam Instructions</label>
-                <textarea
-                  name="instructions"
-                  rows={2}
-                  defaultValue={
-                    editingMockTest?.instructions ||
-                    'Candidates are required to give answers in their own words as far as practicable. Figures in the margin indicate full marks. Upload your scanned handwritten answers before the countdown expires.'
-                  }
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  Structured Question Text / Prompts (Displayed directly to students)
-                </label>
-                <textarea
-                  name="questionText"
-                  rows={5}
-                  defaultValue={
-                    editingMockTest?.questionText ||
-                    `Group A: Brief Answer Questions (Attempt ALL - 10 x 2 = 20 Marks)\n1. Define Capital Structure and Financial Leverage.\n2. State the primary objective of Financial Management.\n\nGroup B: Descriptive Answer Questions (Attempt Any FIVE - 5 x 10 = 50 Marks)\n3. Explain the Determinants of Dividend Policy in Nepali commercial banks.\n4. Numerical: Calculate Net Present Value (NPV) and Internal Rate of Return (IRR) for Project Alpha and Beta.\n\nGroup C: Comprehensive Analysis Question (Attempt Any ONE - 1 x 30 = 30 Marks)\n5. Detailed Case on Working Capital Management Strategy.`
-                  }
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 font-mono text-xs"
-                />
-              </div>
-
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsMockTestModalOpen(false)}
-                  className="px-4 py-2.5 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2.5 rounded-xl font-bold text-slate-950 bg-amber-400 hover:bg-amber-500 shadow-sm cursor-pointer"
-                >
-                  {editingMockTest ? 'Save Changes' : 'Upload Question Paper'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <MockTestEditModal
+          mockTest={editingMockTest}
+          courses={courses}
+          onClose={() => setIsMockTestModalOpen(false)}
+          onSave={(data) => {
+            if (editingMockTest) {
+              updateMockTest(editingMockTest.id, data);
+            } else {
+              addMockTest({
+                ...(data as any),
+                published: true,
+              });
+            }
+            setIsMockTestModalOpen(false);
+          }}
+        />
       )}
     </div>
   );
@@ -4737,7 +4503,295 @@ const NoticeEditModal: React.FC<{
   );
 };
 
-// Material Modal Subcomponent
+// ==========================================
+// COURSE DROPDOWN & FILE UPLOAD HELPERS
+// ==========================================
+export const getAvailableSemestersForCourse = (course?: Course): string[] => {
+  if (!course) return [];
+  const set = new Set<string>();
+
+  course.subjectsOffered?.forEach((s) => {
+    if (s.semesterOrYear && s.semesterOrYear.trim()) {
+      set.add(s.semesterOrYear.trim());
+    }
+  });
+
+  const slug = course.slug.toLowerCase();
+  if (slug.startsWith('bbs')) {
+    ['1st Year', '2nd Year', '3rd Year', '4th Year'].forEach((t) => set.add(t));
+  } else if (slug.startsWith('mbs')) {
+    ['1st Semester', '2nd Semester', '3rd Semester', '4th Semester'].forEach((t) => set.add(t));
+  } else if (slug.startsWith('bba') || slug.startsWith('bbm')) {
+    [
+      '1st Semester', '2nd Semester', '3rd Semester', '4th Semester',
+      '5th Semester', '6th Semester', '7th Semester', '8th Semester'
+    ].forEach((t) => set.add(t));
+  } else if (slug.startsWith('plus-two')) {
+    ['Grade 11', 'Grade 12'].forEach((t) => set.add(t));
+  } else if (slug.startsWith('loksewa') || slug.includes('tsc')) {
+    [
+      '1st Paper (Objective - 100 Marks)',
+      '2nd Paper (Subjective - 100 Marks)',
+      '3rd Paper',
+      '4th Paper'
+    ].forEach((t) => set.add(t));
+  }
+
+  return Array.from(set);
+};
+
+export const getAvailableSubjectsForCourse = (course?: Course, semesterOrYear?: string): string[] => {
+  if (!course || !course.subjectsOffered) return [];
+  if (!semesterOrYear || semesterOrYear === 'ALL') {
+    return Array.from(new Set(course.subjectsOffered.map((s) => s.name.trim()))).filter(Boolean);
+  }
+
+  const sNorm = semesterOrYear.toLowerCase().trim();
+  const matched = course.subjectsOffered
+    .filter((s) => {
+      if (!s.semesterOrYear) return true;
+      const termNorm = s.semesterOrYear.toLowerCase().trim();
+      return termNorm === sNorm || termNorm.includes(sNorm) || sNorm.includes(termNorm);
+    })
+    .map((s) => s.name.trim());
+
+  if (matched.length > 0) {
+    return Array.from(new Set(matched));
+  }
+  return Array.from(new Set(course.subjectsOffered.map((s) => s.name.trim()))).filter(Boolean);
+};
+
+// ==========================================
+// FILE UPLOAD COMPONENT FOR PDF, WORD & IMAGE
+// ==========================================
+interface UniversalFileUploaderProps {
+  label: string;
+  acceptTypesLabel?: string;
+  currentUrl?: string;
+  currentFileName?: string;
+  currentFileSize?: string;
+  onFileSelect: (fileData: {
+    dataUrl: string;
+    fileName: string;
+    fileSize: string;
+    fileType: 'pdf' | 'word' | 'image' | 'other';
+  }) => void;
+  onClear: () => void;
+  onManualUrlChange?: (url: string) => void;
+}
+
+const UniversalFileUploader: React.FC<UniversalFileUploaderProps> = ({
+  label,
+  acceptTypesLabel = 'PDF (.pdf), Word Document (.doc, .docx), or Image (.jpg, .png, .webp)',
+  currentUrl,
+  currentFileName,
+  currentFileSize,
+  onFileSelect,
+  onClear,
+  onManualUrlChange,
+}) => {
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [showManualUrl, setShowManualUrl] = useState(false);
+  const [manualUrlInput, setManualUrlInput] = useState(currentUrl && !currentUrl.startsWith('data:') ? currentUrl : '');
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  const isImage =
+    (currentFileName && /\.(png|jpe?g|webp|gif|svg)$/i.test(currentFileName)) ||
+    (currentUrl && currentUrl.startsWith('data:image/'));
+
+  const isWord =
+    (currentFileName && /\.(docx?|rtf)$/i.test(currentFileName)) ||
+    (currentUrl && currentUrl.includes('wordprocessingml'));
+
+  const isPdf =
+    (currentFileName && /\.pdf$/i.test(currentFileName)) ||
+    (currentUrl && currentUrl.startsWith('data:application/pdf'));
+
+  const handleProcessFile = (file: File) => {
+    const formattedSize =
+      file.size > 1024 * 1024
+        ? `${(file.size / (1024 * 1024)).toFixed(1)} MB`
+        : `${Math.round(file.size / 1024)} KB`;
+
+    let fileType: 'pdf' | 'word' | 'image' | 'other' = 'other';
+    const nameLower = file.name.toLowerCase();
+    if (file.type === 'application/pdf' || nameLower.endsWith('.pdf')) {
+      fileType = 'pdf';
+    } else if (
+      file.type.includes('word') ||
+      nameLower.endsWith('.docx') ||
+      nameLower.endsWith('.doc')
+    ) {
+      fileType = 'word';
+    } else if (file.type.startsWith('image/') || /\.(png|jpe?g|webp)$/i.test(nameLower)) {
+      fileType = 'image';
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const result = e.target?.result as string;
+      onFileSelect({
+        dataUrl: result,
+        fileName: file.name,
+        fileSize: formattedSize,
+        fileType,
+      });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <label className="block font-bold text-slate-700 text-xs flex items-center gap-1.5">
+          <Upload className="w-4 h-4 text-blue-600" />
+          <span>{label} *</span>
+        </label>
+        <button
+          type="button"
+          onClick={() => setShowManualUrl(!showManualUrl)}
+          className="text-[11px] font-semibold text-blue-700 hover:underline cursor-pointer"
+        >
+          {showManualUrl ? 'Switch to File Upload' : 'Or enter external link / URL'}
+        </button>
+      </div>
+
+      {showManualUrl ? (
+        <div className="space-y-1.5">
+          <input
+            type="url"
+            placeholder="https://example.com/question-paper.pdf or Google Drive link"
+            value={manualUrlInput}
+            onChange={(e) => {
+              setManualUrlInput(e.target.value);
+              if (onManualUrlChange) onManualUrlChange(e.target.value);
+            }}
+            className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <p className="text-[11px] text-slate-400">
+            Paste a public Google Drive, Dropbox, or web URL if the file is already hosted online.
+          </p>
+        </div>
+      ) : currentUrl || currentFileName ? (
+        <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            {isImage ? (
+              <div className="w-12 h-12 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 shrink-0">
+                <img
+                  src={currentUrl}
+                  alt={currentFileName || 'Uploaded image'}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            ) : isWord ? (
+              <div className="w-12 h-12 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0 font-bold text-xs border border-blue-200">
+                DOCX
+              </div>
+            ) : (
+              <div className="w-12 h-12 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0 font-bold text-xs border border-rose-200">
+                PDF
+              </div>
+            )}
+
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                    isImage
+                      ? 'bg-purple-100 text-purple-800'
+                      : isWord
+                      ? 'bg-blue-100 text-blue-800'
+                      : 'bg-rose-100 text-rose-800'
+                  }`}
+                >
+                  {isImage ? 'Image' : isWord ? 'Word Document' : 'PDF Document'}
+                </span>
+                <span className="text-[11px] text-emerald-700 font-bold flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                  Ready
+                </span>
+              </div>
+              <p className="font-bold text-slate-900 text-xs truncate max-w-xs sm:max-w-md mt-0.5">
+                {currentFileName || 'Uploaded_Document'}
+              </p>
+              {currentFileSize && (
+                <p className="text-[11px] text-slate-400 font-mono">{currentFileSize}</p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-100 cursor-pointer"
+            >
+              Replace
+            </button>
+            <button
+              type="button"
+              onClick={onClear}
+              className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 cursor-pointer"
+              title="Remove file"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsDragOver(true);
+          }}
+          onDragLeave={() => setIsDragOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setIsDragOver(false);
+            const file = e.dataTransfer.files?.[0];
+            if (file) handleProcessFile(file);
+          }}
+          onClick={() => fileInputRef.current?.click()}
+          className={`border-2 border-dashed rounded-2xl p-4 text-center cursor-pointer transition-all ${
+            isDragOver
+              ? 'border-blue-500 bg-blue-50/70 scale-[0.99]'
+              : 'border-slate-300 hover:border-blue-400 bg-slate-50/50 hover:bg-blue-50/30'
+          }`}
+        >
+          <div className="flex items-center justify-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+              <Upload className="w-5 h-5" />
+            </div>
+            <div className="text-left">
+              <p className="text-xs font-bold text-slate-800">
+                Click to browse or drag & drop file
+              </p>
+              <p className="text-[11px] text-slate-500">
+                {acceptTypesLabel}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/*"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) handleProcessFile(file);
+          e.target.value = '';
+        }}
+        className="hidden"
+      />
+    </div>
+  );
+};
+
+// ==========================================
+// 1. MATERIAL EDIT / UPLOAD MODAL
+// ==========================================
 const MaterialEditModal: React.FC<{
   material: StudyMaterial | null;
   courses: Course[];
@@ -4746,142 +4800,739 @@ const MaterialEditModal: React.FC<{
 }> = ({ material, courses, onClose, onSave }) => {
   const [title, setTitle] = useState(material?.title || '');
   const [courseSlug, setCourseSlug] = useState(material?.courseSlug || courses[0]?.slug || '');
-  const [subject, setSubject] = useState(material?.subject || '');
-  const [semesterOrYear, setSemesterOrYear] = useState(material?.semesterOrYear || '');
-  const [resourceType, setResourceType] = useState(material?.resourceType || 'PDF Notes');
-  const [accessLevel, setAccessLevel] = useState(material?.accessLevel || 'Public');
+
+  const selectedCourse = useMemo(
+    () => courses.find((c) => c.slug === courseSlug) || courses[0],
+    [courses, courseSlug]
+  );
+
+  // Available semesters for the chosen course
+  const availableSemesters = useMemo(
+    () => getAvailableSemestersForCourse(selectedCourse),
+    [selectedCourse]
+  );
+
+  const [selectedSemester, setSelectedSemester] = useState<string>(() => {
+    if (material?.semesterOrYear) {
+      return availableSemesters.includes(material.semesterOrYear)
+        ? material.semesterOrYear
+        : '__custom__';
+    }
+    return availableSemesters[0] || '1st Year';
+  });
+  const [customSemester, setCustomSemester] = useState<string>(
+    material?.semesterOrYear && !availableSemesters.includes(material.semesterOrYear)
+      ? material.semesterOrYear
+      : ''
+  );
+
+  // Effective semester
+  const effectiveSemester =
+    selectedSemester === '__custom__' ? customSemester : selectedSemester;
+
+  // Available subjects for the chosen course + semester
+  const availableSubjects = useMemo(
+    () => getAvailableSubjectsForCourse(selectedCourse, effectiveSemester),
+    [selectedCourse, effectiveSemester]
+  );
+
+  const [selectedSubject, setSelectedSubject] = useState<string>(() => {
+    if (material?.subject) {
+      return availableSubjects.includes(material.subject)
+        ? material.subject
+        : '__custom__';
+    }
+    return availableSubjects[0] || '';
+  });
+  const [customSubject, setCustomSubject] = useState<string>(
+    material?.subject && !availableSubjects.includes(material.subject)
+      ? material.subject
+      : ''
+  );
+
+  const effectiveSubject =
+    selectedSubject === '__custom__' ? customSubject : selectedSubject;
+
+  // When course changes, auto-select first semester & subject
+  const handleCourseChange = (newSlug: string) => {
+    setCourseSlug(newSlug);
+    const newCourse = courses.find((c) => c.slug === newSlug);
+    const newSems = getAvailableSemestersForCourse(newCourse);
+    const defaultSem = newSems[0] || '1st Year';
+    setSelectedSemester(defaultSem);
+    setCustomSemester('');
+
+    const newSubs = getAvailableSubjectsForCourse(newCourse, defaultSem);
+    setSelectedSubject(newSubs[0] || '');
+    setCustomSubject('');
+  };
+
+  // When semester changes, refresh subject selection
+  const handleSemesterChange = (newSem: string) => {
+    setSelectedSemester(newSem);
+    if (newSem !== '__custom__') {
+      const newSubs = getAvailableSubjectsForCourse(selectedCourse, newSem);
+      if (newSubs.length > 0 && !newSubs.includes(selectedSubject)) {
+        setSelectedSubject(newSubs[0]);
+      }
+    }
+  };
+
+  // File Upload State
+  const [fileDataUrl, setFileDataUrl] = useState<string>(material?.downloadUrl || '');
+  const [uploadedFileName, setUploadedFileName] = useState<string>(
+    material?.fileName || material?.attachmentName || (material?.downloadUrl ? 'Study_Material.pdf' : '')
+  );
+  const [uploadedFileSize, setUploadedFileSize] = useState<string>(material?.fileSize || '');
+  const [resourceType, setResourceType] = useState<string>(material?.resourceType || 'PDF Notes');
+  const [accessLevel, setAccessLevel] = useState<string>(material?.accessLevel || 'Public');
   const [description, setDescription] = useState(material?.description || '');
 
-  const selectedCourse = courses.find((c) => c.slug === courseSlug);
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
-      <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 relative max-h-[90vh] overflow-y-auto space-y-4 text-xs sm:text-sm">
-        <button onClick={onClose} className="absolute top-5 right-5 p-1 text-slate-400">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/70 backdrop-blur-sm overflow-y-auto">
+      <div className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-7 shadow-2xl border border-slate-200 relative max-h-[92vh] overflow-y-auto space-y-4 text-xs sm:text-sm">
+        <button
+          onClick={onClose}
+          className="absolute top-5 right-5 p-1 text-slate-400 hover:text-slate-700 cursor-pointer"
+        >
           <X className="w-5 h-5" />
         </button>
 
-        <h3 className="text-lg font-bold text-[#12315A]">
-          {material ? 'Edit Study Material' : 'Add Study Material / Question Paper'}
-        </h3>
+        <div>
+          <h3 className="text-lg font-bold text-[#12315A] flex items-center gap-2">
+            <BookOpen className="w-5 h-5 text-blue-600" />
+            <span>{material ? 'Edit Study Material' : 'Add Study Material / Question Paper'}</span>
+          </h3>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Select program, semester, and subject from dropdowns and upload PDF, Word, or image solutions.
+          </p>
+        </div>
 
-        <div className="space-y-3">
+        {/* File Upload Zone */}
+        <div className="p-3.5 bg-slate-50/80 rounded-2xl border border-slate-200">
+          <UniversalFileUploader
+            label="Upload Resource File (PDF, Word, or Image)"
+            acceptTypesLabel="Supports PDF (.pdf), Word (.doc, .docx), and Image (.jpg, .png, .webp)"
+            currentUrl={fileDataUrl}
+            currentFileName={uploadedFileName}
+            currentFileSize={uploadedFileSize}
+            onFileSelect={({ dataUrl, fileName, fileSize, fileType }) => {
+              setFileDataUrl(dataUrl);
+              setUploadedFileName(fileName);
+              setUploadedFileSize(fileSize);
+
+              // Auto-fill document title if empty
+              if (!title) {
+                const cleanName = fileName
+                  .replace(/\.[^/.]+$/, '')
+                  .replace(/[-_]/g, ' ')
+                  .trim();
+                setTitle(cleanName);
+              }
+
+              // Auto-adjust resource type based on file extension
+              if (fileType === 'word') {
+                setResourceType('Word Document / Notes');
+              } else if (fileType === 'image') {
+                setResourceType('Image / Handwritten Solutions');
+              } else if (fileType === 'pdf') {
+                setResourceType('PDF Notes');
+              }
+            }}
+            onClear={() => {
+              setFileDataUrl('');
+              setUploadedFileName('');
+              setUploadedFileSize('');
+            }}
+            onManualUrlChange={(url) => {
+              setFileDataUrl(url);
+              if (url && !uploadedFileName) {
+                setUploadedFileName('Online_Resource.pdf');
+              }
+            }}
+          />
+        </div>
+
+        <div className="space-y-3.5">
+          {/* Document Title */}
           <div>
-            <label className="block font-bold text-slate-700 mb-1">Document Title</label>
+            <label className="block font-bold text-slate-700 mb-1">
+              Document Title *
+            </label>
             <input
               type="text"
+              required
               value={title}
+              placeholder="e.g. BBS 4th Year Corporate Finance Chapter 4 Model Numerical Solutions"
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-slate-200"
+              className="w-full px-3 py-2 rounded-xl border border-slate-200 font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          {/* Target Course & Semester Dropdowns */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block font-bold text-slate-700 mb-1">Target Course</label>
+              <label className="block font-bold text-slate-700 mb-1">
+                Target Course *
+              </label>
               <select
                 value={courseSlug}
-                onChange={(e) => setCourseSlug(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                onChange={(e) => handleCourseChange(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 {courses.map((c) => (
                   <option key={c.slug} value={c.slug}>
-                    {c.title}
+                    {c.title} ({c.board})
                   </option>
                 ))}
               </select>
             </div>
 
             <div>
-              <label className="block font-bold text-slate-700 mb-1">Subject</label>
-              <input
-                type="text"
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200"
-              />
+              <label className="block font-bold text-slate-700 mb-1">
+                Semester or Year (Select from List) *
+              </label>
+              <select
+                value={selectedSemester}
+                onChange={(e) => handleSemesterChange(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {availableSemesters.map((sem) => (
+                  <option key={sem} value={sem}>
+                    {sem}
+                  </option>
+                ))}
+                <option value="__custom__">+ Enter Custom Semester / Year...</option>
+              </select>
+
+              {selectedSemester === '__custom__' && (
+                <input
+                  type="text"
+                  placeholder="e.g. 5th Semester / Year 3"
+                  value={customSemester}
+                  onChange={(e) => setCustomSemester(e.target.value)}
+                  className="w-full mt-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-xs"
+                />
+              )}
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          {/* Subject Dropdown & Access Level */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block font-bold text-slate-700 mb-1">Semester or Year</label>
-              <input
-                type="text"
-                placeholder="e.g. Semester 2 / Grade 11"
-                value={semesterOrYear}
-                onChange={(e) => setSemesterOrYear(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200"
-              />
+              <label className="block font-bold text-slate-700 mb-1">
+                Subject (Select from Course List) *
+              </label>
+              <select
+                value={selectedSubject}
+                onChange={(e) => setSelectedSubject(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {availableSubjects.map((sub) => (
+                  <option key={sub} value={sub}>
+                    {sub}
+                  </option>
+                ))}
+                <option value="__custom__">+ Enter Custom Subject...</option>
+              </select>
+
+              {selectedSubject === '__custom__' && (
+                <input
+                  type="text"
+                  placeholder="e.g. Advanced Financial Management"
+                  value={customSubject}
+                  onChange={(e) => setCustomSubject(e.target.value)}
+                  className="w-full mt-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-xs"
+                />
+              )}
             </div>
 
             <div>
-              <label className="block font-bold text-slate-700 mb-1">Access Level</label>
+              <label className="block font-bold text-slate-700 mb-1">Access Level *</label>
               <select
                 value={accessLevel}
-                onChange={(e) => setAccessLevel(e.target.value as any)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                onChange={(e) => setAccessLevel(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="Public">Public (Free Download)</option>
-                <option value="Enrolled Students">Enrolled Students Only</option>
+                <option value="Public">Public (Free Download for All)</option>
+                <option value="Enrolled Students">Enrolled Students Only (Locked)</option>
               </select>
             </div>
           </div>
 
+          {/* Resource Type */}
           <div>
-            <label className="block font-bold text-slate-700 mb-1">Resource Type</label>
+            <label className="block font-bold text-slate-700 mb-1">Resource Classification *</label>
             <select
               value={resourceType}
-              onChange={(e) => setResourceType(e.target.value as any)}
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+              onChange={(e) => setResourceType(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="Recorded Videos">Recorded Videos</option>
               <option value="PDF Notes">PDF Notes</option>
-              <option value="Lecture Slides">Lecture Slides</option>
-              <option value="Practice Questions">Practice Questions</option>
+              <option value="Word Document / Notes">Word Document / Notes (.docx)</option>
+              <option value="Image / Handwritten Solutions">Image / Handwritten Solutions (.jpg/.png)</option>
               <option value="Model Question Papers">Model Question Papers</option>
-              <option value="Past Papers">Past Papers</option>
+              <option value="Past Papers">Past TU Board Examination Papers</option>
+              <option value="Practice Questions">Practice Questions & Assignments</option>
+              <option value="Lecture Slides">Lecture Slides & Formulas</option>
               <option value="Revision Materials">Revision Materials</option>
+              <option value="Recorded Videos">Recorded Videos</option>
             </select>
           </div>
 
+          {/* Short Description */}
           <div>
-            <label className="block font-bold text-slate-700 mb-1">Short Description</label>
+            <label className="block font-bold text-slate-700 mb-1">Short Description (Optional)</label>
             <textarea
               rows={2}
+              placeholder="e.g. Comprehensive chapter breakdown with step-by-step TU board examination numerical solutions."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-slate-200"
+              className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs"
             />
           </div>
         </div>
 
         <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
-          <button onClick={onClose} className="px-4 py-2 rounded-xl font-bold text-slate-600 bg-slate-100">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2.5 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 cursor-pointer"
+          >
             Cancel
           </button>
           <button
-            onClick={() =>
+            type="button"
+            onClick={() => {
+              if (!title.trim()) {
+                alert('Please enter a Document Title.');
+                return;
+              }
+              if (!effectiveSubject.trim()) {
+                alert('Please select or specify a Subject.');
+                return;
+              }
+
               onSave({
-                title,
+                title: title.trim(),
                 courseSlug,
                 courseName: selectedCourse?.title || 'Academic Course',
                 board: selectedCourse?.board || 'Board',
-                subject,
-                semesterOrYear,
+                subject: effectiveSubject.trim(),
+                semesterOrYear: effectiveSemester.trim(),
                 resourceType: resourceType as any,
                 accessLevel: accessLevel as any,
-                fileSize: '3.2 MB',
+                downloadUrl: fileDataUrl || material?.downloadUrl,
+                fileName: uploadedFileName || material?.fileName || 'Resource_Document.pdf',
+                attachmentName: uploadedFileName || material?.attachmentName || 'Resource_Document.pdf',
+                fileSize: uploadedFileSize || material?.fileSize || '2.4 MB',
                 uploadDate: new Date().toISOString().slice(0, 10),
-                description,
+                description: description.trim(),
                 published: true,
-              })
-            }
-            className="px-5 py-2 rounded-xl font-bold text-white bg-[#12315A]"
+              });
+            }}
+            className="px-5 py-2.5 rounded-xl font-bold text-white bg-[#12315A] hover:bg-blue-900 shadow-sm cursor-pointer flex items-center gap-1.5"
           >
-            Save Resource
+            <Check className="w-4 h-4 text-emerald-400" />
+            <span>Save Resource</span>
           </button>
         </div>
+      </div>
+    </div>
+  );
+};
+
+// ==========================================
+// 2. MOCK TEST EDIT / UPLOAD MODAL
+// ==========================================
+const MockTestEditModal: React.FC<{
+  mockTest: MockTest | null;
+  courses: Course[];
+  onClose: () => void;
+  onSave: (data: Partial<MockTest>) => void;
+}> = ({ mockTest, courses, onClose, onSave }) => {
+  const [title, setTitle] = useState(mockTest?.title || '');
+  const [courseSlug, setCourseSlug] = useState(mockTest?.courseSlug || courses[0]?.slug || '');
+  const [courseType, setCourseType] = useState<CourseType>(mockTest?.courseType || 'New Course');
+
+  const selectedCourse = useMemo(
+    () => courses.find((c) => c.slug === courseSlug) || courses[0],
+    [courses, courseSlug]
+  );
+
+  // Available semesters for the chosen course
+  const availableSemesters = useMemo(
+    () => getAvailableSemestersForCourse(selectedCourse),
+    [selectedCourse]
+  );
+
+  const [selectedSemester, setSelectedSemester] = useState<string>(() => {
+    if (mockTest?.semesterOrYear) {
+      return availableSemesters.includes(mockTest.semesterOrYear)
+        ? mockTest.semesterOrYear
+        : '__custom__';
+    }
+    return availableSemesters[0] || '1st Year';
+  });
+  const [customSemester, setCustomSemester] = useState<string>(
+    mockTest?.semesterOrYear && !availableSemesters.includes(mockTest.semesterOrYear)
+      ? mockTest.semesterOrYear
+      : ''
+  );
+
+  const effectiveSemester =
+    selectedSemester === '__custom__' ? customSemester : selectedSemester;
+
+  // Available subjects for the chosen course + semester
+  const availableSubjects = useMemo(
+    () => getAvailableSubjectsForCourse(selectedCourse, effectiveSemester),
+    [selectedCourse, effectiveSemester]
+  );
+
+  const [selectedSubject, setSelectedSubject] = useState<string>(() => {
+    if (mockTest?.subject) {
+      return availableSubjects.includes(mockTest.subject)
+        ? mockTest.subject
+        : '__custom__';
+    }
+    return availableSubjects[0] || '';
+  });
+  const [customSubject, setCustomSubject] = useState<string>(
+    mockTest?.subject && !availableSubjects.includes(mockTest.subject)
+      ? mockTest.subject
+      : ''
+  );
+
+  const effectiveSubject =
+    selectedSubject === '__custom__' ? customSubject : selectedSubject;
+
+  // Handlers for dynamic dropdown cascade
+  const handleCourseChange = (newSlug: string) => {
+    setCourseSlug(newSlug);
+    const newCourse = courses.find((c) => c.slug === newSlug);
+    const newSems = getAvailableSemestersForCourse(newCourse);
+    const defaultSem = newSems[0] || '1st Year';
+    setSelectedSemester(defaultSem);
+    setCustomSemester('');
+
+    const newSubs = getAvailableSubjectsForCourse(newCourse, defaultSem);
+    setSelectedSubject(newSubs[0] || '');
+    setCustomSubject('');
+  };
+
+  const handleSemesterChange = (newSem: string) => {
+    setSelectedSemester(newSem);
+    if (newSem !== '__custom__') {
+      const newSubs = getAvailableSubjectsForCourse(selectedCourse, newSem);
+      if (newSubs.length > 0 && !newSubs.includes(selectedSubject)) {
+        setSelectedSubject(newSubs[0]);
+      }
+    }
+  };
+
+  // Exam details
+  const [durationMinutes, setDurationMinutes] = useState<number>(mockTest?.durationMinutes || 180);
+  const [fullMarks, setFullMarks] = useState<number>(mockTest?.fullMarks || 100);
+  const [passMarks, setPassMarks] = useState<number>(mockTest?.passMarks || 40);
+  const [instructions, setInstructions] = useState<string>(
+    Array.isArray(mockTest?.instructions)
+      ? mockTest.instructions.join('\n')
+      : mockTest?.instructions ||
+          'Candidates are required to give answers in their own words as far as practicable. Figures in the margin indicate full marks. Upload your scanned handwritten answers before the countdown expires.'
+  );
+  const [questionText, setQuestionText] = useState<string>(
+    mockTest?.questionText ||
+      `Group A: Brief Answer Questions (Attempt ALL - 10 x 2 = 20 Marks)\n1. Define Capital Structure and Financial Leverage.\n2. State the primary objective of Financial Management.\n\nGroup B: Descriptive Answer Questions (Attempt Any FIVE - 5 x 10 = 50 Marks)\n3. Explain the Determinants of Dividend Policy in Nepali commercial banks.\n4. Numerical: Calculate Net Present Value (NPV) and Internal Rate of Return (IRR) for Project Alpha and Beta.\n\nGroup C: Comprehensive Analysis Question (Attempt Any ONE - 1 x 30 = 30 Marks)\n5. Detailed Case on Working Capital Management Strategy.`
+  );
+
+  // File Upload State
+  const [fileDataUrl, setFileDataUrl] = useState<string>(mockTest?.questionPaperUrl || '');
+  const [uploadedFileName, setUploadedFileName] = useState<string>(
+    mockTest?.questionFileName || mockTest?.questionPaperName || (mockTest?.questionPaperUrl ? 'Official_Question_Paper.pdf' : '')
+  );
+  const [uploadedFileSize, setUploadedFileSize] = useState<string>(mockTest?.questionPaperSize || '');
+  const [uploadedFileType, setUploadedFileType] = useState<string>(mockTest?.questionFileType || 'pdf');
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+      <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200 relative max-h-[92vh] overflow-y-auto space-y-4 text-xs sm:text-sm">
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute top-5 right-5 p-1.5 text-slate-400 hover:text-slate-700 cursor-pointer"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
+        <div>
+          <h3 className="text-lg font-bold text-[#12315A] flex items-center gap-2">
+            <Clock className="w-5 h-5 text-amber-500" />
+            <span>{mockTest ? 'Edit Mock Test Examination' : 'Upload Questions / Create Mock Test'}</span>
+          </h3>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Select course and subject from dropdowns, and upload official question papers in PDF, Word, or image format.
+          </p>
+        </div>
+
+        {/* File Upload Zone */}
+        <div className="p-3.5 bg-slate-50/80 rounded-2xl border border-slate-200">
+          <UniversalFileUploader
+            label="Question Paper File (PDF, Word, or Image)"
+            acceptTypesLabel="Upload official question paper in PDF (.pdf), Word (.doc/.docx), or Image (.jpg/.png)"
+            currentUrl={fileDataUrl}
+            currentFileName={uploadedFileName}
+            currentFileSize={uploadedFileSize}
+            onFileSelect={({ dataUrl, fileName, fileSize, fileType }) => {
+              setFileDataUrl(dataUrl);
+              setUploadedFileName(fileName);
+              setUploadedFileSize(fileSize);
+              setUploadedFileType(fileType);
+
+              if (!title) {
+                const cleanName = fileName
+                  .replace(/\.[^/.]+$/, '')
+                  .replace(/[-_]/g, ' ')
+                  .trim();
+                setTitle(`${cleanName} Pre-Board Exam`);
+              }
+            }}
+            onClear={() => {
+              setFileDataUrl('');
+              setUploadedFileName('');
+              setUploadedFileSize('');
+              setUploadedFileType('');
+            }}
+            onManualUrlChange={(url) => {
+              setFileDataUrl(url);
+              if (url && !uploadedFileName) {
+                setUploadedFileName('Official_Question_Paper.pdf');
+              }
+            }}
+          />
+        </div>
+
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!title.trim()) {
+              alert('Please enter a Mock Test Examination Title.');
+              return;
+            }
+            if (!effectiveSubject.trim()) {
+              alert('Please select or specify a Subject.');
+              return;
+            }
+
+            onSave({
+              title: title.trim(),
+              courseSlug,
+              courseName: selectedCourse?.title || 'Academic Course',
+              courseType,
+              semesterOrYear: effectiveSemester.trim() || undefined,
+              subject: effectiveSubject.trim(),
+              durationMinutes,
+              fullMarks,
+              passMarks,
+              questionPaperUrl: fileDataUrl || undefined,
+              questionFileName: uploadedFileName || (fileDataUrl ? 'Official_Question_Paper.pdf' : undefined),
+              questionPaperName: uploadedFileName || (fileDataUrl ? 'Official_Question_Paper.pdf' : undefined),
+              questionPaperSize: uploadedFileSize || (fileDataUrl ? '2.4 MB' : undefined),
+              questionFileType: uploadedFileType || 'pdf',
+              instructions: instructions.includes('\n') ? instructions.split('\n').filter(Boolean) : [instructions],
+              questionText,
+            });
+          }}
+          className="space-y-3.5"
+        >
+          {/* Exam Title */}
+          <div>
+            <label className="block font-bold text-slate-700 mb-1">
+              Mock Test Examination Title *
+            </label>
+            <input
+              type="text"
+              required
+              value={title}
+              placeholder="e.g. BBS 4th Year Corporate Finance Pre-Board Model Exam"
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-slate-200 font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          {/* Target Course & Stream */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">
+                Target Academic Course *
+              </label>
+              <select
+                value={courseSlug}
+                onChange={(e) => handleCourseChange(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {courses.map((c) => (
+                  <option key={c.id} value={c.slug}>
+                    {c.title} ({c.board})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">
+                Syllabus Stream (New vs. Old Course) *
+              </label>
+              <select
+                value={courseType}
+                onChange={(e) => setCourseType(e.target.value as CourseType)}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="New Course">New Course (Current Regular Syllabus)</option>
+                <option value="Old Course">Old Course (Backpaper Examination Prep)</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Dynamic Semester & Subject Selectors */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">
+                Academic Year or Semester (Select from List) *
+              </label>
+              <select
+                value={selectedSemester}
+                onChange={(e) => handleSemesterChange(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {availableSemesters.map((sem) => (
+                  <option key={sem} value={sem}>
+                    {sem}
+                  </option>
+                ))}
+                <option value="__custom__">+ Enter Custom Semester / Year...</option>
+              </select>
+
+              {selectedSemester === '__custom__' && (
+                <input
+                  type="text"
+                  placeholder="e.g. 1st Year, 2nd Year, Grade 11..."
+                  value={customSemester}
+                  onChange={(e) => setCustomSemester(e.target.value)}
+                  className="w-full mt-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-xs"
+                />
+              )}
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">
+                Subject Name (Select from Course List) *
+              </label>
+              <select
+                value={selectedSubject}
+                onChange={(e) => setSelectedSubject(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {availableSubjects.map((sub) => (
+                  <option key={sub} value={sub}>
+                    {sub}
+                  </option>
+                ))}
+                <option value="__custom__">+ Enter Custom Subject Name...</option>
+              </select>
+
+              {selectedSubject === '__custom__' && (
+                <input
+                  type="text"
+                  placeholder="e.g. Cost and Management Accounting"
+                  value={customSubject}
+                  onChange={(e) => setCustomSubject(e.target.value)}
+                  className="w-full mt-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-xs"
+                />
+              )}
+            </div>
+          </div>
+
+          {/* Time Limit & Marks */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Time Limit (Minutes) *</label>
+              <input
+                type="number"
+                required
+                min={10}
+                max={360}
+                value={durationMinutes}
+                onChange={(e) => setDurationMinutes(Number(e.target.value))}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Full / Pass Marks *</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  required
+                  min={10}
+                  value={fullMarks}
+                  onChange={(e) => setFullMarks(Number(e.target.value))}
+                  className="w-1/2 px-2.5 py-2 rounded-xl border border-slate-200"
+                  placeholder="Full"
+                />
+                <input
+                  type="number"
+                  required
+                  min={5}
+                  value={passMarks}
+                  onChange={(e) => setPassMarks(Number(e.target.value))}
+                  className="w-1/2 px-2.5 py-2 rounded-xl border border-slate-200"
+                  placeholder="Pass"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Exam Instructions */}
+          <div>
+            <label className="block font-bold text-slate-700 mb-1">Exam Instructions</label>
+            <textarea
+              rows={2}
+              value={instructions}
+              onChange={(e) => setInstructions(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs"
+            />
+          </div>
+
+          {/* Structured Question Text */}
+          <div>
+            <label className="block font-bold text-slate-700 mb-1">
+              Structured Question Text / Prompts (Displayed directly to students)
+            </label>
+            <textarea
+              rows={4}
+              value={questionText}
+              onChange={(e) => setQuestionText(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-slate-200 font-mono text-xs"
+            />
+          </div>
+
+          <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2.5 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-6 py-2.5 rounded-xl font-bold text-slate-950 bg-amber-400 hover:bg-amber-500 shadow-sm cursor-pointer flex items-center gap-1.5"
+            >
+              <Check className="w-4 h-4 text-slate-950" />
+              <span>{mockTest ? 'Save Changes' : 'Upload Question Paper'}</span>
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

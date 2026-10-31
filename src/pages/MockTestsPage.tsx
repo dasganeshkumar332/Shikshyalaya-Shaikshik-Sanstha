@@ -1532,12 +1532,29 @@ export const MockTestsPage: React.FC = () => {
                 </div>
               )}
 
+              {/* Image Preview if question paper is an image */}
+              {previewTest.questionPaperUrl &&
+                (previewTest.questionFileType === 'image' ||
+                  previewTest.questionPaperUrl.startsWith('data:image/') ||
+                  /\.(png|jpe?g|webp)$/i.test(previewTest.questionFileName || '')) && (
+                  <div className="rounded-2xl overflow-hidden border border-slate-200 bg-slate-900/5 p-2">
+                    <p className="text-[11px] font-bold text-slate-500 mb-2">Attached Question Paper Image:</p>
+                    <img
+                      src={previewTest.questionPaperUrl}
+                      alt={previewTest.title}
+                      className="max-h-96 w-auto mx-auto rounded-xl object-contain shadow-xs"
+                    />
+                  </div>
+                )}
+
               {previewTest.questionText ? (
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 font-mono whitespace-pre-line leading-relaxed">
                   {previewTest.questionText}
                 </div>
               ) : (
-                <p className="text-slate-500">Question text is attached in the official downloadable PDF.</p>
+                <p className="text-slate-500">
+                  Question paper file is attached. Click download below to view the full document.
+                </p>
               )}
             </div>
 
@@ -1545,12 +1562,26 @@ export const MockTestsPage: React.FC = () => {
               {previewTest.questionPaperUrl && (
                 <a
                   href={previewTest.questionPaperUrl}
+                  download={
+                    previewTest.questionFileName ||
+                    previewTest.questionPaperName ||
+                    `${previewTest.title.replace(/\s+/g, '_')}_Paper`
+                  }
                   target="_blank"
                   rel="noreferrer"
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-blue-700 bg-white border border-blue-200 hover:bg-blue-50 flex items-center gap-1.5"
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-blue-700 bg-white border border-blue-200 hover:bg-blue-50 flex items-center gap-1.5 cursor-pointer shadow-2xs"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  <span>Download Full PDF Paper</span>
+                  <span>
+                    {previewTest.questionFileType === 'image' ||
+                    previewTest.questionPaperUrl.startsWith('data:image/') ||
+                    /\.(png|jpe?g|webp)$/i.test(previewTest.questionFileName || '')
+                      ? 'Download Paper (Image)'
+                      : previewTest.questionFileType === 'word' ||
+                        /\.(docx?)$/i.test(previewTest.questionFileName || '')
+                      ? 'Download Paper (Word DOCX)'
+                      : 'Download Paper (PDF)'}
+                  </span>
                 </a>
               )}
               <button

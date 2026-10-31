@@ -189,15 +189,17 @@ export const UploadAnswerSheetPage: React.FC = () => {
     }
   };
 
-  // Strict PDF Validation and File Selection
+  // File Validation and File Selection (PDF, Word, Image)
   const validateAndSetPdf = (file: File) => {
     setUploadError('');
-    const isPdfType = file.type === 'application/pdf';
-    const hasPdfExtension = file.name.toLowerCase().endsWith('.pdf');
+    const nameLower = file.name.toLowerCase();
+    const isPdf = file.type === 'application/pdf' || nameLower.endsWith('.pdf');
+    const isWord = file.type.includes('word') || nameLower.endsWith('.docx') || nameLower.endsWith('.doc');
+    const isImage = file.type.startsWith('image/') || /\.(png|jpe?g|webp)$/i.test(nameLower);
 
-    if (!isPdfType && !hasPdfExtension) {
+    if (!isPdf && !isWord && !isImage) {
       setUploadError(
-        'Invalid file format! Answer sheets must be uploaded in PDF format (.pdf). Image files (JPG/PNG) or Word documents (DOCX) are not accepted.'
+        'Invalid file format! Please upload your answer sheet in PDF (.pdf), Word document (.doc, .docx), or Image (.jpg, .png) format.'
       );
       setPdfFile(null);
       setPdfFileName('');
@@ -208,7 +210,7 @@ export const UploadAnswerSheetPage: React.FC = () => {
 
     // Size limit check (max 50 MB)
     if (file.size > 50 * 1024 * 1024) {
-      setUploadError('File size exceeds the 50 MB limit. Please compress your PDF before uploading.');
+      setUploadError('File size exceeds the 50 MB limit. Please compress your file before uploading.');
       return;
     }
 
@@ -689,12 +691,12 @@ export const UploadAnswerSheetPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* SECTION 3: PDF Document Upload Zone */}
+                {/* SECTION 3: Document Upload Zone */}
                 <div className="space-y-4 bg-slate-50/70 p-5 rounded-2xl border border-slate-200/80">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-rose-800 bg-rose-100 px-2 py-0.5 rounded flex items-center gap-1">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-blue-800 bg-blue-100 px-2 py-0.5 rounded flex items-center gap-1">
                       <FileText className="w-3 h-3" />
-                      <span>3. Answer Sheet Document (Strictly PDF Format)</span>
+                      <span>3. Answer Sheet Document (PDF, Word, or Image)</span>
                     </span>
                     <button
                       type="button"
@@ -706,11 +708,11 @@ export const UploadAnswerSheetPage: React.FC = () => {
                     </button>
                   </div>
 
-                  {/* Hidden Input for PDF only */}
+                  {/* Input for PDF, Word, and Images */}
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept=".pdf,application/pdf"
+                    accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/*"
                     onChange={handleFileInputChange}
                     className="hidden"
                   />
@@ -728,18 +730,18 @@ export const UploadAnswerSheetPage: React.FC = () => {
                           : 'border-slate-300 hover:border-blue-500 hover:bg-blue-50/30 bg-white'
                       }`}
                     >
-                      <div className="w-16 h-16 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto mb-3 border border-rose-200 shadow-xs">
-                        <FileText className="w-8 h-8" />
+                      <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-3 border border-blue-200 shadow-xs">
+                        <Upload className="w-8 h-8" />
                       </div>
                       <h4 className="text-sm font-bold text-slate-800">
-                        Drop your PDF Answer Sheet here, or <span className="text-blue-700 underline">Browse</span>
+                        Drop your Answer Sheet here, or <span className="text-blue-700 underline">Browse</span>
                       </h4>
                       <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-                        Supports single-file multi-page <strong>PDF documents (.pdf)</strong> up to 50 MB.
+                        Supports <strong>PDF (.pdf)</strong>, <strong>Word (.doc, .docx)</strong>, and scanned <strong>Images (.jpg, .png)</strong> up to 50 MB.
                       </p>
                       <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-600 text-[11px] font-semibold">
                         <Check className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>Accepted format: Adobe Acrobat PDF (.pdf) only</span>
+                        <span>Accepted formats: PDF, Word DOC/DOCX, and Images (JPG/PNG)</span>
                       </div>
                     </div>
                   ) : (
