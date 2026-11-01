@@ -130,6 +130,7 @@ export const AdminDashboardPage: React.FC = () => {
     mockTestRegistrations,
     updateMockTestRegistrationStatus,
     deleteMockTestRegistration,
+    refreshMockRegistrations,
     supabaseStatus,
     checkSupabaseStatus,
     syncAllToSupabase,
@@ -138,6 +139,7 @@ export const AdminDashboardPage: React.FC = () => {
   // Admin authentication state
   const [adminPass, setAdminPass] = useState('');
   const [authError, setAuthError] = useState('');
+  const [isRefreshingRegistrations, setIsRefreshingRegistrations] = useState(false);
 
   // Active dashboard tab
   const [activeTab, setActiveTab] = useState<
@@ -1731,6 +1733,23 @@ export const AdminDashboardPage: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={async () => {
+                  setIsRefreshingRegistrations(true);
+                  await refreshMockRegistrations();
+                  setIsRefreshingRegistrations(false);
+                  setRegStudentToast('Mock test candidate registrations synced successfully.');
+                  setTimeout(() => setRegStudentToast(null), 3000);
+                }}
+                disabled={isRefreshingRegistrations}
+                className="px-3.5 py-2.5 rounded-xl text-xs font-bold text-blue-900 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-xs"
+                title="Sync and pull latest candidate registrations from cloud database"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingRegistrations ? 'animate-spin text-blue-700' : 'text-blue-600'}`} />
+                <span>{isRefreshingRegistrations ? 'Syncing...' : 'Sync / Refresh'}</span>
+              </button>
+
               <button
                 type="button"
                 onClick={handleOpenAddShift}
@@ -4304,9 +4323,27 @@ export const AdminDashboardPage: React.FC = () => {
                     Students interested only in mock examination batches, model papers, and official grading.
                   </p>
                 </div>
-                <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300">
-                  Total Registrations: {mockTestRegistrations.length}
-                </span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setIsRefreshingRegistrations(true);
+                      await refreshMockRegistrations();
+                      setIsRefreshingRegistrations(false);
+                      setRegStudentToast('Mock test registrations refreshed from cloud storage.');
+                      setTimeout(() => setRegStudentToast(null), 3000);
+                    }}
+                    disabled={isRefreshingRegistrations}
+                    className="px-3 py-1.5 rounded-xl text-xs font-bold text-blue-900 bg-white hover:bg-blue-50 border border-blue-200 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-2xs"
+                    title="Pull recent registrations from cloud database"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingRegistrations ? 'animate-spin text-blue-700' : 'text-blue-600'}`} />
+                    <span>{isRefreshingRegistrations ? 'Syncing...' : 'Sync / Refresh Cloud'}</span>
+                  </button>
+                  <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                    Total Registrations: {mockTestRegistrations.length}
+                  </span>
+                </div>
               </div>
 
               <div className="overflow-x-auto">

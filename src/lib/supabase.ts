@@ -272,6 +272,27 @@ CREATE TABLE IF NOT EXISTS public.app_storage (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 10. MOCK TEST CANDIDATE REGISTRATIONS TABLE
+CREATE TABLE IF NOT EXISTS public.mock_test_registrations (
+    id TEXT PRIMARY KEY,
+    reference_number TEXT NOT NULL,
+    full_name TEXT NOT NULL,
+    email TEXT,
+    phone TEXT NOT NULL,
+    course_slug TEXT NOT NULL,
+    course_name TEXT NOT NULL,
+    course_type TEXT DEFAULT 'New Course',
+    semester_or_year TEXT,
+    enrolled_subjects JSONB DEFAULT '[]'::jsonb,
+    preferred_mode TEXT,
+    shift TEXT,
+    student_roll_no TEXT,
+    notes TEXT,
+    status TEXT DEFAULT 'Registered',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    raw_data JSONB
+);
+
 -- ===============================================================
 -- ROW LEVEL SECURITY (RLS) POLICIES
 -- Allow public insert and read access with anon key for this applet
@@ -303,4 +324,7 @@ CREATE POLICY "Public Read/Write Settings" ON public.site_settings FOR ALL USING
 
 ALTER TABLE public.app_storage ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Public Read/Write Storage" ON public.app_storage FOR ALL USING (true) WITH CHECK (true);
+
+ALTER TABLE public.mock_test_registrations ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public Read/Write Registrations" ON public.mock_test_registrations FOR ALL USING (true) WITH CHECK (true);
 `;

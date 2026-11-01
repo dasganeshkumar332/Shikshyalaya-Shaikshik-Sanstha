@@ -3250,6 +3250,27 @@ export const INITIAL_INQUIRIES: AdmissionInquiry[] = [
     createdAt: '2026-10-18T09:00:00Z',
     updatedAt: '2026-10-18T10:00:00Z',
   },
+  {
+    id: 'inq-mock-6133',
+    referenceNumber: 'MOCK-REG-2026-6133',
+    fullName: 'GANESH KUMAR DAS',
+    email: 'ganesh.das@example.com',
+    phone: '9817855717',
+    courseSlug: 'bbs-tu',
+    courseName: '4 Years Program on BBS (TU)',
+    courseType: 'New Course',
+    academicLevel: '1st Year',
+    subjectsOfInterest: 'Business Statistics',
+    preferredMode: 'Online',
+    preferredShift: 'Morning',
+    message: 'Registered for Mock Examination Series (Morning Exam Shift (06:30 AM – 09:30 AM)) for Business Statistics.',
+    status: 'New',
+    adminNotes: [
+      { date: '2026-10-27', text: 'Candidate registered for Mock Examination Series (Morning Exam Shift (06:30 AM – 09:30 AM)) with subjects: Business Statistics.', by: 'Online Mock Portal' }
+    ],
+    createdAt: '2026-10-27T07:15:00Z',
+    updatedAt: '2026-10-27T07:15:00Z',
+  },
 ];
 
 export const INITIAL_STUDENT_GROUPS: StudentGroup[] = [
@@ -4212,6 +4233,23 @@ export const INITIAL_MOCK_TEST_REGISTRATIONS: MockTestRegistration[] = [
     notes: 'Working professional taking weekend model exams only.',
     status: 'Registered',
     createdAt: '2026-10-26T10:00:00Z',
+  },
+  {
+    id: 'mock-reg-4',
+    referenceNumber: 'MOCK-REG-2026-6133',
+    fullName: 'GANESH KUMAR DAS',
+    email: 'ganesh.das@example.com',
+    phone: '9817855717',
+    courseSlug: 'bbs-tu',
+    courseName: '4 Years Program on BBS (TU)',
+    courseType: 'New Course',
+    semesterOrYear: '1st Year',
+    enrolledSubjects: ['Business Statistics'],
+    preferredMode: 'Online',
+    shift: 'Morning Exam Shift (06:30 AM – 09:30 AM)',
+    notes: 'Candidate registered for Mock Examination Series (Morning Exam Shift (06:30 AM – 09:30 AM)) for Business Statistics.',
+    status: 'Registered',
+    createdAt: '2026-10-27T07:15:00Z',
   },
 ];
 

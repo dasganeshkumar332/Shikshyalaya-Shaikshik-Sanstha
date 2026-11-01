@@ -3,6 +3,7 @@ import {
   AdmissionInquiry,
   ContactMessage,
   MockTestSubmission,
+  MockTestRegistration,
   StudentGroup,
   MockTest,
   Notice,
@@ -83,6 +84,72 @@ function mapSubmissionToRow(sub: MockTestSubmission) {
     evaluated_paper_name: sub.evaluatedPaperName || null,
     raw_data: sub,
   };
+}
+
+/**
+ * Transforms a MockTestRegistration object to match database columns
+ */
+function mapRegistrationToRow(reg: MockTestRegistration) {
+  return {
+    id: reg.id,
+    reference_number: reg.referenceNumber,
+    full_name: reg.fullName,
+    email: reg.email || null,
+    phone: reg.phone,
+    course_slug: reg.courseSlug,
+    course_name: reg.courseName,
+    course_type: reg.courseType || 'New Course',
+    semester_or_year: reg.semesterOrYear || null,
+    enrolled_subjects: reg.enrolledSubjects || [],
+    preferred_mode: reg.preferredMode || 'Online',
+    shift: reg.shift || null,
+    student_roll_no: reg.studentRollNo || null,
+    notes: reg.notes || null,
+    status: reg.status || 'Registered',
+    created_at: reg.createdAt || new Date().toISOString(),
+    raw_data: reg,
+  };
+}
+
+/**
+ * Saves or updates a mock test registration in Supabase
+ */
+export async function saveMockRegistrationToSupabase(
+  reg: MockTestRegistration
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const row = mapRegistrationToRow(reg);
+    const { error } = await supabase.from('mock_test_registrations').upsert(row, { onConflict: 'id' });
+
+    if (error) {
+      console.warn('[Supabase] Could not save registration to mock_test_registrations table:', error.message);
+      // Fallback: Store in generic app_storage
+      await supabase.from('app_storage').upsert({
+        key: `mock_reg:${reg.id}`,
+        value: reg,
+        updated_at: new Date().toISOString(),
+      });
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (err: any) {
+    console.error('[Supabase] Exception saving mock registration:', err);
+    return { success: false, error: err?.message };
+  }
+}
+
+/**
+ * Deletes a mock test registration from Supabase
+ */
+export async function deleteMockRegistrationFromSupabase(id: string): Promise<boolean> {
+  try {
+    await supabase.from('mock_test_registrations').delete().eq('id', id);
+    await supabase.from('app_storage').delete().eq('key', `mock_reg:${id}`);
+    return true;
+  } catch (err) {
+    console.warn('[Supabase] Failed to delete mock registration:', err);
+    return false;
+  }
 }
 
 /**
@@ -318,6 +385,7 @@ export async function saveSettingsToSupabase(settings: SiteSettings): Promise<{ 
 export async function syncAllDataToSupabase(data: {
   inquiries: AdmissionInquiry[];
   mockSubmissions: MockTestSubmission[];
+  mockRegistrations?: MockTestRegistration[];
   contactMessages: ContactMessage[];
   studentGroups: StudentGroup[];
   mockTests: MockTest[];
@@ -332,6 +400,7 @@ export async function syncAllDataToSupabase(data: {
   const syncedCounts: Record<string, number> = {
     inquiries: 0,
     mockSubmissions: 0,
+    mockRegistrations: 0,
     contactMessages: 0,
     studentGroups: 0,
     mockTests: 0,
@@ -509,6 +578,26 @@ export async function syncAllDataToSupabase(data: {
     errors.push(`Settings: ${e?.message}`);
   }
 
+  // 7. Mock Test Registrations
+  if (data.mockRegistrations && data.mockRegistrations.length > 0) {
+    try {
+      const rows = data.mockRegistrations.map(mapRegistrationToRow);
+      const { error } = await supabase.from('mock_test_registrations').upsert(rows, { onConflict: 'id' });
+      if (error) {
+        errors.push(`Mock Registrations: ${error.message}`);
+        await supabase.from('app_storage').upsert({
+          key: 'all_mock_registrations',
+          value: data.mockRegistrations,
+          updated_at: new Date().toISOString(),
+        });
+      } else {
+        syncedCounts.mockRegistrations = rows.length;
+      }
+    } catch (e: any) {
+      errors.push(`Mock Registrations: ${e?.message}`);
+    }
+  }
+
   // Always write comprehensive master backup snapshot to app_storage
   try {
     await supabase.from('app_storage').upsert({
@@ -638,6 +727,59 @@ export async function fetchSubmissionsFromSupabase(): Promise<MockTestSubmission
     });
   } catch (err) {
     console.warn('[Supabase] Failed to fetch submissions:', err);
+    return null;
+  }
+}
+
+/**
+ * Loads mock test registrations from Supabase
+ */
+export async function fetchMockRegistrationsFromSupabase(): Promise<MockTestRegistration[] | null> {
+  try {
+    const { data, error } = await supabase
+      .from('mock_test_registrations')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (!error && data && data.length > 0) {
+      return data.map((row: any) => {
+        if (row.raw_data && row.raw_data.referenceNumber) {
+          return row.raw_data as MockTestRegistration;
+        }
+        return {
+          id: row.id,
+          referenceNumber: row.reference_number,
+          fullName: row.full_name,
+          email: row.email || '',
+          phone: row.phone,
+          courseSlug: row.course_slug,
+          courseName: row.course_name,
+          courseType: row.course_type || 'New Course',
+          semesterOrYear: row.semester_or_year || undefined,
+          enrolledSubjects: Array.isArray(row.enrolled_subjects) ? row.enrolled_subjects : [],
+          preferredMode: row.preferred_mode || 'Online',
+          shift: row.shift || '',
+          studentRollNo: row.student_roll_no || undefined,
+          notes: row.notes || undefined,
+          status: row.status || 'Registered',
+          createdAt: row.created_at || new Date().toISOString(),
+        } as MockTestRegistration;
+      });
+    }
+
+    // Fallback: check app_storage for mock_reg:* keys
+    const { data: storageData } = await supabase
+      .from('app_storage')
+      .select('value')
+      .like('key', 'mock_reg:%');
+
+    if (storageData && storageData.length > 0) {
+      return storageData.map((s: any) => s.value as MockTestRegistration);
+    }
+
+    return null;
+  } catch (err) {
+    console.warn('[Supabase] Failed to fetch mock registrations:', err);
     return null;
   }
 }

@@ -34,6 +34,9 @@ import { checkSupabaseConnection, SupabaseConnectionStatus } from '../lib/supaba
 import {
   saveInquiryToSupabase,
   saveMockSubmissionToSupabase,
+  saveMockRegistrationToSupabase,
+  deleteMockRegistrationFromSupabase,
+  fetchMockRegistrationsFromSupabase,
   saveContactMessageToSupabase,
   saveStudentGroupToSupabase,
   saveSettingsToSupabase,
@@ -167,6 +170,7 @@ interface AppContextType {
   registerForMockTest: (data: Omit<MockTestRegistration, 'id' | 'referenceNumber' | 'status' | 'createdAt'>) => MockTestRegistration;
   updateMockTestRegistrationStatus: (id: string, status: MockTestRegistration['status']) => void;
   deleteMockTestRegistration: (id: string) => void;
+  refreshMockRegistrations: () => Promise<void>;
 
   currentUser: UserProfile | null;
   loginAsAdmin: (password?: string) => boolean;
@@ -371,9 +375,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const saved = localStorage.getItem(STORAGE_KEYS.INQUIRIES);
     if (saved !== null) {
       try {
-        return JSON.parse(saved);
+        const parsed: AdmissionInquiry[] = JSON.parse(saved);
+        const existingIds = new Set(parsed.map((i) => i.id));
+        const existingRefs = new Set(parsed.map((i) => i.referenceNumber).filter(Boolean));
+        const missing = INITIAL_INQUIRIES.filter(
+          (i) => !existingIds.has(i.id) && !existingRefs.has(i.referenceNumber)
+        );
+        return [...parsed, ...missing];
       } catch {
-        return [];
+        return INITIAL_INQUIRIES;
       }
     }
     return INITIAL_INQUIRIES;
@@ -434,7 +444,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const parsed: MockTestRegistration[] = JSON.parse(saved);
       const existingIds = new Set(parsed.map((r) => r.id));
-      const missing = INITIAL_MOCK_TEST_REGISTRATIONS.filter((r) => !existingIds.has(r.id));
+      const existingRefs = new Set(parsed.map((r) => r.referenceNumber).filter(Boolean));
+      const missing = INITIAL_MOCK_TEST_REGISTRATIONS.filter(
+        (r) => !existingIds.has(r.id) && !existingRefs.has(r.referenceNumber)
+      );
       return [...parsed, ...missing];
     } catch (e) {
       return INITIAL_MOCK_TEST_REGISTRATIONS;
@@ -527,6 +540,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const res = await syncAllDataToSupabase({
       inquiries,
       mockSubmissions: mockTestSubmissions,
+      mockRegistrations: mockTestRegistrations,
       contactMessages,
       studentGroups,
       mockTests,
@@ -568,6 +582,54 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
       }
     });
+
+    // Check if remote mock candidate registrations exist to merge
+    fetchMockRegistrationsFromSupabase().then((remoteRegs) => {
+      if (remoteRegs && remoteRegs.length > 0) {
+        setMockTestRegistrations((localRegs) => {
+          const map = new Map<string, MockTestRegistration>();
+          localRegs.forEach((r) => map.set(r.id, r));
+          remoteRegs.forEach((r) => map.set(r.id, r));
+          return Array.from(map.values());
+        });
+      }
+    });
+
+    // Instant cross-tab synchronization listener
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEYS.MOCK_REGISTRATIONS && e.newValue) {
+        try {
+          const parsed: MockTestRegistration[] = JSON.parse(e.newValue);
+          setMockTestRegistrations(parsed);
+        } catch {}
+      }
+      if (e.key === STORAGE_KEYS.INQUIRIES && e.newValue) {
+        try {
+          const parsed: AdmissionInquiry[] = JSON.parse(e.newValue);
+          setInquiries(parsed);
+        } catch {}
+      }
+    };
+
+    const handleCustomMockReg = (e: Event) => {
+      const customEvent = e as CustomEvent<MockTestRegistration>;
+      if (customEvent.detail) {
+        setMockTestRegistrations((prev) => {
+          if (prev.some((r) => r.id === customEvent.detail.id || r.referenceNumber === customEvent.detail.referenceNumber)) {
+            return prev;
+          }
+          return [customEvent.detail, ...prev];
+        });
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('mock_test_registered', handleCustomMockReg);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('mock_test_registered', handleCustomMockReg);
+    };
   }, []);
 
   // Actions
@@ -1444,18 +1506,121 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       status: 'Registered',
       createdAt: new Date().toISOString(),
     };
-    setMockTestRegistrations((prev) => [newReg, ...prev]);
+
+    setMockTestRegistrations((prev) => {
+      const next = [newReg, ...prev];
+      try {
+        localStorage.setItem(STORAGE_KEYS.MOCK_REGISTRATIONS, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    // Save to Supabase cloud table
+    saveMockRegistrationToSupabase(newReg).catch(console.warn);
+
+    // Broadcast across windows / tabs
+    try {
+      window.dispatchEvent(new CustomEvent('mock_test_registered', { detail: newReg }));
+    } catch {}
+
+    // Mirror to inquiries stream so admin gets instant visibility in all tabs/views
+    const mirroredInquiry: AdmissionInquiry = {
+      id: `inq-${newReg.id}`,
+      referenceNumber: newReg.referenceNumber,
+      fullName: newReg.fullName,
+      email: newReg.email || `${newReg.phone}@student.shikshyalaya.edu.np`,
+      phone: newReg.phone,
+      courseSlug: newReg.courseSlug,
+      courseName: newReg.courseName,
+      courseType: newReg.courseType || 'New Course',
+      academicLevel: newReg.semesterOrYear || '1st Year',
+      subjectsOfInterest: (newReg.enrolledSubjects && newReg.enrolledSubjects.length > 0)
+        ? newReg.enrolledSubjects.join(', ')
+        : 'General Mock Series',
+      preferredMode: (newReg.preferredMode?.includes('Offline') ? 'Offline' : newReg.preferredMode?.includes('Hybrid') ? 'Hybrid' : 'Online') as any,
+      preferredShift: ((newReg.shift || '').toLowerCase().includes('evening') ? 'Evening' : (newReg.shift || '').toLowerCase().includes('day') ? 'Day' : 'Morning') as any,
+      message: `Candidate registered for Mock Examination Series (${newReg.shift || 'General Shift'}) with subjects: ${(newReg.enrolledSubjects || []).join(', ')}.`,
+      status: 'New',
+      adminNotes: [
+        {
+          date: new Date().toLocaleDateString(),
+          text: `Candidate registered for Mock Examination Series (${newReg.shift || 'General Shift'}) with subjects: ${(newReg.enrolledSubjects || []).join(', ')}.`,
+          by: 'Mock Test Registration Portal',
+        },
+      ],
+      createdAt: newReg.createdAt,
+      updatedAt: newReg.createdAt,
+    };
+
+    setInquiries((prev) => {
+      const nextInqs = [mirroredInquiry, ...prev];
+      try {
+        localStorage.setItem(STORAGE_KEYS.INQUIRIES, JSON.stringify(nextInqs));
+      } catch {}
+      return nextInqs;
+    });
+    saveInquiryToSupabase(mirroredInquiry).catch(console.warn);
+
     return newReg;
   };
 
   const updateMockTestRegistrationStatus = (id: string, status: MockTestRegistration['status']) => {
-    setMockTestRegistrations((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, status } : r))
-    );
+    setMockTestRegistrations((prev) => {
+      const next = prev.map((r) => (r.id === id ? { ...r, status } : r));
+      const target = next.find((r) => r.id === id);
+      if (target) {
+        saveMockRegistrationToSupabase(target).catch(console.warn);
+      }
+      try {
+        localStorage.setItem(STORAGE_KEYS.MOCK_REGISTRATIONS, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
   };
 
   const deleteMockTestRegistration = (id: string) => {
-    setMockTestRegistrations((prev) => prev.filter((r) => r.id !== id));
+    setMockTestRegistrations((prev) => {
+      const next = prev.filter((r) => r.id !== id);
+      try {
+        localStorage.setItem(STORAGE_KEYS.MOCK_REGISTRATIONS, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+    deleteMockRegistrationFromSupabase(id).catch(console.warn);
+  };
+
+  const refreshMockRegistrations = async () => {
+    try {
+      const remote = await fetchMockRegistrationsFromSupabase();
+      if (remote && remote.length > 0) {
+        setMockTestRegistrations((localRegs) => {
+          const map = new Map<string, MockTestRegistration>();
+          localRegs.forEach((r) => map.set(r.id, r));
+          remote.forEach((r) => map.set(r.id, r));
+          const merged = Array.from(map.values());
+          try {
+            localStorage.setItem(STORAGE_KEYS.MOCK_REGISTRATIONS, JSON.stringify(merged));
+          } catch {}
+          return merged;
+        });
+      }
+
+      const remoteInqs = await fetchInquiriesFromSupabase();
+      if (remoteInqs && remoteInqs.length > 0) {
+        setInquiries((localInqs) => {
+          const map = new Map<string, AdmissionInquiry>();
+          localInqs.forEach((i) => map.set(i.id, i));
+          remoteInqs.forEach((i) => map.set(i.id, i));
+          const merged = Array.from(map.values());
+          try {
+            localStorage.setItem(STORAGE_KEYS.INQUIRIES, JSON.stringify(merged));
+          } catch {}
+          return merged;
+        });
+      }
+    } catch (e) {
+      console.warn('Failed to refresh registrations from cloud:', e);
+    }
   };
 
   const logout = () => {
@@ -1709,6 +1874,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         registerForMockTest,
         updateMockTestRegistrationStatus,
         deleteMockTestRegistration,
+        refreshMockRegistrations,
         currentUser,
         loginAsAdmin,
         loginAsStudent,
