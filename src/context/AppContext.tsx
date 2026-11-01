@@ -229,6 +229,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     parsed.youtubeUrl = INITIAL_SETTINGS.youtubeUrl;
     parsed.noticeMarqueeText = INITIAL_SETTINGS.noticeMarqueeText;
     parsed.physicalAddress = INITIAL_SETTINGS.physicalAddress;
+    if (!parsed.mockExamShifts || !Array.isArray(parsed.mockExamShifts) || parsed.mockExamShifts.length === 0) {
+      parsed.mockExamShifts = INITIAL_SETTINGS.mockExamShifts;
+    }
     return { ...INITIAL_SETTINGS, ...parsed };
   });
 

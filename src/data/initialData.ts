@@ -24,6 +24,38 @@ export const INITIAL_SETTINGS: SiteSettings = {
   isNoticeMarqueeActive: true,
   onlineClassesEnabled: true,
   registrationOpen: true,
+  mockExamShifts: [
+    {
+      id: 'shift-morning',
+      shiftName: 'Morning Exam Shift',
+      timeSlot: '06:30 AM – 09:30 AM',
+      reportingTime: '06:15 AM (15 mins prior)',
+      days: 'Sunday – Friday',
+      mode: 'Online & Campus Exam Hall',
+      isActive: true,
+      notes: 'Daily morning board pattern model exam shift',
+    },
+    {
+      id: 'shift-evening',
+      shiftName: 'Evening Exam Shift',
+      timeSlot: '05:30 PM – 08:30 PM',
+      reportingTime: '05:15 PM (15 mins prior)',
+      days: 'Sunday – Friday',
+      mode: 'Online & Campus Exam Hall',
+      isActive: true,
+      notes: 'Evening post-college / working professional slot',
+    },
+    {
+      id: 'shift-saturday',
+      shiftName: 'Saturday Special Board Simulation',
+      timeSlot: '07:00 AM – 10:00 AM',
+      reportingTime: '06:45 AM (15 mins prior)',
+      days: 'Every Saturday',
+      mode: 'Physical Campus Exam Hall & Online',
+      isActive: true,
+      notes: 'Weekly full 3-hour TU/PU board simulated mock examination',
+    },
+  ],
 };
 
 export const INITIAL_COURSES: Course[] = [

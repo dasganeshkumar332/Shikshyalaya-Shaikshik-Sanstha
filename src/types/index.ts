@@ -170,6 +170,17 @@ export interface GalleryItem {
   date: string;
 }
 
+export interface MockExamShiftConfig {
+  id: string;
+  shiftName: string;
+  timeSlot: string;
+  reportingTime?: string;
+  days?: string;
+  mode?: string;
+  isActive: boolean;
+  notes?: string;
+}
+
 export interface SiteSettings {
   instituteName: string;
   instituteDevanagariName: string;
@@ -195,6 +206,7 @@ export interface SiteSettings {
   isNoticeMarqueeActive: boolean;
   onlineClassesEnabled: boolean;
   registrationOpen: boolean;
+  mockExamShifts?: MockExamShiftConfig[];
 }
 
 export interface UserProfile {

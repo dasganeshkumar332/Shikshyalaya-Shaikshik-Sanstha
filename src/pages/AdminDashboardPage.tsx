@@ -51,6 +51,7 @@ import {
   Upload,
   Image as ImageIcon,
   Camera,
+  UserCheck,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import {
@@ -71,6 +72,7 @@ import {
   MockTest,
   MockTestSubmission,
   MockTestRegistration,
+  MockExamShiftConfig,
 } from '../types';
 
 export const AdminDashboardPage: React.FC = () => {
@@ -139,7 +141,7 @@ export const AdminDashboardPage: React.FC = () => {
 
   // Active dashboard tab
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'inquiries' | 'courses' | 'groups' | 'mock-tests' | 'teachers' | 'notices' | 'materials' | 'settings' | 'database'
+    'overview' | 'inquiries' | 'registered-students' | 'courses' | 'groups' | 'mock-tests' | 'teachers' | 'notices' | 'materials' | 'settings' | 'database'
   >('overview');
 
   // Supabase management states
@@ -201,8 +203,136 @@ export const AdminDashboardPage: React.FC = () => {
   const [mockTestSubjectFilter, setMockTestSubjectFilter] = useState('ALL');
   const [mockTestTypeFilter, setMockTestTypeFilter] = useState<'ALL' | 'New Course' | 'Old Course'>('ALL');
   const [mockTestEvaluationStatusFilter, setMockTestEvaluationStatusFilter] = useState<'ALL' | 'Submitted' | 'Evaluated'>('ALL');
-  const [mockTestSubView, setMockTestSubView] = useState<'tests' | 'answer-sheets' | 'registrations'>('tests');
+  const [mockTestSubView, setMockTestSubView] = useState<'tests' | 'answer-sheets' | 'registrations' | 'shifts'>('tests');
   const [mockTestSearch, setMockTestSearch] = useState('');
+
+  // Registered students search & filter state
+  const [regStudentSearch, setRegStudentSearch] = useState('');
+  const [regStudentCourseFilter, setRegStudentCourseFilter] = useState('ALL');
+  const [regStudentStatusFilter, setRegStudentStatusFilter] = useState('ALL');
+  const [regStudentShiftFilter, setRegStudentShiftFilter] = useState('ALL');
+  const [regStudentToast, setRegStudentToast] = useState<string | null>(null);
+
+  // Mock Exam Shift Management state (Admin fixes time and shifts)
+  const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
+  const [editingShift, setEditingShift] = useState<MockExamShiftConfig | null>(null);
+  const [shiftNameInput, setShiftNameInput] = useState('');
+  const [shiftTimeSlotInput, setShiftTimeSlotInput] = useState('');
+  const [shiftReportingTimeInput, setShiftReportingTimeInput] = useState('');
+  const [shiftDaysInput, setShiftDaysInput] = useState('Sunday – Friday');
+  const [shiftModeInput, setShiftModeInput] = useState('Online & Campus Exam Hall');
+  const [shiftIsActiveInput, setShiftIsActiveInput] = useState(true);
+  const [shiftNotesInput, setShiftNotesInput] = useState('');
+  const [shiftToast, setShiftToast] = useState<string | null>(null);
+
+  const handleOpenAddShift = () => {
+    setEditingShift(null);
+    setShiftNameInput('');
+    setShiftTimeSlotInput('06:30 AM – 09:30 AM');
+    setShiftReportingTimeInput('06:15 AM (15 mins prior)');
+    setShiftDaysInput('Sunday – Friday');
+    setShiftModeInput('Online & Campus Exam Hall');
+    setShiftIsActiveInput(true);
+    setShiftNotesInput('');
+    setIsShiftModalOpen(true);
+  };
+
+  const handleOpenEditShift = (shift: MockExamShiftConfig) => {
+    setEditingShift(shift);
+    setShiftNameInput(shift.shiftName);
+    setShiftTimeSlotInput(shift.timeSlot);
+    setShiftReportingTimeInput(shift.reportingTime || '');
+    setShiftDaysInput(shift.days || 'Sunday – Friday');
+    setShiftModeInput(shift.mode || 'Online & Campus Exam Hall');
+    setShiftIsActiveInput(shift.isActive);
+    setShiftNotesInput(shift.notes || '');
+    setIsShiftModalOpen(true);
+  };
+
+  const handleSaveShift = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!shiftNameInput.trim() || !shiftTimeSlotInput.trim()) {
+      alert('Please provide shift name and time slot.');
+      return;
+    }
+    const currentShifts = settings.mockExamShifts || [];
+    let updated: MockExamShiftConfig[];
+    if (editingShift) {
+      updated = currentShifts.map((s) =>
+        s.id === editingShift.id
+          ? {
+              ...s,
+              shiftName: shiftNameInput.trim(),
+              timeSlot: shiftTimeSlotInput.trim(),
+              reportingTime: shiftReportingTimeInput.trim() || undefined,
+              days: shiftDaysInput.trim() || undefined,
+              mode: shiftModeInput.trim() || undefined,
+              isActive: shiftIsActiveInput,
+              notes: shiftNotesInput.trim() || undefined,
+            }
+          : s
+      );
+    } else {
+      const newShift: MockExamShiftConfig = {
+        id: `shift-${Date.now()}`,
+        shiftName: shiftNameInput.trim(),
+        timeSlot: shiftTimeSlotInput.trim(),
+        reportingTime: shiftReportingTimeInput.trim() || undefined,
+        days: shiftDaysInput.trim() || undefined,
+        mode: shiftModeInput.trim() || undefined,
+        isActive: shiftIsActiveInput,
+        notes: shiftNotesInput.trim() || undefined,
+      };
+      updated = [...currentShifts, newShift];
+    }
+    updateSettings({ mockExamShifts: updated });
+    setIsShiftModalOpen(false);
+    setShiftToast(`Exam shift "${shiftNameInput}" successfully saved!`);
+    setTimeout(() => setShiftToast(null), 3500);
+  };
+
+  const handleDeleteShift = (shiftId: string, shiftName: string) => {
+    if (confirm(`Delete exam shift "${shiftName}"?`)) {
+      const currentShifts = settings.mockExamShifts || [];
+      const updated = currentShifts.filter((s) => s.id !== shiftId);
+      updateSettings({ mockExamShifts: updated });
+      setShiftToast(`Shift "${shiftName}" deleted.`);
+      setTimeout(() => setShiftToast(null), 3000);
+    }
+  };
+
+  const handleToggleShiftStatus = (shiftId: string) => {
+    const currentShifts = settings.mockExamShifts || [];
+    const updated = currentShifts.map((s) => (s.id === shiftId ? { ...s, isActive: !s.isActive } : s));
+    updateSettings({ mockExamShifts: updated });
+  };
+
+  // Filtered registrations for Registered Students tab
+  const filteredRegistrations = useMemo(() => {
+    return mockTestRegistrations.filter((reg) => {
+      if (regStudentCourseFilter !== 'ALL' && reg.courseSlug !== regStudentCourseFilter) {
+        return false;
+      }
+      if (regStudentStatusFilter !== 'ALL' && reg.status !== regStudentStatusFilter) {
+        return false;
+      }
+      if (regStudentShiftFilter !== 'ALL' && reg.shift !== regStudentShiftFilter) {
+        return false;
+      }
+      if (regStudentSearch.trim()) {
+        const q = regStudentSearch.toLowerCase();
+        const matchesName = reg.fullName.toLowerCase().includes(q);
+        const matchesRef = reg.referenceNumber.toLowerCase().includes(q);
+        const matchesPhone = reg.phone.includes(q);
+        const matchesEmail = reg.email.toLowerCase().includes(q);
+        const matchesRoll = reg.studentRollNo?.toLowerCase().includes(q) || false;
+        const matchesSubject = reg.enrolledSubjects?.some((s) => s.toLowerCase().includes(q)) || false;
+        const matchesCourse = reg.courseName.toLowerCase().includes(q);
+        return matchesName || matchesRef || matchesPhone || matchesEmail || matchesRoll || matchesSubject || matchesCourse;
+      }
+      return true;
+    });
+  }, [mockTestRegistrations, regStudentSearch, regStudentCourseFilter, regStudentStatusFilter, regStudentShiftFilter]);
 
   // Derived available Years / Semesters for admin filtering
   const adminMockTestYears = useMemo(() => {
@@ -446,6 +576,7 @@ export const AdminDashboardPage: React.FC = () => {
         {[
           { id: 'overview', label: 'Overview', icon: LayoutDashboard },
           { id: 'inquiries', label: `Inquiries (${stats.newInquiries} New)`, icon: GraduationCap },
+          { id: 'registered-students', label: `Registered Students (${mockTestRegistrations.length})`, icon: UserCheck },
           { id: 'courses', label: `Courses (${courses.length})`, icon: BookOpen },
           { id: 'groups', label: `Student Groups (${studentGroups.length})`, icon: MessageSquare },
           { id: 'mock-tests', label: `Mock Tests & Exams (${mockTests.length})`, icon: Clock },
@@ -478,23 +609,35 @@ export const AdminDashboardPage: React.FC = () => {
       {activeTab === 'overview' && (
         <div className="space-y-8 animate-fadeIn">
           {/* Live Metric Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-1">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-9 gap-2.5">
+            <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs space-y-1">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Courses</span>
               <p className="text-xl font-black text-[#12315A]">{stats.publishedCourses}</p>
               <span className="text-[10px] text-emerald-600 font-semibold">Active</span>
             </div>
 
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-1">
+            <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs space-y-1">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Faculty</span>
               <p className="text-xl font-black text-[#12315A]">{stats.totalTeachers}</p>
               <span className="text-[10px] text-blue-600 font-semibold">Teachers</span>
             </div>
 
-            <div className="bg-white p-4 rounded-2xl border border-amber-300 bg-amber-50/30 shadow-2xs space-y-1">
+            <div className="bg-white p-3.5 rounded-2xl border border-amber-300 bg-amber-50/30 shadow-2xs space-y-1">
               <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800">Inquiries</span>
               <p className="text-xl font-black text-amber-600">{stats.newInquiries}</p>
               <span className="text-[10px] text-amber-700 font-bold">New Leads</span>
+            </div>
+
+            <div
+              onClick={() => setActiveTab('registered-students')}
+              className="bg-white p-3.5 rounded-2xl border-2 border-blue-600 shadow-sm space-y-1 cursor-pointer hover:bg-blue-50/50 transition-colors"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-blue-900">Mock Students</span>
+                <UserCheck className="w-3.5 h-3.5 text-blue-600" />
+              </div>
+              <p className="text-xl font-black text-blue-700">{mockTestRegistrations.length}</p>
+              <span className="text-[10px] text-blue-800 font-bold underline">Registered List &rarr;</span>
             </div>
 
             <div
@@ -502,7 +645,7 @@ export const AdminDashboardPage: React.FC = () => {
                 setInquiryStatusFilter('Needs Verification');
                 setActiveTab('inquiries');
               }}
-              className="bg-white p-4 rounded-2xl border-2 border-amber-500 shadow-sm space-y-1 cursor-pointer hover:bg-amber-50/50 transition-colors"
+              className="bg-white p-3.5 rounded-2xl border-2 border-amber-500 shadow-sm space-y-1 cursor-pointer hover:bg-amber-50/50 transition-colors"
             >
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-amber-900">Payment Proofs</span>
@@ -517,26 +660,26 @@ export const AdminDashboardPage: React.FC = () => {
                 setInquiryStatusFilter('Verified & Enrolled');
                 setActiveTab('inquiries');
               }}
-              className="bg-white p-4 rounded-2xl border-2 border-emerald-500 shadow-sm space-y-1 cursor-pointer hover:bg-emerald-50/50 transition-colors"
+              className="bg-white p-3.5 rounded-2xl border-2 border-emerald-500 shadow-sm space-y-1 cursor-pointer hover:bg-emerald-50/50 transition-colors"
             >
-              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-900">Enrolled Students</span>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-900">Enrolled</span>
               <p className="text-xl font-black text-emerald-700">{stats.verifiedStudents}</p>
               <span className="text-[10px] text-emerald-700 font-bold">Verified & Active</span>
             </div>
 
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-1">
+            <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs space-y-1">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Follow-ups</span>
               <p className="text-xl font-black text-indigo-600">{stats.pendingFollowups}</p>
               <span className="text-[10px] text-indigo-600 font-semibold">Scheduled</span>
             </div>
 
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-1">
+            <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs space-y-1">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Notices</span>
               <p className="text-xl font-black text-[#12315A]">{stats.publishedNotices}</p>
               <span className="text-[10px] text-slate-500 font-semibold">Published</span>
             </div>
 
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-1">
+            <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs space-y-1">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Resources</span>
               <p className="text-xl font-black text-[#12315A]">{stats.studyMaterials}</p>
               <span className="text-[10px] text-purple-600 font-semibold">Notes & Sets</span>
@@ -692,6 +835,25 @@ export const AdminDashboardPage: React.FC = () => {
       {/* TAB 2: ADMISSION INQUIRIES MANAGEMENT */}
       {activeTab === 'inquiries' && (
         <div className="space-y-6 animate-fadeIn">
+          {/* Quick-Switcher between Regular Course Admissions and Mock Exam Registered Students */}
+          <div className="bg-slate-100 p-1.5 rounded-2xl flex flex-col sm:flex-row items-center gap-2 border border-slate-200 shadow-2xs">
+            <button
+              type="button"
+              className="w-full sm:flex-1 py-2.5 px-4 rounded-xl text-xs font-bold bg-[#12315A] text-white shadow-xs flex items-center justify-center gap-2"
+            >
+              <GraduationCap className="w-4 h-4 text-amber-400" />
+              <span>Admission Applications & Inquiries ({inquiries.length})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('registered-students')}
+              className="w-full sm:flex-1 py-2.5 px-4 rounded-xl text-xs font-bold bg-white text-slate-700 hover:bg-slate-50 hover:text-blue-900 border border-slate-200 flex items-center justify-center gap-2 transition-colors cursor-pointer"
+            >
+              <UserCheck className="w-4 h-4 text-blue-700" />
+              <span>Mock Exam Registered Students ({mockTestRegistrations.length}) &rarr;</span>
+            </button>
+          </div>
+
           {/* Inquiries Header & Batch Actions */}
           <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
@@ -1542,6 +1704,434 @@ export const AdminDashboardPage: React.FC = () => {
               >
                 Close Preview
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB: REGISTERED STUDENTS (MOCK EXAMINATIONS) */}
+      {activeTab === 'registered-students' && (
+        <div className="space-y-6 animate-fadeIn">
+          {/* Top Status & Shift Controller Action Header */}
+          <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <div className="p-2.5 rounded-2xl bg-blue-50 text-blue-700">
+                  <UserCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-[#12315A]">
+                    Registered Students — Mock Exam Series
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Total Registered Candidates: <strong>{mockTestRegistrations.length}</strong> • Filtered Results: <strong>{filteredRegistrations.length}</strong>
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={handleOpenAddShift}
+                className="px-3.5 py-2.5 rounded-xl text-xs font-bold text-slate-900 bg-amber-400 hover:bg-amber-300 transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+              >
+                <Clock className="w-3.5 h-3.5 text-slate-950" />
+                <span>+ Fix / Add Exam Shift Time</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const headers = ['Ref Number', 'Name', 'Phone', 'Email', 'Course', 'Semester/Year', 'Subjects', 'Exam Shift', 'Mode', 'Status', 'Date'];
+                  const rows = mockTestRegistrations.map((r) => [
+                    r.referenceNumber,
+                    r.fullName,
+                    r.phone,
+                    r.email,
+                    r.courseName,
+                    r.semesterOrYear || '',
+                    (r.enrolledSubjects || []).join('; '),
+                    r.shift || '',
+                    r.preferredMode || '',
+                    r.status,
+                    r.createdAt,
+                  ]);
+                  const csvContent =
+                    'data:text/csv;charset=utf-8,' +
+                    [headers.join(','), ...rows.map((e) => e.map((x) => `"${(x || '').replace(/"/g, '""')}"`).join(','))].join('\n');
+                  const encodedUri = encodeURI(csvContent);
+                  const link = document.createElement('a');
+                  link.setAttribute('href', encodedUri);
+                  link.setAttribute('download', `mock_exam_registered_students_${Date.now()}.csv`);
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                }}
+                className="px-3.5 py-2.5 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-colors flex items-center gap-1.5 cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Export CSV</span>
+              </button>
+            </div>
+          </div>
+
+          {regStudentToast && (
+            <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-bold flex items-center gap-2 animate-fadeIn">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <span>{regStudentToast}</span>
+            </div>
+          )}
+
+          {shiftToast && (
+            <div className="p-3.5 rounded-2xl bg-blue-50 border border-blue-300 text-blue-900 text-xs font-bold flex items-center gap-2 animate-fadeIn">
+              <CheckCircle2 className="w-4 h-4 text-blue-600" />
+              <span>{shiftToast}</span>
+            </div>
+          )}
+
+          {/* ADMIN-CONFIGURED FIXED EXAM SHIFTS & TIMINGS BAR */}
+          <div className="bg-gradient-to-r from-[#12315A] to-[#1e467b] text-white p-5 sm:p-6 rounded-3xl shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-amber-400 text-slate-950 mb-1">
+                  <Clock className="w-3 h-3" />
+                  <span>Admin-Fixed Exam Schedules</span>
+                </span>
+                <h4 className="text-sm sm:text-base font-bold text-white">
+                  Available Exam Shifts & Fixed Hours for Candidates
+                </h4>
+                <p className="text-xs text-blue-200">
+                  Students registering for mock tests must choose from these administrator-authorized time slots.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleOpenAddShift}
+                className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/20 hover:bg-white/30 text-white transition-colors flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>New Shift Slot</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+              {(settings.mockExamShifts || []).map((shift) => (
+                <div
+                  key={shift.id}
+                  className={`p-3.5 rounded-2xl border transition-all ${
+                    shift.isActive
+                      ? 'bg-white/10 border-white/20 text-white'
+                      : 'bg-white/5 border-white/10 text-white/60 opacity-70'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-black text-sm text-amber-300">
+                          {shift.shiftName}
+                        </span>
+                        <span
+                          className={`text-[9px] px-1.5 py-0.2 rounded font-bold uppercase ${
+                            shift.isActive
+                              ? 'bg-emerald-400 text-slate-950'
+                              : 'bg-slate-400 text-slate-950'
+                          }`}
+                        >
+                          {shift.isActive ? 'Active Slot' : 'Paused'}
+                        </span>
+                      </div>
+                      <p className="font-mono text-xs font-bold mt-1 text-white">
+                        {shift.timeSlot}
+                      </p>
+                      {shift.reportingTime && (
+                        <p className="text-[10px] text-blue-200">
+                          Reporting: {shift.reportingTime}
+                        </p>
+                      )}
+                      {shift.days && (
+                        <p className="text-[10px] text-blue-200">
+                          Days: {shift.days}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleShiftStatus(shift.id)}
+                        className="p-1 rounded text-white/70 hover:text-white hover:bg-white/20 text-[10px] font-bold"
+                        title={shift.isActive ? 'Pause Shift' : 'Activate Shift'}
+                      >
+                        {shift.isActive ? 'Disable' : 'Enable'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditShift(shift)}
+                        className="p-1 rounded text-white/70 hover:text-white hover:bg-white/20"
+                        title="Edit Shift"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteShift(shift.id, shift.shiftName)}
+                        className="p-1 rounded text-rose-300 hover:text-rose-100 hover:bg-rose-500/20"
+                        title="Delete Shift"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Search & Filter Toolbar */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex flex-col md:flex-row gap-3 items-center justify-between">
+            <div className="relative flex-1 w-full">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Search candidates by name, roll number, phone, email, reference number..."
+                value={regStudentSearch}
+                onChange={(e) => setRegStudentSearch(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div className="flex items-center gap-2 w-full md:w-auto flex-wrap">
+              {/* Filter Course */}
+              <select
+                value={regStudentCourseFilter}
+                onChange={(e) => setRegStudentCourseFilter(e.target.value)}
+                className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium bg-white text-slate-700"
+              >
+                <option value="ALL">All Programs</option>
+                {courses.map((c) => (
+                  <option key={c.id} value={c.slug}>
+                    {c.title}
+                  </option>
+                ))}
+              </select>
+
+              {/* Filter Status */}
+              <select
+                value={regStudentStatusFilter}
+                onChange={(e) => setRegStudentStatusFilter(e.target.value)}
+                className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium bg-white text-slate-700"
+              >
+                <option value="ALL">All Statuses</option>
+                <option value="Registered">Registered</option>
+                <option value="Confirmed">Confirmed</option>
+                <option value="Attended">Attended</option>
+                <option value="Completed">Completed</option>
+                <option value="Cancelled">Cancelled</option>
+              </select>
+
+              {/* Filter Shift */}
+              <select
+                value={regStudentShiftFilter}
+                onChange={(e) => setRegStudentShiftFilter(e.target.value)}
+                className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium bg-white text-slate-700"
+              >
+                <option value="ALL">All Exam Shifts</option>
+                {(settings.mockExamShifts || []).map((s) => (
+                  <option key={s.id} value={`${s.shiftName} (${s.timeSlot})`}>
+                    {s.shiftName} ({s.timeSlot})
+                  </option>
+                ))}
+              </select>
+
+              {(regStudentSearch || regStudentCourseFilter !== 'ALL' || regStudentStatusFilter !== 'ALL' || regStudentShiftFilter !== 'ALL') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRegStudentSearch('');
+                    setRegStudentCourseFilter('ALL');
+                    setRegStudentStatusFilter('ALL');
+                    setRegStudentShiftFilter('ALL');
+                  }}
+                  className="px-2.5 py-2 text-xs text-rose-600 hover:underline font-bold"
+                >
+                  Reset Filters
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Registered Students Table */}
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs text-slate-600">
+                <thead className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                  <tr>
+                    <th className="py-3 px-4">Ref Number</th>
+                    <th className="py-3 px-4">Candidate Information</th>
+                    <th className="py-3 px-4">Program & Level</th>
+                    <th className="py-3 px-4">Registered Subjects</th>
+                    <th className="py-3 px-4">Admin-Fixed Shift & Time</th>
+                    <th className="py-3 px-4">Mode</th>
+                    <th className="py-3 px-4">Registration Status</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredRegistrations.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="py-12 text-center text-slate-400">
+                        <UserCheck className="w-10 h-10 mx-auto mb-2 text-slate-300" />
+                        <p className="font-bold text-slate-700 text-sm">
+                          No Registered Candidates Found
+                        </p>
+                        <p className="text-xs text-slate-400 mt-1">
+                          {mockTestRegistrations.length === 0
+                            ? 'Students who register for mock tests through the Mock Tests page will automatically show up here.'
+                            : 'Try adjusting your search query or filters above.'}
+                        </p>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredRegistrations.map((reg) => {
+                      const cleanPhone = (reg.phone || '').replace(/[^0-9]/g, '');
+                      return (
+                        <tr key={reg.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="py-3.5 px-4">
+                            <span className="font-mono font-bold text-blue-900 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded text-[11px]">
+                              {reg.referenceNumber}
+                            </span>
+                            <p className="text-[10px] text-slate-400 mt-1">
+                              {new Date(reg.createdAt).toLocaleDateString()}
+                            </p>
+                          </td>
+
+                          <td className="py-3.5 px-4">
+                            <p className="font-bold text-slate-900 text-sm">{reg.fullName}</p>
+                            <p className="text-slate-600 font-mono text-[11px] mt-0.5">{reg.phone}</p>
+                            {reg.email && (
+                              <p className="text-slate-400 text-[10px]">{reg.email}</p>
+                            )}
+                            {reg.studentRollNo && (
+                              <span className="inline-block mt-1 font-mono text-[10px] font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.2 rounded border border-purple-200">
+                                Roll: {reg.studentRollNo}
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="py-3.5 px-4">
+                            <p className="font-bold text-slate-800">{reg.courseName}</p>
+                            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                              {reg.semesterOrYear && (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-50 text-purple-800 border border-purple-200">
+                                  {reg.semesterOrYear}
+                                </span>
+                              )}
+                              {reg.courseType && (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-200">
+                                  {reg.courseType}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+
+                          <td className="py-3.5 px-4">
+                            <div className="flex flex-wrap gap-1 max-w-xs">
+                              {reg.enrolledSubjects && reg.enrolledSubjects.length > 0 ? (
+                                reg.enrolledSubjects.map((s) => (
+                                  <span
+                                    key={s}
+                                    className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-900 border border-amber-200"
+                                  >
+                                    {s}
+                                  </span>
+                                ))
+                              ) : (
+                                <span className="text-slate-400 italic text-[11px]">All Course Subjects</span>
+                              )}
+                            </div>
+                          </td>
+
+                          <td className="py-3.5 px-4">
+                            <div className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-950 font-bold px-2.5 py-1 rounded-lg border border-blue-200">
+                              <Clock className="w-3.5 h-3.5 text-blue-700 shrink-0" />
+                              <span className="text-xs">{reg.shift || 'Morning Exam Shift (06:30 AM)'}</span>
+                            </div>
+                          </td>
+
+                          <td className="py-3.5 px-4">
+                            <span className="text-[11px] font-medium text-slate-700 bg-slate-100 px-2 py-0.5 rounded">
+                              {reg.preferredMode || 'Online PDF'}
+                            </span>
+                          </td>
+
+                          <td className="py-3.5 px-4">
+                            <select
+                              value={reg.status}
+                              onChange={(e) => {
+                                updateMockTestRegistrationStatus(
+                                  reg.id,
+                                  e.target.value as MockTestRegistration['status']
+                                );
+                                setRegStudentToast(`Updated status for ${reg.fullName} to "${e.target.value}".`);
+                                setTimeout(() => setRegStudentToast(null), 3000);
+                              }}
+                              className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border focus:outline-none cursor-pointer ${
+                                reg.status === 'Confirmed'
+                                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                  : reg.status === 'Attended'
+                                  ? 'bg-purple-50 text-purple-800 border-purple-300'
+                                  : reg.status === 'Completed'
+                                  ? 'bg-blue-50 text-blue-800 border-blue-300'
+                                  : reg.status === 'Cancelled'
+                                  ? 'bg-rose-50 text-rose-800 border-rose-300'
+                                  : 'bg-amber-50 text-amber-900 border-amber-300'
+                              }`}
+                            >
+                              <option value="Registered">Registered</option>
+                              <option value="Confirmed">Confirmed</option>
+                              <option value="Attended">Attended</option>
+                              <option value="Completed">Completed</option>
+                              <option value="Cancelled">Cancelled</option>
+                            </select>
+                          </td>
+
+                          <td className="py-3.5 px-4 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {cleanPhone && (
+                                <a
+                                  href={`https://wa.me/977${cleanPhone.replace(/^0+/, '')}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="p-1.5 rounded-lg text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 transition-colors"
+                                  title="WhatsApp Chat"
+                                >
+                                  <MessageCircle className="w-4 h-4" />
+                                </a>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (confirm(`Delete mock test registration for ${reg.fullName} (${reg.referenceNumber})?`)) {
+                                    deleteMockTestRegistration(reg.id);
+                                    setRegStudentToast(`Deleted registration for ${reg.fullName}.`);
+                                    setTimeout(() => setRegStudentToast(null), 3000);
+                                  }
+                                }}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                                title="Delete Registration"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
@@ -3201,6 +3791,18 @@ export const AdminDashboardPage: React.FC = () => {
               <Users className="w-3.5 h-3.5" />
               <span>Mock Test Registrations ({mockTestRegistrations.length})</span>
             </button>
+            <button
+              type="button"
+              onClick={() => setMockTestSubView('shifts')}
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                mockTestSubView === 'shifts'
+                  ? 'bg-amber-400 text-slate-950 shadow-xs font-black'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              <Clock className="w-3.5 h-3.5" />
+              <span>Exam Shifts & Timings ({(settings.mockExamShifts || []).length})</span>
+            </button>
           </div>
 
           {/* Filters & Search */}
@@ -3817,6 +4419,125 @@ export const AdminDashboardPage: React.FC = () => {
               </div>
             </div>
           )}
+
+          {/* SUBVIEW 4: EXAM SHIFTS & TIMINGS MANAGEMENT */}
+          {mockTestSubView === 'shifts' && (
+            <div className="space-y-6">
+              <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h4 className="text-base font-bold text-[#12315A]">
+                    Authorized Mock Exam Shifts & Timings
+                  </h4>
+                  <p className="text-xs text-slate-500">
+                    Fix and schedule official start and end times, exam days, and reporting rules for candidates.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleOpenAddShift}
+                  className="px-4 py-2.5 rounded-xl text-xs font-black text-slate-950 bg-amber-400 hover:bg-amber-300 transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer self-start sm:self-auto"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>+ Add New Exam Shift</span>
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {(settings.mockExamShifts || []).map((shift) => (
+                  <div
+                    key={shift.id}
+                    className={`bg-white rounded-3xl border p-5 shadow-2xs space-y-4 transition-all ${
+                      shift.isActive ? 'border-slate-200' : 'border-slate-100 opacity-60 bg-slate-50/60'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-3">
+                      <div>
+                        <span className="font-extrabold text-sm text-[#12315A]">
+                          {shift.shiftName}
+                        </span>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <span
+                            className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase ${
+                              shift.isActive
+                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                : 'bg-slate-200 text-slate-700'
+                            }`}
+                          >
+                            {shift.isActive ? 'Active for Enrollment' : 'Suspended / Paused'}
+                          </span>
+                          {shift.mode && (
+                            <span className="text-[9px] font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                              {shift.mode}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleToggleShiftStatus(shift.id)}
+                        className={`text-[10px] font-bold px-2 py-1 rounded-lg border transition-colors cursor-pointer ${
+                          shift.isActive
+                            ? 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                        }`}
+                      >
+                        {shift.isActive ? 'Disable' : 'Enable'}
+                      </button>
+                    </div>
+
+                    <div className="space-y-2 text-xs">
+                      <div className="flex items-center justify-between p-2 rounded-xl bg-blue-50/50 border border-blue-100">
+                        <span className="text-slate-500 text-[11px] font-medium">Exam Duration Hours:</span>
+                        <span className="font-mono font-black text-blue-900">{shift.timeSlot}</span>
+                      </div>
+
+                      {shift.reportingTime && (
+                        <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50">
+                          <span className="text-slate-500 text-[11px]">Reporting Time:</span>
+                          <span className="font-semibold text-slate-800">{shift.reportingTime}</span>
+                        </div>
+                      )}
+
+                      {shift.days && (
+                        <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50">
+                          <span className="text-slate-500 text-[11px]">Active Days:</span>
+                          <span className="font-semibold text-slate-800">{shift.days}</span>
+                        </div>
+                      )}
+
+                      {shift.notes && (
+                        <p className="text-[11px] text-slate-500 italic pt-1 border-t border-slate-100">
+                          "{shift.notes}"
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-100 flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditShift(shift)}
+                        className="px-3 py-1.5 rounded-xl text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 flex items-center gap-1 transition-colors cursor-pointer"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                        <span>Edit Hours</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteShift(shift.id, shift.shiftName)}
+                        className="p-1.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                        title="Delete Shift"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -4295,6 +5016,152 @@ export const AdminDashboardPage: React.FC = () => {
             setIsMockTestModalOpen(false);
           }}
         />
+      )}
+
+      {/* CREATE / EDIT MOCK EXAM SHIFT MODAL */}
+      {isShiftModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl border border-slate-200 relative max-h-[90vh] overflow-y-auto space-y-5 text-xs sm:text-sm">
+            <button
+              onClick={() => setIsShiftModalOpen(false)}
+              className="absolute top-5 right-5 p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+              <div className="p-2 rounded-xl bg-amber-50 text-amber-700">
+                <Clock className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-black text-base text-[#12315A]">
+                  {editingShift ? 'Edit Mock Exam Shift & Timing' : 'Add New Authorized Exam Shift'}
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Configure fixed examination hours that candidates choose upon registration.
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveShift} className="space-y-4">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Shift Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Morning Exam Shift, Evening Shift, Saturday Special"
+                  value={shiftNameInput}
+                  onChange={(e) => setShiftNameInput(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Exact Time Slot *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. 06:30 AM – 09:30 AM"
+                    value={shiftTimeSlotInput}
+                    onChange={(e) => setShiftTimeSlotInput(e.target.value)}
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-0.5">Fixed exam commencement to conclusion</p>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Reporting Time (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 06:15 AM (15 mins prior)"
+                    value={shiftReportingTimeInput}
+                    onChange={(e) => setShiftReportingTimeInput(e.target.value)}
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Scheduled Days
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Sunday – Friday or Every Saturday"
+                    value={shiftDaysInput}
+                    onChange={(e) => setShiftDaysInput(e.target.value)}
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Exam Delivery Mode
+                  </label>
+                  <select
+                    value={shiftModeInput}
+                    onChange={(e) => setShiftModeInput(e.target.value)}
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  >
+                    <option value="Online & Campus Exam Hall">Online & Campus Exam Hall</option>
+                    <option value="Online (PDF Scanned Upload)">Online (PDF Scanned Upload)</option>
+                    <option value="Physical Campus Exam Hall Only">Physical Campus Exam Hall Only</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Administrative Instructions / Notes
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="e.g. Strict attendance required 15 minutes before model question paper rollout."
+                  value={shiftNotesInput}
+                  onChange={(e) => setShiftNotesInput(e.target.value)}
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="shiftActiveCheck"
+                  checked={shiftIsActiveInput}
+                  onChange={(e) => setShiftIsActiveInput(e.target.checked)}
+                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                />
+                <label htmlFor="shiftActiveCheck" className="text-xs font-bold text-slate-700 cursor-pointer">
+                  Active & Available for Candidate Selection on Website
+                </label>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsShiftModalOpen(false)}
+                  className="px-4 py-2 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl font-bold text-white bg-[#12315A] hover:bg-blue-900 shadow cursor-pointer"
+                >
+                  {editingShift ? 'Save Changes' : 'Authorize & Add Shift'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );

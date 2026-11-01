@@ -45,10 +45,46 @@ export const MockTestsPage: React.FC = () => {
     currentUser,
     submitMockTestAnswer,
     language,
+    settings,
   } = useApp();
 
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeView, setActiveView] = useState<'tests' | 'results' | 'register'>('tests');
+
+  // Admin-fixed and authorized mock exam shifts and timings
+  const availableAdminShifts = useMemo(() => {
+    const list = (settings?.mockExamShifts || []).filter((s) => s.isActive);
+    if (list.length > 0) return list;
+    return [
+      {
+        id: 'shift-morning',
+        shiftName: 'Morning Exam Shift',
+        timeSlot: '06:30 AM – 09:30 AM',
+        reportingTime: '06:15 AM (15 mins prior)',
+        days: 'Sunday – Friday',
+        mode: 'Online & Campus Exam Hall',
+        isActive: true,
+      },
+      {
+        id: 'shift-evening',
+        shiftName: 'Evening Exam Shift',
+        timeSlot: '05:30 PM – 08:30 PM',
+        reportingTime: '05:15 PM (15 mins prior)',
+        days: 'Sunday – Friday',
+        mode: 'Online & Campus Exam Hall',
+        isActive: true,
+      },
+      {
+        id: 'shift-saturday',
+        shiftName: 'Saturday Special Board Simulation',
+        timeSlot: '07:00 AM – 10:00 AM',
+        reportingTime: '06:45 AM (15 mins prior)',
+        days: 'Every Saturday',
+        mode: 'Physical Campus Exam Hall & Online',
+        isActive: true,
+      },
+    ];
+  }, [settings?.mockExamShifts]);
 
   // Dedicated Mock Test Only Registration State
   const [isRegistrationModalOpen, setIsRegistrationModalOpen] = useState(false);
@@ -60,11 +96,25 @@ export const MockTestsPage: React.FC = () => {
   const [regYearOrSem, setRegYearOrSem] = useState('1st Year');
   const [regSelectedSubjects, setRegSelectedSubjects] = useState<string[]>(['Business Statistics']);
   const [regPreferredMode, setRegPreferredMode] = useState<'Online (Scanned PDF Submission)' | 'Physical / Campus Exam Hall' | 'Hybrid'>('Online (Scanned PDF Submission)');
-  const [regShift, setRegShift] = useState<'Morning (06:30 AM)' | 'Day (11:00 AM)' | 'Evening (05:30 PM)' | 'Weekend Special'>('Morning (06:30 AM)');
+  const [regShift, setRegShift] = useState<string>(() => {
+    const initial = (settings?.mockExamShifts || []).find((s) => s.isActive);
+    return initial ? `${initial.shiftName} (${initial.timeSlot})` : 'Morning Exam Shift (06:30 AM – 09:30 AM)';
+  });
   const [regRollNo, setRegRollNo] = useState(currentUser?.studentId || '');
-  const [regNotes, setRegNotes] = useState('');
   const [registrationPassModal, setRegistrationPassModal] = useState<MockTestRegistration | null>(null);
   const [regSuccessToast, setRegSuccessToast] = useState(false);
+
+  // Sync regShift if current value is not in availableAdminShifts
+  useEffect(() => {
+    if (availableAdminShifts.length > 0) {
+      const match = availableAdminShifts.some(
+        (s) => `${s.shiftName} (${s.timeSlot})` === regShift
+      );
+      if (!match) {
+        setRegShift(`${availableAdminShifts[0].shiftName} (${availableAdminShifts[0].timeSlot})`);
+      }
+    }
+  }, [availableAdminShifts]);
 
   // Filters
   const [selectedCourseSlug, setSelectedCourseSlug] = useState<string>(searchParams.get('course') || 'ALL');
@@ -484,7 +534,6 @@ export const MockTestsPage: React.FC = () => {
       preferredMode: regPreferredMode,
       shift: regShift,
       studentRollNo: regRollNo.trim() || undefined,
-      notes: regNotes.trim() || undefined,
     });
 
     setRegistrationPassModal(newReg);
@@ -1249,7 +1298,7 @@ export const MockTestsPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Row 4: Mode, Shift & College Roll */}
+              {/* Row 4: Mode, Admin-Fixed Shift & Time Slot, College Roll */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-slate-100">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">
@@ -1267,19 +1316,31 @@ export const MockTestsPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Preferred Shift
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-bold text-slate-700">
+                      Exam Shift & Timing (Fixed by Admin) *
+                    </label>
+                    <span className="text-[10px] text-emerald-700 font-extrabold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                      Authorized Slot
+                    </span>
+                  </div>
                   <select
                     value={regShift}
-                    onChange={(e) => setRegShift(e.target.value as any)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    onChange={(e) => setRegShift(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white shadow-2xs"
                   >
-                    <option value="Morning (06:30 AM)">Morning (06:30 AM)</option>
-                    <option value="Day (11:00 AM)">Day (11:00 AM)</option>
-                    <option value="Evening (05:30 PM)">Evening (05:30 PM)</option>
-                    <option value="Weekend Special">Weekend Special (Saturday 07:00 AM)</option>
+                    {availableAdminShifts.map((shift) => {
+                      const val = `${shift.shiftName} (${shift.timeSlot})`;
+                      return (
+                        <option key={shift.id} value={val}>
+                          {shift.shiftName}: {shift.timeSlot} {shift.days ? `[${shift.days}]` : ''}
+                        </option>
+                      );
+                    })}
                   </select>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Exam shifts and hours are fixed and scheduled by the academic examination controller.
+                  </p>
                 </div>
 
                 <div>
@@ -1294,20 +1355,6 @@ export const MockTestsPage: React.FC = () => {
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50/50"
                   />
                 </div>
-              </div>
-
-              {/* Row 5: Notes */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Specific Requests or Syllabus Weak Areas (Optional)
-                </label>
-                <textarea
-                  rows={2}
-                  placeholder="e.g. Need model paper solution discussion for Business Statistics probability section..."
-                  value={regNotes}
-                  onChange={(e) => setRegNotes(e.target.value)}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50/50"
-                />
               </div>
 
               {/* Submit CTA */}
