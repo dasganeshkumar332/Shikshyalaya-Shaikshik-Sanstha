@@ -1,4 +1,4 @@
-import { Course, Teacher, Notice, StudyMaterial, GalleryItem, SiteSettings, AdmissionInquiry, StudentGroup, MockTest, MockTestSubmission } from '../types';
+import { Course, Teacher, Notice, StudyMaterial, GalleryItem, SiteSettings, AdmissionInquiry, StudentGroup, MockTest, MockTestSubmission, MockTestRegistration } from '../types';
 
 export const INITIAL_SETTINGS: SiteSettings = {
   instituteName: 'SHIKSHYALAYA SHAIKSHIK SANSTHA',
@@ -4126,5 +4126,62 @@ export const INITIAL_MOCK_TEST_SUBMISSIONS: MockTestSubmission[] = [
     feedbackRemarks: 'Submission received 15 minutes past duration. Paper is under review by teacher.'
   }
 ];
+
+export const INITIAL_MOCK_TEST_REGISTRATIONS: MockTestRegistration[] = [
+  {
+    id: 'mock-reg-1',
+    referenceNumber: 'MOCK-REG-2026-1001',
+    fullName: 'Sujan Shrestha',
+    email: 'sujan.shrestha@example.com',
+    phone: '9841887766',
+    courseSlug: 'bbs-tu',
+    courseName: '4 Years Program on BBS (TU)',
+    courseType: 'New Course',
+    semesterOrYear: '1st Year',
+    enrolledSubjects: ['Business Statistics'],
+    preferredMode: 'Online',
+    shift: 'Morning',
+    studentRollNo: 'TU-BBS-2081-019',
+    notes: 'Interested only in Business Statistics TU model tests and examiner feedback.',
+    status: 'Confirmed',
+    createdAt: '2026-10-20T08:30:00Z',
+  },
+  {
+    id: 'mock-reg-2',
+    referenceNumber: 'MOCK-REG-2026-1002',
+    fullName: 'Pooja Karki',
+    email: 'pooja.karki@example.com',
+    phone: '9801239988',
+    courseSlug: 'bbs-tu',
+    courseName: '4 Years Program on BBS (TU)',
+    courseType: 'New Course',
+    semesterOrYear: '1st Year',
+    enrolledSubjects: ['Financial Accounting and Analysis', 'Business Statistics'],
+    preferredMode: 'Hybrid',
+    shift: 'Evening',
+    studentRollNo: 'TU-BBS-2081-052',
+    notes: 'Appearing in annual board exam; preparing for Accounts & Stats numericals.',
+    status: 'Registered',
+    createdAt: '2026-10-24T14:15:00Z',
+  },
+  {
+    id: 'mock-reg-3',
+    referenceNumber: 'MOCK-REG-2026-1003',
+    fullName: 'Dipak Thapa',
+    email: 'dipak.thapa@example.com',
+    phone: '9811554433',
+    courseSlug: 'mbs-tu',
+    courseName: 'Master of Business Studies (MBS) – TU',
+    courseType: 'New Course',
+    semesterOrYear: '1st Semester',
+    enrolledSubjects: ['Statistical Methods', 'Managerial Economics'],
+    preferredMode: 'Online',
+    shift: 'Morning',
+    notes: 'Working professional taking weekend model exams only.',
+    status: 'Registered',
+    createdAt: '2026-10-26T10:00:00Z',
+  },
+];
+
 
 

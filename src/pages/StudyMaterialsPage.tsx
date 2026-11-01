@@ -26,7 +26,15 @@ import { useApp } from '../context/AppContext';
 import { StudyMaterial, Course } from '../types';
 
 export const StudyMaterialsPage: React.FC = () => {
-  const { studyMaterials, courses, currentUser, language } = useApp();
+  const {
+    studyMaterials,
+    courses,
+    currentUser,
+    language,
+    isStudentEnrolledInSubject,
+    updateStudentEnrolledSubjects,
+    loginAsStudent,
+  } = useApp();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCourse, setSelectedCourse] = useState('ALL');
@@ -451,22 +459,23 @@ export const StudyMaterialsPage: React.FC = () => {
       {/* Student Enrollment Status Indicator Banner */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         {currentUser?.role === 'student' ? (
-          <div className="bg-gradient-to-r from-blue-50 via-indigo-50/60 to-blue-50 border border-blue-200/90 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
+          <div className="bg-gradient-to-r from-blue-50 via-indigo-50/70 to-blue-50 border border-blue-200/90 rounded-2xl p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs">
             <div className="flex items-start gap-3.5">
               <div className="w-10 h-10 rounded-xl bg-[#12315A] text-white flex items-center justify-center shrink-0 shadow-xs">
                 <ShieldCheck className="w-5 h-5 text-amber-400" />
               </div>
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="font-bold text-sm text-[#12315A]">
-                    Active Student Portal: {currentUser.name} ({currentUser.studentId || 'Authenticated'})
+                    Student Portal: {currentUser.name} ({currentUser.studentId || 'Authenticated'})
                   </h3>
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-300">
                     Enrolled Access Verified
                   </span>
                 </div>
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-xs text-slate-600 font-medium">Your Enrolled Program(s):</span>
+
+                <div className="flex items-center gap-2 flex-wrap text-xs">
+                  <span className="text-slate-600 font-medium">Program:</span>
                   {currentUser.enrolledCourseSlugs && currentUser.enrolledCourseSlugs.length > 0 ? (
                     currentUser.enrolledCourseSlugs.map((slug) => {
                       const c = courses.find((x) => x.slug === slug);
@@ -481,16 +490,67 @@ export const StudyMaterialsPage: React.FC = () => {
                       );
                     })
                   ) : (
-                    <span className="text-xs text-rose-600 font-semibold">No active program enrolled</span>
+                    <span className="text-xs text-rose-600 font-semibold">No active program</span>
+                  )}
+
+                  <span className="text-slate-400">|</span>
+
+                  <span className="text-slate-600 font-medium">Enrolled Subject(s):</span>
+                  {currentUser.enrolledSubjects && currentUser.enrolledSubjects.length > 0 ? (
+                    currentUser.enrolledSubjects.map((subj) => (
+                      <span
+                        key={subj}
+                        className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs"
+                      >
+                        <CheckCircle2 className="w-3 h-3 text-amber-700" />
+                        <span>{subj}</span>
+                      </span>
+                    ))
+                  ) : (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      All Course Subjects (Unrestricted)
+                    </span>
                   )}
                 </div>
-                <p className="text-[11px] text-slate-500">
-                  You have full download & viewing access for your enrolled program(s). Materials for all other programs remain locked.
-                </p>
+
+                {/* Quick Subject Access Simulation Bar */}
+                <div className="pt-1 flex items-center gap-2 flex-wrap text-[11px]">
+                  <span className="text-slate-500 font-semibold">Simulate Subject Enrollment:</span>
+                  <button
+                    onClick={() => updateStudentEnrolledSubjects(['Business Statistics'])}
+                    className={`px-2.5 py-1 rounded-lg font-bold border transition-all cursor-pointer ${
+                      currentUser.enrolledSubjects?.includes('Business Statistics') && currentUser.enrolledSubjects.length === 1
+                        ? 'bg-[#12315A] text-white border-[#12315A] shadow-xs'
+                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                    }`}
+                  >
+                    Business Statistics Only
+                  </button>
+                  <button
+                    onClick={() => updateStudentEnrolledSubjects(['Microeconomics'])}
+                    className={`px-2.5 py-1 rounded-lg font-bold border transition-all cursor-pointer ${
+                      currentUser.enrolledSubjects?.includes('Microeconomics') && currentUser.enrolledSubjects.length === 1
+                        ? 'bg-[#12315A] text-white border-[#12315A] shadow-xs'
+                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                    }`}
+                  >
+                    Microeconomics Only
+                  </button>
+                  <button
+                    onClick={() => updateStudentEnrolledSubjects([])}
+                    className={`px-2.5 py-1 rounded-lg font-bold border transition-all cursor-pointer ${
+                      !currentUser.enrolledSubjects || currentUser.enrolledSubjects.length === 0
+                        ? 'bg-[#12315A] text-white border-[#12315A] shadow-xs'
+                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                    }`}
+                  >
+                    Full Package (All Subjects)
+                  </button>
+                </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0 self-start sm:self-center">
+            <div className="flex items-center gap-2 shrink-0 self-start md:self-center">
               <Link
                 to="/student/dashboard"
                 className="px-3.5 py-2 rounded-xl text-xs font-bold text-blue-900 bg-white border border-blue-300 hover:bg-blue-50 transition-colors shadow-xs"
@@ -504,7 +564,7 @@ export const StudyMaterialsPage: React.FC = () => {
             <div className="flex items-center gap-2.5">
               <Shield className="w-4 h-4 text-amber-600" />
               <span>
-                <strong>Administrator Mode:</strong> Master access granted to preview, download, and manage study materials across all programs.
+                <strong>Administrator Mode:</strong> Master access granted to preview, download, and manage study materials across all programs and subjects.
               </span>
             </div>
             <Link to="/admin" className="font-bold text-amber-900 hover:underline">
@@ -519,15 +579,29 @@ export const StudyMaterialsPage: React.FC = () => {
               </div>
               <div>
                 <h3 className="font-bold text-sm text-[#12315A]">
-                  Student Resource Access Policy
+                  Student Subject-Level Access Policy
                 </h3>
                 <p className="text-xs text-slate-600 mt-0.5">
-                  Academic study materials, past TU question solutions, and video lectures are strictly reserved for enrolled students of each respective program.
+                  Academic study materials, past questions, and lecture recordings are reserved exclusively for enrolled students and only for their officially enrolled subjects.
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-2.5 shrink-0 self-start sm:self-center">
+            <div className="flex items-center gap-2.5 shrink-0 self-start sm:self-center flex-wrap">
+              <button
+                onClick={() =>
+                  loginAsStudent(
+                    'SSS-STU-BBS-2026',
+                    'anuj@shikshyalaya.edu.np',
+                    ['bbs-tu'],
+                    'Anuj Das (BBS 1st Year)',
+                    ['Business Statistics']
+                  )
+                }
+                className="px-3 py-2 rounded-xl text-xs font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 transition-colors cursor-pointer shadow-xs"
+              >
+                Test BBS Student (Enrolled in Business Statistics Only)
+              </button>
               <Link
                 to="/student/login"
                 className="px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-[#12315A] hover:bg-blue-900 transition-colors shadow-sm"
@@ -836,18 +910,28 @@ export const StudyMaterialsPage: React.FC = () => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {filteredMaterials.map((mat) => {
-              const isEnrolled =
+              const isCourseEnrolled =
                 currentUser?.role === 'admin' ||
                 (currentUser?.role === 'student' && currentUser.enrolledCourseSlugs?.includes(mat.courseSlug));
+
+              const isSubjectAllowed =
+                currentUser?.role === 'admin' ||
+                isStudentEnrolledInSubject(mat.courseSlug, mat.subject);
+
+              const hasAccess = isCourseEnrolled && isSubjectAllowed;
+              const isSubjectRestricted =
+                currentUser?.role === 'student' && isCourseEnrolled && !isSubjectAllowed;
 
               return (
                 <div
                   key={mat.id}
                   className={`p-5 rounded-2xl border transition-all flex flex-col justify-between space-y-4 ${
-                    isEnrolled
+                    hasAccess
                       ? mat.resourceType === 'Recorded Videos'
                         ? 'bg-white border-rose-200 hover:border-rose-400 shadow-sm'
                         : 'bg-white border-slate-200/90 hover:border-blue-300 shadow-sm'
+                      : isSubjectRestricted
+                      ? 'bg-amber-50/40 border-amber-300/80 shadow-2xs'
                       : 'bg-slate-50/70 border-slate-200/80 shadow-2xs'
                   }`}
                 >
@@ -878,22 +962,29 @@ export const StudyMaterialsPage: React.FC = () => {
 
                       <span
                         className={`text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1 ${
-                          isEnrolled
+                          hasAccess
                             ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                            : isSubjectRestricted
+                            ? 'bg-amber-100 text-amber-900 border border-amber-300 font-bold'
                             : currentUser
-                            ? 'bg-amber-50 text-amber-900 border border-amber-300 font-semibold'
+                            ? 'bg-rose-50 text-rose-900 border border-rose-200 font-semibold'
                             : 'bg-slate-100 text-slate-700 border border-slate-200'
                         }`}
                       >
-                        {isEnrolled ? (
+                        {hasAccess ? (
                           <>
                             <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                             <span>Enrolled • Unlocked</span>
                           </>
+                        ) : isSubjectRestricted ? (
+                          <>
+                            <Lock className="w-3 h-3 text-amber-700" />
+                            <span>Subject Restricted</span>
+                          </>
                         ) : currentUser ? (
                           <>
-                            <Lock className="w-3 h-3 text-amber-600" />
-                            <span>Locked (Not Enrolled)</span>
+                            <Lock className="w-3 h-3 text-rose-600" />
+                            <span>Course Restricted</span>
                           </>
                         ) : (
                           <>
@@ -911,10 +1002,24 @@ export const StudyMaterialsPage: React.FC = () => {
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 font-medium">
                       <span><strong>Course:</strong> {mat.courseName}</span>
                       <span>•</span>
-                      <span><strong>Subject:</strong> {mat.subject}</span>
+                      <span>
+                        <strong>Subject:</strong>{' '}
+                        <span className={isSubjectRestricted ? 'text-amber-800 font-bold' : ''}>
+                          {mat.subject}
+                        </span>
+                      </span>
                       <span>•</span>
                       <span className="font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded">{mat.semesterOrYear}</span>
                     </div>
+
+                    {isSubjectRestricted && (
+                      <div className="p-2.5 rounded-xl bg-amber-100/70 border border-amber-300 text-[11px] text-amber-900 flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
+                        <span>
+                          Enrolled in <strong>{currentUser?.enrolledSubjects?.join(', ')}</strong>. Access to <strong>{mat.subject}</strong> is restricted.
+                        </span>
+                      </div>
+                    )}
 
                     <p className="text-xs text-slate-600 leading-relaxed line-clamp-2">
                       {mat.description}
@@ -924,7 +1029,7 @@ export const StudyMaterialsPage: React.FC = () => {
                   <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
                     <span className="text-slate-400 font-medium">{mat.fileSize} • Uploaded {mat.uploadDate}</span>
 
-                    {isEnrolled ? (
+                    {hasAccess ? (
                       mat.resourceType === 'Recorded Videos' ? (
                         <button
                           onClick={() => handleOpenVideo(mat)}
@@ -942,13 +1047,21 @@ export const StudyMaterialsPage: React.FC = () => {
                           <span>Download / View</span>
                         </button>
                       )
+                    ) : isSubjectRestricted ? (
+                      <button
+                        onClick={() => setRestrictedMaterial(mat)}
+                        className="px-3 py-1.5 rounded-lg text-xs font-bold text-amber-950 bg-amber-200 hover:bg-amber-300 border border-amber-400 transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+                      >
+                        <Lock className="w-3.5 h-3.5 text-amber-800" />
+                        <span>Subject Restricted</span>
+                      </button>
                     ) : (
                       <button
                         onClick={() => setRestrictedMaterial(mat)}
-                        className="px-3 py-1.5 rounded-lg text-xs font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                        className="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
                       >
-                        <Lock className="w-3.5 h-3.5 text-amber-700" />
-                        <span>{currentUser ? 'Locked (Not Enrolled)' : 'Enroll to Access'}</span>
+                        <Lock className="w-3.5 h-3.5 text-slate-600" />
+                        <span>{currentUser ? 'Course Locked' : 'Enroll to Access'}</span>
                       </button>
                     )}
                   </div>
@@ -1120,19 +1233,53 @@ export const StudyMaterialsPage: React.FC = () => {
 
             <div className="text-xs text-slate-600 space-y-2 leading-relaxed">
               {currentUser?.role === 'student' ? (
-                <>
-                  <p>
-                    You are logged in as <strong>{currentUser.name}</strong> ({currentUser.studentId}), currently enrolled in:{' '}
-                    <span className="font-semibold text-blue-700">
-                      {currentUser.enrolledCourseSlugs && currentUser.enrolledCourseSlugs.length > 0
-                        ? currentUser.enrolledCourseSlugs.map((s) => courses.find((c) => c.slug === s)?.title || s).join(', ')
-                        : 'No active courses'}
-                    </span>.
-                  </p>
-                  <p className="text-amber-900 font-medium bg-amber-50/70 p-3 rounded-xl border border-amber-200">
-                    Students are strictly granted access only to the academic resources for programs they are officially enrolled in. Because you are not currently enrolled in <strong>{restrictedMaterial.courseName}</strong>, this resource is locked.
-                  </p>
-                </>
+                (() => {
+                  const isCourseEnrolled = currentUser.enrolledCourseSlugs?.includes(restrictedMaterial.courseSlug);
+                  const isSubjectAllowed = isStudentEnrolledInSubject(restrictedMaterial.courseSlug, restrictedMaterial.subject);
+
+                  if (isCourseEnrolled && !isSubjectAllowed) {
+                    return (
+                      <>
+                        <p>
+                          You are logged in as <strong>{currentUser.name}</strong> ({currentUser.studentId}), enrolled in <strong>{restrictedMaterial.courseName}</strong>.
+                        </p>
+                        <div className="text-amber-950 font-medium bg-amber-50 p-3.5 rounded-xl border border-amber-300 space-y-2">
+                          <p className="font-bold flex items-center gap-1.5 text-amber-900">
+                            <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
+                            <span>Subject-Level Enrollment Policy</span>
+                          </p>
+                          <p>
+                            Your official enrollment is currently registered only for:{' '}
+                            <strong className="text-amber-900">
+                              {currentUser.enrolledSubjects && currentUser.enrolledSubjects.length > 0
+                                ? currentUser.enrolledSubjects.join(', ')
+                                : 'other specific subjects'}
+                            </strong>.
+                          </p>
+                          <p className="text-[11px] text-amber-800">
+                            As per institutional policy, students enrolled for <strong>{currentUser.enrolledSubjects?.[0] || 'one subject'}</strong> are not permitted to access resource materials for <strong>{restrictedMaterial.subject}</strong> without official subject enrollment.
+                          </p>
+                        </div>
+                      </>
+                    );
+                  }
+
+                  return (
+                    <>
+                      <p>
+                        You are logged in as <strong>{currentUser.name}</strong> ({currentUser.studentId}), currently enrolled in:{' '}
+                        <span className="font-semibold text-blue-700">
+                          {currentUser.enrolledCourseSlugs && currentUser.enrolledCourseSlugs.length > 0
+                            ? currentUser.enrolledCourseSlugs.map((s) => courses.find((c) => c.slug === s)?.title || s).join(', ')
+                            : 'No active courses'}
+                        </span>.
+                      </p>
+                      <p className="text-amber-900 font-medium bg-amber-50/70 p-3 rounded-xl border border-amber-200">
+                        Students are strictly granted access only to the academic resources for programs they are officially enrolled in. Because you are not currently enrolled in <strong>{restrictedMaterial.courseName}</strong>, this resource is locked.
+                      </p>
+                    </>
+                  );
+                })()
               ) : (
                 <p className="text-slate-700 bg-slate-50 p-3 rounded-xl border border-slate-200">
                   Full study materials, solved past board papers, formula summaries, and recorded classroom lectures for{' '}

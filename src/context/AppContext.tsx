@@ -15,6 +15,7 @@ import {
   StudentNoticeBroadcast,
   MockTest,
   MockTestSubmission,
+  MockTestRegistration,
 } from '../types';
 import {
   INITIAL_SETTINGS,
@@ -27,6 +28,7 @@ import {
   INITIAL_STUDENT_GROUPS,
   INITIAL_MOCK_TESTS,
   INITIAL_MOCK_TEST_SUBMISSIONS,
+  INITIAL_MOCK_TEST_REGISTRATIONS,
 } from '../data/initialData';
 import { checkSupabaseConnection, SupabaseConnectionStatus } from '../lib/supabase';
 import {
@@ -160,11 +162,25 @@ interface AppContextType {
     evaluatedPaperName?: string;
   }) => { success: boolean; message: string };
 
+  // Mock Test Registrations (For students interested only in mock tests)
+  mockTestRegistrations: MockTestRegistration[];
+  registerForMockTest: (data: Omit<MockTestRegistration, 'id' | 'referenceNumber' | 'status' | 'createdAt'>) => MockTestRegistration;
+  updateMockTestRegistrationStatus: (id: string, status: MockTestRegistration['status']) => void;
+  deleteMockTestRegistration: (id: string) => void;
+
   currentUser: UserProfile | null;
   loginAsAdmin: (password?: string) => boolean;
-  loginAsStudent: (studentId: string, email: string, courseSlugs?: string[], studentName?: string) => boolean;
+  loginAsStudent: (
+    studentId: string,
+    email: string,
+    courseSlugs?: string[],
+    studentName?: string,
+    enrolledSubjects?: string[]
+  ) => boolean;
   updateStudentEnrollment: (courseSlugs: string[]) => void;
+  updateStudentEnrolledSubjects: (subjects: string[]) => void;
   isStudentEnrolledInCourse: (courseSlug: string) => boolean;
+  isStudentEnrolledInSubject: (courseSlug: string, subjectName: string) => boolean;
   logout: () => void;
 
   language: 'en' | 'ne';
@@ -192,6 +208,7 @@ const STORAGE_KEYS = {
   GROUPS: 'sss_student_groups',
   MOCK_TESTS: 'sss_mock_tests',
   MOCK_SUBMISSIONS: 'sss_mock_submissions',
+  MOCK_REGISTRATIONS: 'sss_mock_registrations',
 };
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -407,6 +424,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   });
 
+  // Mock Test Registrations (Students interested only in mock tests)
+  const [mockTestRegistrations, setMockTestRegistrations] = useState<MockTestRegistration[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.MOCK_REGISTRATIONS);
+    if (!saved) return INITIAL_MOCK_TEST_REGISTRATIONS;
+    try {
+      const parsed: MockTestRegistration[] = JSON.parse(saved);
+      const existingIds = new Set(parsed.map((r) => r.id));
+      const missing = INITIAL_MOCK_TEST_REGISTRATIONS.filter((r) => !existingIds.has(r.id));
+      return [...parsed, ...missing];
+    } catch (e) {
+      return INITIAL_MOCK_TEST_REGISTRATIONS;
+    }
+  });
+
   // Auth
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.AUTH);
@@ -475,6 +506,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.MOCK_SUBMISSIONS, JSON.stringify(mockTestSubmissions));
   }, [mockTestSubmissions]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.MOCK_REGISTRATIONS, JSON.stringify(mockTestRegistrations));
+  }, [mockTestRegistrations]);
 
   // Supabase Connection & Cloud Synchronization
   const [supabaseStatus, setSupabaseStatus] = useState<SupabaseConnectionStatus | null>(null);
@@ -1269,7 +1304,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     studentId: string,
     email: string,
     courseSlugs?: string[],
-    studentName?: string
+    studentName?: string,
+    enrolledSubjects?: string[]
   ): boolean => {
     const inputClean = (studentId || email || '').trim().toLowerCase();
     const phoneClean = (studentId || email || '').replace(/[^0-9]/g, '');
@@ -1324,6 +1360,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const firstSlug = enrolled[0] || 'bbm-tu';
     const computedName = resolvedName || defaultNames[firstSlug] || 'Enrolled Scholar';
 
+    // Resolved enrolled subjects: prioritize argument, then matched inquiry
+    const resolvedEnrolledSubjects =
+      enrolledSubjects && enrolledSubjects.length > 0
+        ? enrolledSubjects
+        : matchedInquiry?.enrolledSubjects;
+
     const user: UserProfile = {
       id: `student-${Date.now()}`,
       email: email || matchedInquiry?.email || 'student@shikshyalaya.edu.np',
@@ -1331,6 +1373,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       role: 'student',
       studentId: resolvedId || `SSS-STU-${firstSlug.toUpperCase().slice(0, 3)}-2026`,
       enrolledCourseSlugs: enrolled,
+      enrolledSubjects: resolvedEnrolledSubjects,
     };
     setCurrentUser(user);
     localStorage.setItem(STORAGE_KEYS.AUTH, JSON.stringify(user));
@@ -1348,10 +1391,68 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const updateStudentEnrolledSubjects = (subjects: string[]) => {
+    if (currentUser && currentUser.role === 'student') {
+      const updated: UserProfile = {
+        ...currentUser,
+        enrolledSubjects: subjects,
+      };
+      setCurrentUser(updated);
+      localStorage.setItem(STORAGE_KEYS.AUTH, JSON.stringify(updated));
+    }
+  };
+
   const isStudentEnrolledInCourse = (courseSlug: string): boolean => {
     if (!currentUser) return false;
     if (currentUser.role === 'admin') return true;
     return currentUser.enrolledCourseSlugs?.includes(courseSlug) ?? false;
+  };
+
+  const isStudentEnrolledInSubject = (courseSlug: string, subjectName: string): boolean => {
+    if (!currentUser) return false;
+    if (currentUser.role === 'admin') return true;
+    if (!currentUser.enrolledCourseSlugs?.includes(courseSlug)) return false;
+    // If student has specific enrolledSubjects restriction:
+    if (currentUser.enrolledSubjects && currentUser.enrolledSubjects.length > 0) {
+      const cleanTarget = (subjectName || '').trim().toLowerCase();
+      return currentUser.enrolledSubjects.some((s) => {
+        const cleanEnrolled = s.trim().toLowerCase();
+        return (
+          cleanTarget === cleanEnrolled ||
+          cleanTarget.includes(cleanEnrolled) ||
+          cleanEnrolled.includes(cleanTarget)
+        );
+      });
+    }
+    // If no specific subject restriction list was attached, user can view the enrolled course's subjects
+    return true;
+  };
+
+  const registerForMockTest = (
+    data: Omit<MockTestRegistration, 'id' | 'referenceNumber' | 'status' | 'createdAt'>
+  ): MockTestRegistration => {
+    const id = `mockreg-${Date.now()}`;
+    const rand = Math.floor(1000 + Math.random() * 9000);
+    const referenceNumber = `MOCK-REG-2026-${rand}`;
+    const newReg: MockTestRegistration = {
+      ...data,
+      id,
+      referenceNumber,
+      status: 'Registered',
+      createdAt: new Date().toISOString(),
+    };
+    setMockTestRegistrations((prev) => [newReg, ...prev]);
+    return newReg;
+  };
+
+  const updateMockTestRegistrationStatus = (id: string, status: MockTestRegistration['status']) => {
+    setMockTestRegistrations((prev) =>
+      prev.map((r) => (r.id === id ? { ...r, status } : r))
+    );
+  };
+
+  const deleteMockTestRegistration = (id: string) => {
+    setMockTestRegistrations((prev) => prev.filter((r) => r.id !== id));
   };
 
   const logout = () => {
@@ -1601,11 +1702,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         submitMockTestAnswer,
         gradeMockTestSubmission,
         uploadMockTestResult,
+        mockTestRegistrations,
+        registerForMockTest,
+        updateMockTestRegistrationStatus,
+        deleteMockTestRegistration,
         currentUser,
         loginAsAdmin,
         loginAsStudent,
         updateStudentEnrollment,
+        updateStudentEnrolledSubjects,
         isStudentEnrolledInCourse,
+        isStudentEnrolledInSubject,
         logout,
         language,
         toggleLanguage,

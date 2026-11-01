@@ -26,14 +26,21 @@ import {
   Sparkles,
   HelpCircle,
   Lock,
+  UserPlus,
+  Printer,
+  QrCode,
+  Plus,
+  ShieldCheck,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { MockTest, MockTestSubmission, CourseType } from '../types';
+import { MockTest, MockTestSubmission, CourseType, MockTestRegistration } from '../types';
 
 export const MockTestsPage: React.FC = () => {
   const {
     mockTests,
     mockTestSubmissions,
+    mockTestRegistrations,
+    registerForMockTest,
     courses,
     currentUser,
     submitMockTestAnswer,
@@ -41,7 +48,23 @@ export const MockTestsPage: React.FC = () => {
   } = useApp();
 
   const [searchParams, setSearchParams] = useSearchParams();
-  const [activeView, setActiveView] = useState<'tests' | 'results'>('tests');
+  const [activeView, setActiveView] = useState<'tests' | 'results' | 'register'>('tests');
+
+  // Dedicated Mock Test Only Registration State
+  const [isRegistrationModalOpen, setIsRegistrationModalOpen] = useState(false);
+  const [regName, setRegName] = useState(currentUser?.name || '');
+  const [regEmail, setRegEmail] = useState(currentUser?.email || '');
+  const [regPhone, setRegPhone] = useState(currentUser?.phone || '');
+  const [regCourseSlug, setRegCourseSlug] = useState('bbs-tu');
+  const [regCourseType, setRegCourseType] = useState<CourseType>('New Course');
+  const [regYearOrSem, setRegYearOrSem] = useState('1st Year');
+  const [regSelectedSubjects, setRegSelectedSubjects] = useState<string[]>(['Business Statistics']);
+  const [regPreferredMode, setRegPreferredMode] = useState<'Online (Scanned PDF Submission)' | 'Physical / Campus Exam Hall' | 'Hybrid'>('Online (Scanned PDF Submission)');
+  const [regShift, setRegShift] = useState<'Morning (06:30 AM)' | 'Day (11:00 AM)' | 'Evening (05:30 PM)' | 'Weekend Special'>('Morning (06:30 AM)');
+  const [regRollNo, setRegRollNo] = useState(currentUser?.studentId || '');
+  const [regNotes, setRegNotes] = useState('');
+  const [registrationPassModal, setRegistrationPassModal] = useState<MockTestRegistration | null>(null);
+  const [regSuccessToast, setRegSuccessToast] = useState(false);
 
   // Filters
   const [selectedCourseSlug, setSelectedCourseSlug] = useState<string>(searchParams.get('course') || 'ALL');
@@ -417,6 +440,58 @@ export const MockTestsPage: React.FC = () => {
   const isWarning = examRemainingSeconds <= 900 && examRemainingSeconds > 300; // Under 15 minutes
   const isExpired = examRemainingSeconds === 0 && activeExamTest !== null;
 
+  // Dynamic available subjects for Mock Test Only registration form
+  const regAvailableSubjects = useMemo(() => {
+    const course = courses.find((c) => c.slug === regCourseSlug);
+    let courseSubs = course?.subjectsOffered || [];
+    if (regYearOrSem !== 'ALL') {
+      courseSubs = courseSubs.filter((s) => s.semesterOrYear === regYearOrSem);
+    }
+    const fromCourse = courseSubs.map((s) => s.name);
+    const fromTests = mockTests
+      .filter((t) => t.courseSlug === regCourseSlug && (regYearOrSem === 'ALL' || t.semesterOrYear === regYearOrSem))
+      .map((t) => t.subject);
+    const set = Array.from(new Set([...fromCourse, ...fromTests])).filter(Boolean);
+    if (set.length === 0) {
+      if (regCourseSlug === 'bbs-tu') {
+        return ['Business Statistics', 'Microeconomics', 'Business English', 'Principles of Management', 'Financial Accounting'];
+      }
+      return ['General Model Paper 1', 'General Model Paper 2'];
+    }
+    return set;
+  }, [courses, mockTests, regCourseSlug, regYearOrSem]);
+
+  // Handle Mock Test Registration
+  const handleRegisterForMockTest = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!regName.trim() || !regPhone.trim()) {
+      alert('Please enter your full name and mobile number to register for mock exams.');
+      return;
+    }
+
+    const courseObj = courses.find((c) => c.slug === regCourseSlug);
+    const courseName = courseObj ? courseObj.title : 'BBS – TU';
+
+    const newReg = registerForMockTest({
+      fullName: regName.trim(),
+      email: regEmail.trim() || 'student@shikshyalaya.edu.np',
+      phone: regPhone.trim(),
+      courseSlug: regCourseSlug,
+      courseName,
+      courseType: regCourseType,
+      semesterOrYear: regYearOrSem,
+      enrolledSubjects: regSelectedSubjects.length > 0 ? regSelectedSubjects : ['Business Statistics'],
+      preferredMode: regPreferredMode,
+      shift: regShift,
+      studentRollNo: regRollNo.trim() || undefined,
+      notes: regNotes.trim() || undefined,
+    });
+
+    setRegistrationPassModal(newReg);
+    setRegSuccessToast(true);
+    setTimeout(() => setRegSuccessToast(false), 5000);
+  };
+
   return (
     <div className="py-10 sm:py-14 space-y-10 min-h-screen bg-slate-50">
       {/* Header Banner */}
@@ -439,10 +514,10 @@ export const MockTestsPage: React.FC = () => {
             </div>
 
             {/* Quick Actions / Stats */}
-            <div className="flex flex-col sm:flex-row gap-3 shrink-0">
+            <div className="flex flex-col sm:flex-row gap-3 shrink-0 flex-wrap">
               <button
                 onClick={() => setActiveView('tests')}
-                className={`px-5 py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm ${
+                className={`px-4 py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm ${
                   activeView === 'tests'
                     ? 'bg-amber-400 text-slate-950 font-extrabold'
                     : 'bg-white/10 hover:bg-white/20 text-white'
@@ -453,8 +528,20 @@ export const MockTestsPage: React.FC = () => {
               </button>
 
               <button
+                onClick={() => setActiveView('register')}
+                className={`px-4 py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm ${
+                  activeView === 'register'
+                    ? 'bg-amber-400 text-slate-950 font-extrabold'
+                    : 'bg-gradient-to-r from-amber-500/25 to-amber-400/30 hover:bg-amber-400/40 text-amber-200 border border-amber-400/40'
+                }`}
+              >
+                <UserPlus className="w-4 h-4 text-amber-300" />
+                <span>Register for Mock Test Only</span>
+              </button>
+
+              <button
                 onClick={() => setActiveView('results')}
-                className={`px-5 py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm ${
+                className={`px-4 py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm ${
                   activeView === 'results'
                     ? 'bg-amber-400 text-slate-950 font-extrabold'
                     : 'bg-white/10 hover:bg-white/20 text-white'
@@ -957,6 +1044,340 @@ export const MockTestsPage: React.FC = () => {
               })
             )}
           </div>
+        </div>
+      )}
+
+      {/* VIEW 3: DEDICATED MOCK TEST ONLY REGISTRATION PORTAL */}
+      {activeView === 'register' && (
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 space-y-8 animate-fadeIn">
+          {/* Header Banner */}
+          <div className="bg-gradient-to-br from-[#12315A] via-[#1a4176] to-[#12315A] text-white p-7 sm:p-9 rounded-3xl shadow-xl space-y-4 relative overflow-hidden">
+            <div className="absolute right-0 top-0 w-64 h-64 bg-amber-400/10 rounded-full blur-2xl pointer-events-none" />
+            <div className="relative z-10 space-y-2">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-amber-400 text-slate-950 shadow-xs">
+                <UserPlus className="w-3.5 h-3.5" />
+                <span>Mock Examination Series • Open Registration</span>
+              </span>
+              <h2 className="text-2xl sm:text-3xl font-black text-white">
+                Register for Mock Test Series Only
+              </h2>
+              <p className="text-xs sm:text-sm text-blue-100 max-w-2xl leading-relaxed">
+                Interested in taking model board examinations without full tuition enrollment? Register your name and target subjects below to receive model question papers, scheduled examination seats, and individual examiner evaluation with marks & constructive feedback.
+              </p>
+            </div>
+          </div>
+
+          {/* Registration Form Card */}
+          <div className="bg-white p-6 sm:p-9 rounded-3xl border border-slate-200 shadow-sm space-y-6">
+            <div className="border-b border-slate-100 pb-4">
+              <h3 className="text-base sm:text-lg font-bold text-[#12315A]">
+                Candidate Information & Target Subjects
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Fill in your candidate details to obtain your official Mock Exam Registration Reference Pass.
+              </p>
+            </div>
+
+            <form onSubmit={handleRegisterForMockTest} className="space-y-6">
+              {/* Row 1: Personal Details */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Candidate Full Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Ramesh Adhikari"
+                    value={regName}
+                    onChange={(e) => setRegName(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50/50"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Mobile / WhatsApp Number *
+                  </label>
+                  <input
+                    type="tel"
+                    required
+                    placeholder="e.g. 98XXXXXXXX"
+                    value={regPhone}
+                    onChange={(e) => setRegPhone(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50/50"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Email Address
+                  </label>
+                  <input
+                    type="email"
+                    placeholder="e.g. student@gmail.com"
+                    value={regEmail}
+                    onChange={(e) => setRegEmail(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50/50"
+                  />
+                </div>
+              </div>
+
+              {/* Row 2: Program, Syllabus Version & Year/Semester */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-slate-100">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Target Program / Course *
+                  </label>
+                  <select
+                    value={regCourseSlug}
+                    onChange={(e) => {
+                      setRegCourseSlug(e.target.value);
+                      if (e.target.value === 'bbs-tu') {
+                        setRegYearOrSem('1st Year');
+                        setRegSelectedSubjects(['Business Statistics']);
+                      } else if (e.target.value === 'mbs-tu') {
+                        setRegYearOrSem('1st Semester');
+                        setRegSelectedSubjects(['Managerial Economics']);
+                      } else {
+                        setRegYearOrSem('1st Semester');
+                        setRegSelectedSubjects([]);
+                      }
+                    }}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  >
+                    {courses.map((c) => (
+                      <option key={c.slug} value={c.slug}>
+                        {c.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Syllabus Scheme *
+                  </label>
+                  <select
+                    value={regCourseType}
+                    onChange={(e) => setRegCourseType(e.target.value as CourseType)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  >
+                    <option value="New Course">New Course (Current Regular Syllabus)</option>
+                    <option value="Old Course">Old Course (Backpaper / Old Syllabus)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Year or Semester *
+                  </label>
+                  <select
+                    value={regYearOrSem}
+                    onChange={(e) => setRegYearOrSem(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  >
+                    {regCourseSlug === 'bbs-tu' ? (
+                      <>
+                        <option value="1st Year">1st Year</option>
+                        <option value="2nd Year">2nd Year</option>
+                        <option value="3rd Year">3rd Year</option>
+                        <option value="4th Year">4th Year</option>
+                      </>
+                    ) : regCourseSlug.startsWith('plus-two') ? (
+                      <>
+                        <option value="Grade 11">Grade 11</option>
+                        <option value="Grade 12">Grade 12</option>
+                      </>
+                    ) : (
+                      <>
+                        <option value="1st Semester">1st Semester</option>
+                        <option value="2nd Semester">2nd Semester</option>
+                        <option value="3rd Semester">3rd Semester</option>
+                        <option value="4th Semester">4th Semester</option>
+                        <option value="5th Semester">5th Semester</option>
+                        <option value="6th Semester">6th Semester</option>
+                        <option value="7th Semester">7th Semester</option>
+                        <option value="8th Semester">8th Semester</option>
+                      </>
+                    )}
+                  </select>
+                </div>
+              </div>
+
+              {/* Row 3: Target Subjects (Interactive Selection) */}
+              <div className="space-y-2 pt-2 border-t border-slate-100">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-slate-800">
+                    Select Target Mock Exam Subjects *
+                  </label>
+                  <span className="text-[11px] text-blue-700 font-semibold">
+                    {regSelectedSubjects.length} subject(s) selected
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  Choose only the subjects you want to register for mock exams (e.g. Business Statistics, Microeconomics):
+                </p>
+
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {regAvailableSubjects.map((sub) => {
+                    const isSelected = regSelectedSubjects.includes(sub);
+                    return (
+                      <button
+                        type="button"
+                        key={sub}
+                        onClick={() => {
+                          if (isSelected) {
+                            if (regSelectedSubjects.length > 1) {
+                              setRegSelectedSubjects(regSelectedSubjects.filter((s) => s !== sub));
+                            }
+                          } else {
+                            setRegSelectedSubjects([...regSelectedSubjects, sub]);
+                          }
+                        }}
+                        className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                          isSelected
+                            ? 'bg-[#12315A] text-white shadow-xs'
+                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'
+                        }`}
+                      >
+                        {isSelected ? <Check className="w-3.5 h-3.5 text-amber-400" /> : <Plus className="w-3.5 h-3.5 text-slate-400" />}
+                        <span>{sub}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Row 4: Mode, Shift & College Roll */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-slate-100">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Preferred Exam Mode
+                  </label>
+                  <select
+                    value={regPreferredMode}
+                    onChange={(e) => setRegPreferredMode(e.target.value as any)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  >
+                    <option value="Online (Scanned PDF Submission)">Online (Scanned PDF Submission)</option>
+                    <option value="Physical / Campus Exam Hall">Physical / Campus Exam Hall</option>
+                    <option value="Hybrid">Hybrid (Both Online & Physical)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Preferred Shift
+                  </label>
+                  <select
+                    value={regShift}
+                    onChange={(e) => setRegShift(e.target.value as any)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  >
+                    <option value="Morning (06:30 AM)">Morning (06:30 AM)</option>
+                    <option value="Day (11:00 AM)">Day (11:00 AM)</option>
+                    <option value="Evening (05:30 PM)">Evening (05:30 PM)</option>
+                    <option value="Weekend Special">Weekend Special (Saturday 07:00 AM)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    College / Roll No (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 708912 or NCC College"
+                    value={regRollNo}
+                    onChange={(e) => setRegRollNo(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50/50"
+                  />
+                </div>
+              </div>
+
+              {/* Row 5: Notes */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Specific Requests or Syllabus Weak Areas (Optional)
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="e.g. Need model paper solution discussion for Business Statistics probability section..."
+                  value={regNotes}
+                  onChange={(e) => setRegNotes(e.target.value)}
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50/50"
+                />
+              </div>
+
+              {/* Submit CTA */}
+              <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="text-xs text-slate-500 flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                  <span>Instant pass generation with verified candidate reference number.</span>
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full sm:w-auto px-6 py-3 rounded-xl font-black text-xs sm:text-sm text-slate-950 bg-amber-400 hover:bg-amber-500 transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Award className="w-4 h-4" />
+                  <span>Register & Generate Mock Exam Pass</span>
+                </button>
+              </div>
+            </form>
+          </div>
+
+          {/* Existing Registrations Preview for this session */}
+          {mockTestRegistrations.length > 0 && (
+            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className="font-bold text-sm text-[#12315A] flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  <span>Recently Registered Mock Test Candidates</span>
+                </h4>
+                <span className="text-xs text-slate-400 font-semibold">
+                  {mockTestRegistrations.length} registered
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {mockTestRegistrations.slice(0, 4).map((r) => (
+                  <div
+                    key={r.id}
+                    className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-1.5 flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono font-bold text-blue-900">{r.referenceNumber}</span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                          {r.status}
+                        </span>
+                      </div>
+                      <p className="font-bold text-slate-900 text-sm mt-0.5">{r.fullName}</p>
+                      <p className="text-slate-500 text-[11px]">{r.courseName} • {r.semesterOrYear}</p>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-200 flex items-center justify-between">
+                      <div className="flex flex-wrap gap-1">
+                        {r.enrolledSubjects?.slice(0, 2).map((s) => (
+                          <span key={s} className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900">
+                            {s}
+                          </span>
+                        ))}
+                      </div>
+                      <button
+                        onClick={() => setRegistrationPassModal(r)}
+                        className="text-[11px] font-bold text-blue-700 hover:underline cursor-pointer"
+                      >
+                        View Pass &rarr;
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1608,6 +2029,142 @@ export const MockTestsPage: React.FC = () => {
             <p className="text-xs font-bold">Answer Sheet Uploaded Successfully!</p>
             <p className="text-[11px] text-emerald-200">
               Your paper has been sent to the examiner. You will be able to view your score and feedback once evaluated.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* MOCK TEST ONLY REGISTRATION PASS MODAL */}
+      {registrationPassModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-200 animate-fadeIn">
+            {/* Header */}
+            <div className="p-5 bg-gradient-to-r from-[#12315A] to-[#1e467b] text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-bold">
+                  <Award className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-400 text-slate-950">
+                    Official Exam Pass
+                  </span>
+                  <h3 className="text-base font-bold text-white mt-0.5">
+                    Mock Test Series Registration Pass
+                  </h3>
+                </div>
+              </div>
+              <button
+                onClick={() => setRegistrationPassModal(null)}
+                className="text-white/70 hover:text-white p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Pass Body */}
+            <div className="p-6 space-y-4 text-xs text-slate-700 font-sans">
+              <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-300 flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-amber-800 tracking-wider">
+                    Registration Reference Code
+                  </p>
+                  <p className="text-lg font-black font-mono text-slate-900 mt-0.5">
+                    {registrationPassModal.referenceNumber}
+                  </p>
+                </div>
+                <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                  {registrationPassModal.status}
+                </span>
+              </div>
+
+              <div className="space-y-2 border border-slate-200 rounded-2xl p-4 bg-slate-50/50">
+                <div className="flex justify-between py-1 border-b border-slate-200/60">
+                  <span className="text-slate-500 font-medium">Candidate Name:</span>
+                  <strong className="text-slate-900">{registrationPassModal.fullName}</strong>
+                </div>
+                <div className="flex justify-between py-1 border-b border-slate-200/60">
+                  <span className="text-slate-500 font-medium">Contact Phone:</span>
+                  <strong className="font-mono text-slate-900">{registrationPassModal.phone}</strong>
+                </div>
+                <div className="flex justify-between py-1 border-b border-slate-200/60">
+                  <span className="text-slate-500 font-medium">Program & Scheme:</span>
+                  <strong className="text-blue-900">
+                    {registrationPassModal.courseName} ({registrationPassModal.semesterOrYear}, {registrationPassModal.courseType})
+                  </strong>
+                </div>
+                <div className="flex justify-between py-1 border-b border-slate-200/60">
+                  <span className="text-slate-500 font-medium">Exam Mode & Shift:</span>
+                  <span className="font-semibold text-slate-800">
+                    {registrationPassModal.preferredMode} • {registrationPassModal.shift}
+                  </span>
+                </div>
+                <div className="pt-1">
+                  <span className="text-slate-500 font-medium block mb-1.5">Registered Exam Subjects:</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {registrationPassModal.enrolledSubjects && registrationPassModal.enrolledSubjects.length > 0 ? (
+                      registrationPassModal.enrolledSubjects.map((s) => (
+                        <span
+                          key={s}
+                          className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300"
+                        >
+                          {s}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-slate-500 italic">All Course Subjects</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-3 bg-blue-50 rounded-xl border border-blue-200 text-[11px] text-blue-900 space-y-1">
+                <p className="font-bold flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-blue-700" />
+                  <span>Important Instructions for Mock Candidates:</span>
+                </p>
+                <ul className="list-disc pl-4 space-y-0.5 text-blue-800">
+                  <li>Keep this reference code safe. Use it to submit your papers and view marks.</li>
+                  <li>Handwritten answers must be scanned into PDF format (.pdf) for faculty review.</li>
+                  <li>Evaluated answer papers and individual remarks are published in the "Check My Results" tab.</li>
+                </ul>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-100 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span>Print Exam Pass</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setRegistrationPassModal(null);
+                  setActiveView('tests');
+                }}
+                className="px-5 py-2.5 rounded-xl text-xs font-black text-slate-950 bg-amber-400 hover:bg-amber-500 transition-colors shadow-xs cursor-pointer flex items-center gap-1.5"
+              >
+                <BookOpen className="w-3.5 h-3.5" />
+                <span>Go to Mock Tests</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* REGISTRATION SUCCESS TOAST */}
+      {regSuccessToast && (
+        <div className="fixed bottom-6 right-6 z-50 bg-emerald-900 text-white px-5 py-4 rounded-2xl shadow-2xl flex items-center gap-3 animate-slideUp">
+          <CheckCircle2 className="w-6 h-6 text-emerald-400 shrink-0" />
+          <div>
+            <p className="text-xs font-bold">Mock Test Registration Confirmed!</p>
+            <p className="text-[11px] text-emerald-200">
+              Your official mock exam pass reference has been issued.
             </p>
           </div>
         </div>

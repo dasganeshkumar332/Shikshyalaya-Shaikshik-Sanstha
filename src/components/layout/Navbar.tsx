@@ -560,17 +560,8 @@ export const Navbar: React.FC = () => {
             </Link>
           </nav>
 
-          {/* Desktop Primary CTAs: Upload Answer Sheet & Apply for Admission */}
+          {/* Desktop Primary CTA: Apply for Admission */}
           <div className="hidden xl:flex items-center gap-2 shrink-0">
-            <Link
-              to="/upload-answer-sheet"
-              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold text-slate-900 bg-amber-400 hover:bg-amber-500 shadow-sm transition-all whitespace-nowrap shrink-0"
-              title="Upload your scanned answer sheet in PDF format"
-            >
-              <FileText className="w-3.5 h-3.5 text-rose-700" />
-              <span>{language === 'ne' ? 'उत्तरपुस्तिका (PDF)' : 'Upload PDF'}</span>
-            </Link>
-
             <Link
               to="/admission"
               className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-[#2457A7] to-[#12315A] hover:from-[#1e4685] hover:to-[#0c2240] shadow-sm hover:shadow-md transition-all whitespace-nowrap shrink-0"
@@ -582,12 +573,6 @@ export const Navbar: React.FC = () => {
 
           {/* Mobile Menu Button */}
           <div className="flex items-center gap-2 xl:hidden shrink-0">
-            <Link
-              to="/upload-answer-sheet"
-              className="inline-flex items-center gap-1 px-2.5 py-2 rounded-lg text-[11px] font-bold text-slate-900 bg-amber-400 whitespace-nowrap"
-            >
-              <span>PDF</span>
-            </Link>
             <Link
               to="/admission"
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold text-white bg-[#12315A] whitespace-nowrap"
@@ -699,14 +684,6 @@ export const Navbar: React.FC = () => {
             onClick={() => setMobileMenuOpen(false)}
           >
             {language === 'ne' ? 'मक परीक्षा तथा प्रश्नपत्रहरू' : 'Mock Tests & Exam Papers'}
-          </Link>
-
-          <Link
-            to="/upload-answer-sheet"
-            className="block px-3 py-2.5 rounded-lg text-sm font-bold bg-amber-100 text-amber-950 border border-amber-300"
-            onClick={() => setMobileMenuOpen(false)}
-          >
-            {language === 'ne' ? 'उत्तरपुस्तिका बुझाउनुहोस् (PDF ढाँचा)' : 'Upload Answer Sheet (PDF Format)'}
           </Link>
 
           <Link

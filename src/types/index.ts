@@ -79,6 +79,7 @@ export interface AdmissionInquiry {
   board?: string;
   academicLevel?: string;
   subjectsOfInterest?: string;
+  enrolledSubjects?: string[];
   preferredMode: ClassMode;
   preferredShift: 'Morning' | 'Day' | 'Evening' | 'Flexible';
   message?: string;
@@ -204,6 +205,7 @@ export interface UserProfile {
   role: 'admin' | 'student' | 'teacher';
   studentId?: string;
   enrolledCourseSlugs?: string[];
+  enrolledSubjects?: string[];
 }
 
 export interface StudentGroupMember {
@@ -215,6 +217,7 @@ export interface StudentGroupMember {
   email?: string;
   referenceNumber?: string;
   enrolledCourseSlug?: string;
+  enrolledSubjects?: string[];
   semesterOrYear?: string;
   academicLevel?: string;
   source?: string;
@@ -316,4 +319,24 @@ export interface MockTestSubmission {
   evaluatedPaperUrl?: string;
   evaluatedPaperName?: string;
 }
+
+export interface MockTestRegistration {
+  id: string;
+  referenceNumber: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  courseSlug: string;
+  courseName: string;
+  courseType?: CourseType;
+  semesterOrYear?: string;
+  enrolledSubjects: string[];
+  preferredMode?: string;
+  shift?: string;
+  studentRollNo?: string;
+  notes?: string;
+  status: 'Registered' | 'Confirmed' | 'Attended' | 'Completed' | 'Cancelled';
+  createdAt: string;
+}
+
 

@@ -50,6 +50,7 @@ import {
   Globe,
   Upload,
   Image as ImageIcon,
+  Camera,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import {
@@ -58,7 +59,19 @@ import {
   SUPABASE_ANON_KEY,
   SUPABASE_SQL_SCHEMA,
 } from '../lib/supabase';
-import { InquiryStatus, Course, Teacher, Notice, StudyMaterial, StudentGroup, StudentGroupMember, CourseType, MockTest, MockTestSubmission } from '../types';
+import {
+  InquiryStatus,
+  Course,
+  Teacher,
+  Notice,
+  StudyMaterial,
+  StudentGroup,
+  StudentGroupMember,
+  CourseType,
+  MockTest,
+  MockTestSubmission,
+  MockTestRegistration,
+} from '../types';
 
 export const AdminDashboardPage: React.FC = () => {
   const {
@@ -112,6 +125,9 @@ export const AdminDashboardPage: React.FC = () => {
     mockTestSubmissions,
     gradeMockTestSubmission,
     uploadMockTestResult,
+    mockTestRegistrations,
+    updateMockTestRegistrationStatus,
+    deleteMockTestRegistration,
     supabaseStatus,
     checkSupabaseStatus,
     syncAllToSupabase,
@@ -185,7 +201,7 @@ export const AdminDashboardPage: React.FC = () => {
   const [mockTestSubjectFilter, setMockTestSubjectFilter] = useState('ALL');
   const [mockTestTypeFilter, setMockTestTypeFilter] = useState<'ALL' | 'New Course' | 'Old Course'>('ALL');
   const [mockTestEvaluationStatusFilter, setMockTestEvaluationStatusFilter] = useState<'ALL' | 'Submitted' | 'Evaluated'>('ALL');
-  const [mockTestSubView, setMockTestSubView] = useState<'tests' | 'answer-sheets'>('tests');
+  const [mockTestSubView, setMockTestSubView] = useState<'tests' | 'answer-sheets' | 'registrations'>('tests');
   const [mockTestSearch, setMockTestSearch] = useState('');
 
   // Derived available Years / Semesters for admin filtering
@@ -2094,7 +2110,37 @@ export const AdminDashboardPage: React.FC = () => {
                 className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-4 flex flex-col justify-between"
               >
                 <div className="flex items-start gap-3.5">
-                  <img src={t.avatarUrl} alt={t.name} className="w-14 h-14 rounded-2xl object-cover shrink-0" />
+                  <label
+                    className="relative group shrink-0 cursor-pointer block"
+                    title="Click to change photo from hard drive"
+                  >
+                    <img
+                      src={t.avatarUrl}
+                      alt={t.name}
+                      className="w-14 h-14 rounded-2xl object-cover shrink-0 border border-slate-200 group-hover:opacity-75 transition-opacity"
+                    />
+                    <span className="absolute inset-0 bg-slate-950/60 rounded-2xl opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center text-white text-[9px] font-bold transition-opacity">
+                      <Camera className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Change</span>
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onload = () => {
+                            if (reader.result) {
+                              updateTeacher(t.id, { avatarUrl: reader.result as string });
+                            }
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                  </label>
                   <div className="min-w-0">
                     <h4 className="font-bold text-slate-900 text-sm truncate">{t.name}</h4>
                     <p className="text-xs text-blue-700 font-semibold">{t.designation}</p>
@@ -3143,6 +3189,18 @@ export const AdminDashboardPage: React.FC = () => {
               <Award className="w-3.5 h-3.5" />
               <span>Check Answer Sheets by Subject ({mockTestSubmissions.length})</span>
             </button>
+            <button
+              type="button"
+              onClick={() => setMockTestSubView('registrations')}
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                mockTestSubView === 'registrations'
+                  ? 'bg-amber-400 text-slate-950 shadow-xs font-black'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span>Mock Test Registrations ({mockTestRegistrations.length})</span>
+            </button>
           </div>
 
           {/* Filters & Search */}
@@ -3626,6 +3684,134 @@ export const AdminDashboardPage: React.FC = () => {
                         );
                       });
                     })()}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* SUBVIEW 3: MOCK TEST ONLY REGISTRATIONS */}
+          {mockTestSubView === 'registrations' && (
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden">
+              <div className="p-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                  <h4 className="font-bold text-sm text-[#12315A]">
+                    Students Registered for Mock Tests Series Only
+                  </h4>
+                  <p className="text-xs text-slate-500">
+                    Students interested only in mock examination batches, model papers, and official grading.
+                  </p>
+                </div>
+                <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                  Total Registrations: {mockTestRegistrations.length}
+                </span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-100 bg-slate-50/80 text-slate-500 text-[10px] uppercase font-bold tracking-wider">
+                      <th className="py-3 px-4">Pass Ref & Date</th>
+                      <th className="py-3 px-4">Student Name & Contact</th>
+                      <th className="py-3 px-4">Target Course & Shift</th>
+                      <th className="py-3 px-4">Registered Subjects</th>
+                      <th className="py-3 px-4">Mode</th>
+                      <th className="py-3 px-4">Status</th>
+                      <th className="py-3 px-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {mockTestRegistrations.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="py-8 text-center text-slate-400">
+                          No mock test registrations recorded yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      mockTestRegistrations.map((reg) => (
+                        <tr key={reg.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="py-3 px-4 font-mono">
+                            <span className="font-bold text-slate-900">{reg.referenceNumber}</span>
+                            <p className="text-[10px] text-slate-400">
+                              {reg.createdAt ? new Date(reg.createdAt).toLocaleDateString() : 'Active'}
+                            </p>
+                          </td>
+                          <td className="py-3 px-4">
+                            <p className="font-bold text-slate-900">{reg.fullName}</p>
+                            <p className="text-[11px] text-slate-500">{reg.phone}</p>
+                            <p className="text-[10px] text-slate-400">{reg.email}</p>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className="font-semibold text-blue-900">{reg.courseName}</span>
+                            <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-slate-500">
+                              <span className="bg-slate-100 px-1.5 py-0.5 rounded">{reg.semesterOrYear}</span>
+                              <span>•</span>
+                              <span className="font-medium">{reg.shift}</span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="flex flex-wrap gap-1 max-w-xs">
+                              {reg.enrolledSubjects && reg.enrolledSubjects.length > 0 ? (
+                                reg.enrolledSubjects.map((s) => (
+                                  <span
+                                    key={s}
+                                    className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-900 border border-amber-200"
+                                  >
+                                    {s}
+                                  </span>
+                                ))
+                              ) : (
+                                <span className="text-slate-400 italic text-[11px]">All Course Subjects</span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className="text-[11px] font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
+                              {reg.preferredMode}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4">
+                            <select
+                              value={reg.status}
+                              onChange={(e) =>
+                                updateMockTestRegistrationStatus(
+                                  reg.id,
+                                  e.target.value as MockTestRegistration['status']
+                                )
+                              }
+                              className={`text-[11px] font-bold px-2 py-1 rounded-lg border focus:outline-none cursor-pointer ${
+                                reg.status === 'Confirmed'
+                                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                  : reg.status === 'Completed'
+                                  ? 'bg-blue-50 text-blue-800 border-blue-300'
+                                  : reg.status === 'Cancelled'
+                                  ? 'bg-rose-50 text-rose-800 border-rose-300'
+                                  : 'bg-amber-50 text-amber-900 border-amber-300'
+                              }`}
+                            >
+                              <option value="Registered">Registered</option>
+                              <option value="Confirmed">Confirmed</option>
+                              <option value="Completed">Completed</option>
+                              <option value="Cancelled">Cancelled</option>
+                            </select>
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (confirm(`Delete mock test registration for ${reg.fullName} (${reg.referenceNumber})?`)) {
+                                  deleteMockTestRegistration(reg.id);
+                                }
+                              }}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                              title="Delete Registration"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -4358,14 +4544,61 @@ const TeacherEditModal: React.FC<{
             />
           </div>
 
-          <div>
-            <label className="block font-bold text-slate-700 mb-1">Photo Image URL</label>
-            <input
-              type="text"
-              value={avatarUrl}
-              onChange={(e) => setAvatarUrl(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-slate-200"
-            />
+          {/* Photo upload from computer hard drive */}
+          <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-2.5">
+            <label className="block font-bold text-slate-800 text-xs">
+              Faculty Profile Picture
+            </label>
+            <div className="flex items-center gap-4">
+              <img
+                src={avatarUrl}
+                alt={name || 'Faculty'}
+                className="w-16 h-16 rounded-2xl object-cover border-2 border-white shadow-md bg-white shrink-0"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src =
+                    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80';
+                }}
+              />
+              <div className="space-y-1.5 flex-1 min-w-0">
+                <label className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-[#12315A] hover:bg-blue-900 cursor-pointer shadow-xs transition-colors">
+                  <Upload className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Choose Photo from Hard Drive</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                          if (reader.result) {
+                            setAvatarUrl(reader.result as string);
+                          }
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                  />
+                </label>
+                <p className="text-[11px] text-slate-500">
+                  Select a JPG, PNG, or WebP picture directly from your computer files.
+                </p>
+              </div>
+            </div>
+
+            <div className="pt-1.5">
+              <label className="block text-[11px] font-semibold text-slate-500 mb-1">
+                Or Photo Image URL / Web Link
+              </label>
+              <input
+                type="text"
+                placeholder="https://..."
+                value={avatarUrl}
+                onChange={(e) => setAvatarUrl(e.target.value)}
+                className="w-full px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-mono bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
           </div>
 
           <div>
