@@ -31,6 +31,8 @@ import {
   QrCode,
   Plus,
   ShieldCheck,
+  Square,
+  Play,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { MockTest, MockTestSubmission, CourseType, MockTestRegistration } from '../types';
@@ -339,30 +341,63 @@ export const MockTestsPage: React.FC = () => {
     });
   }, [mockTestSubmissions, currentUser]);
 
-  // Private search results (requiring exact roll number & verification)
+  // Helper to mask PII in public lookup cards
+  const maskStudentName = (name: string) => {
+    if (!name) return 'Student';
+    const parts = name.trim().split(' ');
+    return parts
+      .map((p) => (p.length > 2 ? `${p[0]}${'*'.repeat(Math.min(4, p.length - 2))}${p.slice(-1)}` : p))
+      .join(' ');
+  };
+
+  // Private search results: Dual-verification required (Roll Number + Registered Phone Number)
   const searchedSubmissions = useMemo(() => {
-    if (!hasSearchedResult || !lookupRollNumber.trim()) return [];
+    if (!hasSearchedResult || !lookupRollNumber.trim() || !lookupPhone.trim()) return [];
     const roll = lookupRollNumber.trim().toLowerCase();
     const phoneClean = lookupPhone.trim().replace(/[^0-9]/g, '');
+    if (phoneClean.length < 7) return [];
 
     return mockTestSubmissions.filter((sub) => {
       const matchRoll = sub.rollNumber?.toLowerCase() === roll || sub.studentId?.toLowerCase() === roll;
-      // If phone is provided, check matching for strict privacy
-      if (phoneClean) {
-        const subPhoneClean = (sub.studentPhone || '').replace(/[^0-9]/g, '');
-        return matchRoll && (subPhoneClean === phoneClean || subPhoneClean.includes(phoneClean));
-      }
-      return matchRoll;
+      if (!matchRoll) return false;
+      const subPhoneClean = (sub.studentPhone || '').replace(/[^0-9]/g, '');
+      return (
+        subPhoneClean &&
+        (subPhoneClean === phoneClean || subPhoneClean.endsWith(phoneClean) || phoneClean.endsWith(subPhoneClean))
+      );
     });
   }, [mockTestSubmissions, hasSearchedResult, lookupRollNumber, lookupPhone]);
 
-  // Start exam timer
+  // Keep activeExamTest in sync with live admin updates in context
+  useEffect(() => {
+    if (activeExamTest) {
+      const fresh = mockTests.find((t) => t.id === activeExamTest.id);
+      if (fresh) {
+        setActiveExamTest(fresh);
+      }
+    }
+  }, [mockTests]);
+
+  // Start exam timer (Synchronized with official admin timer)
   const handleStartExam = (test: MockTest) => {
     setActiveExamTest(test);
     const durationSec = test.durationMinutes * 60;
-    setExamRemainingSeconds(durationSec);
-    setExamTotalSeconds(durationSec);
-    setExamStartTime(Date.now());
+    const graceSec = (test.uploadGraceMinutes ?? 15) * 60;
+    const extraSec = (test.extendedMinutes ?? 0) * 60;
+    const totalSec = durationSec + graceSec + extraSec;
+
+    if (test.liveExamStartedAt) {
+      const elapsed = Math.max(0, Math.floor((Date.now() - new Date(test.liveExamStartedAt).getTime()) / 1000));
+      const remaining = Math.max(0, totalSec - elapsed);
+      setExamRemainingSeconds(remaining);
+      setExamTotalSeconds(totalSec);
+      setExamStartTime(new Date(test.liveExamStartedAt).getTime());
+    } else {
+      setExamRemainingSeconds(totalSec);
+      setExamTotalSeconds(totalSec);
+      setExamStartTime(Date.now());
+    }
+
     setExamIsSubmitted(false);
     setShowConfirmSubmit(false);
     setExamAnswerText('');
@@ -377,27 +412,44 @@ export const MockTestsPage: React.FC = () => {
     }
   };
 
-  // Timer countdown hook
+  // Real-time Timer countdown hook synchronized with official controller clock
   useEffect(() => {
     if (!activeExamTest || examIsSubmitted) {
       if (timerRef.current) clearInterval(timerRef.current);
       return;
     }
 
+    const calculateRemaining = () => {
+      if (activeExamTest.concludedAt) {
+        return 0;
+      }
+      const totalAllowedSec =
+        (activeExamTest.durationMinutes +
+          (activeExamTest.uploadGraceMinutes ?? 15) +
+          (activeExamTest.extendedMinutes ?? 0)) *
+        60;
+
+      if (activeExamTest.liveExamStartedAt) {
+        const start = new Date(activeExamTest.liveExamStartedAt).getTime();
+        const elapsed = Math.max(0, Math.floor((Date.now() - start) / 1000));
+        return Math.max(0, totalAllowedSec - elapsed);
+      } else if (examStartTime) {
+        const elapsed = Math.max(0, Math.floor((Date.now() - examStartTime) / 1000));
+        return Math.max(0, totalAllowedSec - elapsed);
+      }
+      return totalAllowedSec;
+    };
+
+    setExamRemainingSeconds(calculateRemaining());
+
     timerRef.current = setInterval(() => {
-      setExamRemainingSeconds((prev) => {
-        if (prev <= 1) {
-          // Time expired
-          return 0;
-        }
-        return prev - 1;
-      });
+      setExamRemainingSeconds(calculateRemaining());
     }, 1000);
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [activeExamTest, examIsSubmitted]);
+  }, [activeExamTest, examIsSubmitted, examStartTime]);
 
   // Format seconds to HH:MM:SS
   const formatTime = (totalSec: number) => {
@@ -988,6 +1040,35 @@ export const MockTestsPage: React.FC = () => {
                           </span>
                         </div>
 
+                        {/* Official Live Controller Status Badge */}
+                        {test.concludedAt ? (
+                          <div className="mb-2 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-bold flex items-center gap-1.5">
+                            <Square className="w-3 h-3 text-slate-500 fill-current" />
+                            <span>Official Session Concluded</span>
+                          </div>
+                        ) : test.liveExamStartedAt ? (
+                          <div className="mb-2 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-950 border border-emerald-300 text-[10px] font-extrabold flex items-center justify-between">
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                              <span>LIVE EXAM SESSION ACTIVE</span>
+                            </div>
+                            {test.extendedMinutes ? (
+                              <span className="bg-amber-300 text-amber-950 px-1.5 py-0.2 rounded text-[9px] font-black">
+                                +{test.extendedMinutes}m Grace
+                              </span>
+                            ) : (
+                              <span className="bg-emerald-200 text-emerald-950 px-1.5 py-0.2 rounded text-[9px]">
+                                Real-Time Clock
+                              </span>
+                            )}
+                          </div>
+                        ) : test.scheduledStartTime ? (
+                          <div className="mb-2 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-900 border border-blue-200 text-[10px] font-bold flex items-center gap-1.5">
+                            <Calendar className="w-3 h-3 text-blue-600" />
+                            <span>Scheduled: {new Date(test.scheduledStartTime).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</span>
+                          </div>
+                        ) : null}
+
                         <h3 className="text-base font-bold text-[#12315A] group-hover:text-blue-700 transition-colors line-clamp-2">
                           {test.title}
                         </h3>
@@ -1472,7 +1553,7 @@ export const MockTestsPage: React.FC = () => {
 
               <div>
                 <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                  Registered Phone (For Privacy)
+                  Registered Mobile Phone * (Dual Verification)
                 </label>
                 <input
                   type="text"
@@ -1486,11 +1567,11 @@ export const MockTestsPage: React.FC = () => {
               <div className="flex items-end">
                 <button
                   onClick={() => setHasSearchedResult(true)}
-                  disabled={!lookupRollNumber.trim()}
+                  disabled={!lookupRollNumber.trim() || !lookupPhone.trim() || lookupPhone.trim().replace(/[^0-9]/g, '').length < 7}
                   className="w-full px-4 py-2.5 rounded-xl text-xs font-bold text-slate-950 bg-amber-400 hover:bg-amber-500 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer shadow-xs"
                 >
                   <Search className="w-4 h-4" />
-                  <span>Look Up My Results</span>
+                  <span>Verify & Look Up Result</span>
                 </button>
               </div>
             </div>
@@ -1684,8 +1765,8 @@ export const MockTestsPage: React.FC = () => {
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase bg-blue-100 text-blue-900">
                                 {displayCourseType}
                               </span>
-                              <span className="text-xs text-slate-400 font-mono">
-                                Student: {sub.studentName}
+                              <span className="text-xs text-slate-500 font-mono">
+                                Student: <strong>{maskStudentName(sub.studentName)}</strong> • Verified Examinee
                               </span>
                             </div>
                             <h4 className="text-lg font-bold text-[#12315A] mt-1">{displayTitle}</h4>
@@ -1791,7 +1872,61 @@ export const MockTestsPage: React.FC = () => {
             </div>
 
             {/* Time Warning Alert Bar */}
-            {isExpired && (
+            {activeExamTest.concludedAt && (
+              <div className="bg-slate-900 border-b border-slate-700 px-4 py-2.5 text-white text-xs font-bold flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Square className="w-4 h-4 text-rose-400 fill-current" />
+                  <span>EXAMINATION CONCLUDED BY EXAM CONTROLLER. This exam session has ended.</span>
+                </div>
+                <span className="bg-rose-500/20 text-rose-300 border border-rose-500/40 px-2 py-0.5 rounded text-[10px] uppercase font-black">
+                  Concluded
+                </span>
+              </div>
+            )}
+
+            {activeExamTest.extendedMinutes ? (
+              <div className="bg-emerald-600 border-b border-emerald-700 px-4 py-2.5 text-white text-xs font-bold flex items-center justify-between animate-fadeIn">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-amber-300 animate-spin-slow" />
+                  <span>
+                    EXTRA TIME GRANTED BY EXAM CONTROLLER: +{activeExamTest.extendedMinutes} Minutes Extra for Answer Sheet Upload!
+                    {activeExamTest.extensionReason ? ` (${activeExamTest.extensionReason})` : ''}
+                  </span>
+                </div>
+                <span className="bg-white/20 text-white px-2 py-0.5 rounded text-[10px] uppercase font-black">
+                  Live Extension Active
+                </span>
+              </div>
+            ) : null}
+
+            {(() => {
+              const now = Date.now();
+              const started = activeExamTest.liveExamStartedAt
+                ? new Date(activeExamTest.liveExamStartedAt).getTime()
+                : examStartTime || now;
+              const elapsed = Math.max(0, Math.floor((now - started) / 1000));
+              const writingSec = activeExamTest.durationMinutes * 60;
+              const isWritingFinished = elapsed >= writingSec;
+
+              if (isWritingFinished && !activeExamTest.concludedAt && examRemainingSeconds > 0) {
+                return (
+                  <div className="bg-amber-500 border-b border-amber-600 px-4 py-2.5 text-slate-950 text-xs font-black flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Upload className="w-4 h-4 text-slate-950" />
+                      <span>
+                        ANSWER WRITING WINDOW COMPLETE • UPLOAD GRACE TIME ACTIVE! Scan and submit your handwritten answer sheets before countdown finishes.
+                      </span>
+                    </div>
+                    <span className="bg-black/20 text-slate-950 px-2 py-0.5 rounded text-[10px] uppercase font-black">
+                      Upload Mode
+                    </span>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+
+            {isExpired && !activeExamTest.concludedAt && (
               <div className="bg-rose-100 border-b border-rose-300 px-4 py-2 text-rose-900 text-xs font-bold flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 text-rose-700" />
                 <span>TIME EXPIRED! Submissions made now will be marked as "Late Submission".</span>
@@ -1804,35 +1939,45 @@ export const MockTestsPage: React.FC = () => {
               </div>
             )}
 
-            {/* Modal Body: Split Question & Answer Upload Area */}
+            {/* Modal Body: Question Paper & Answer Upload Area */}
             <div className="p-5 sm:p-6 overflow-y-auto space-y-6 flex-1">
               {/* Question Paper Preview Bar */}
               <div className="bg-blue-50/70 border border-blue-200 rounded-2xl p-4 space-y-3">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-2">
                   <div className="flex items-center gap-2">
                     <FileText className="w-4 h-4 text-blue-700" />
-                    <span className="text-xs font-bold text-[#12315A] uppercase tracking-wider">
-                      Official Question Paper
-                    </span>
+                    <div>
+                      <span className="text-xs font-bold text-[#12315A] uppercase tracking-wider block">
+                        Official Question Paper
+                      </span>
+                      <span className="text-[11px] text-slate-500">
+                        {activeExamTest.questionFileName || activeExamTest.questionPaperName || 'Official_Question_Paper.pdf'}
+                        {activeExamTest.questionPaperSize ? ` • ${activeExamTest.questionPaperSize}` : ''}
+                      </span>
+                    </div>
                   </div>
                   {activeExamTest.questionPaperUrl && (
                     <a
                       href={activeExamTest.questionPaperUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="px-3 py-1 rounded-lg text-xs font-bold text-blue-700 bg-white border border-blue-300 hover:bg-blue-100 transition-colors flex items-center gap-1 shadow-2xs"
+                      className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-blue-700 hover:bg-blue-800 transition-colors flex items-center gap-1.5 shadow-sm"
                     >
                       <Download className="w-3.5 h-3.5" />
-                      <span>Download PDF</span>
+                      <span>Download / View Question Paper</span>
                     </a>
                   )}
                 </div>
 
-                {activeExamTest.questionText && (
-                  <div className="bg-white p-4 rounded-xl border border-blue-200/60 max-h-48 overflow-y-auto text-xs text-slate-800 whitespace-pre-line leading-relaxed font-mono">
-                    {activeExamTest.questionText}
-                  </div>
-                )}
+                <div className="bg-white p-3.5 rounded-xl border border-blue-200/60 text-xs text-slate-700 space-y-1">
+                  <p className="font-bold text-[#12315A] flex items-center gap-1.5">
+                    <HelpCircle className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Examination Instructions & Procedure</span>
+                  </p>
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    Write your answers legibly on ruled paper with clear question numbering. Keep track of the live synchronized countdown timer at the top. When writing time completes, scan your sheets into a single PDF document and upload before the grace window concludes.
+                  </p>
+                </div>
               </div>
 
               {/* Student Identity Form */}

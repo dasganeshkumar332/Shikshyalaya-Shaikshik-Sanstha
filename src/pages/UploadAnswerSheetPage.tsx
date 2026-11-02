@@ -222,8 +222,19 @@ export const UploadAnswerSheetPage: React.FC = () => {
     setPdfFile(file);
     setPdfFileName(file.name);
     setPdfFileSize(formattedSize);
-    const objectUrl = URL.createObjectURL(file);
-    setPdfFileUrl(objectUrl);
+
+    // Convert file to permanent Base64 Data URL so it persists across reloads and tab sessions
+    const reader = new FileReader();
+    reader.onload = (uploadEvent) => {
+      const base64Data = uploadEvent.target?.result as string;
+      setPdfFileUrl(base64Data);
+    };
+    reader.onerror = () => {
+      // Fallback to object URL if FileReader fails
+      const objectUrl = URL.createObjectURL(file);
+      setPdfFileUrl(objectUrl);
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -286,7 +297,7 @@ export const UploadAnswerSheetPage: React.FC = () => {
     }
 
     if (!pdfFileName && !pdfFileUrl) {
-      setUploadError('Please select or drop your answer sheet in PDF format (.pdf).');
+      setUploadError('Please select or drop your answer sheet file (PDF, Word, or Image).');
       return;
     }
 

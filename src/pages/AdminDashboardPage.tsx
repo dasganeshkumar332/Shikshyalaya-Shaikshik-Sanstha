@@ -52,6 +52,8 @@ import {
   Image as ImageIcon,
   Camera,
   UserCheck,
+  Play,
+  Square,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import {
@@ -124,6 +126,10 @@ export const AdminDashboardPage: React.FC = () => {
     updateMockTest,
     deleteMockTest,
     togglePublishMockTest,
+    startMockExamTimer,
+    extendMockExamTimer,
+    concludeMockExamTimer,
+    resetMockExamTimer,
     mockTestSubmissions,
     gradeMockTestSubmission,
     uploadMockTestResult,
@@ -214,6 +220,129 @@ export const AdminDashboardPage: React.FC = () => {
   const [regStudentStatusFilter, setRegStudentStatusFilter] = useState('ALL');
   const [regStudentShiftFilter, setRegStudentShiftFilter] = useState('ALL');
   const [regStudentToast, setRegStudentToast] = useState<string | null>(null);
+
+  // Live Exam Timer Control & Monitoring States
+  const [extendTimeModalTest, setExtendTimeModalTest] = useState<MockTest | null>(null);
+  const [extendMinutesInput, setExtendMinutesInput] = useState<number>(15);
+  const [extendReasonInput, setExtendReasonInput] = useState<string>('Answer sheet upload grace extension');
+  const [mockTimerToast, setMockTimerToast] = useState<string | null>(null);
+  const [, setTimerTicker] = useState<number>(0);
+
+  // Periodic 1-second tick to keep real-time countdown clocks live on Admin Portal
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTimerTicker((prev) => (prev + 1) % 100000);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Helper to compute live synchronized exam timer state for Admin Portal
+  const getExamTimerInfo = (test: MockTest) => {
+    const now = Date.now();
+    if (test.concludedAt) {
+      return {
+        status: 'concluded' as const,
+        label: 'Exam Concluded',
+        badgeClass: 'bg-slate-100 text-slate-700 border-slate-300',
+        timeText: `Ended at ${new Date(test.concludedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+        subText: undefined,
+        isLive: false,
+        totalRemainingSec: 0,
+        writingRemainingSec: 0,
+      };
+    }
+    if (test.liveExamStartedAt) {
+      const started = new Date(test.liveExamStartedAt).getTime();
+      const elapsedSec = Math.max(0, Math.floor((now - started) / 1000));
+      const writingSec = (test.durationMinutes || 180) * 60;
+      const graceSec = (test.uploadGraceMinutes ?? 15) * 60;
+      const extraSec = (test.extendedMinutes ?? 0) * 60;
+      const totalSec = writingSec + graceSec + extraSec;
+      const remainingTotalSec = Math.max(0, totalSec - elapsedSec);
+
+      if (elapsedSec < writingSec) {
+        const remainingWriting = writingSec - elapsedSec;
+        const h = Math.floor(remainingWriting / 3600);
+        const m = Math.floor((remainingWriting % 3600) / 60);
+        const s = remainingWriting % 60;
+        const timeStr = h > 0 ? `${h}h ${m.toString().padStart(2, '0')}m ${s.toString().padStart(2, '0')}s` : `${m}m ${s.toString().padStart(2, '0')}s`;
+        return {
+          status: 'writing' as const,
+          label: 'Writing in Progress',
+          badgeClass: 'bg-emerald-100 text-emerald-950 border-emerald-300 font-bold',
+          timeText: timeStr,
+          subText: `+${(test.uploadGraceMinutes ?? 15) + (test.extendedMinutes ?? 0)}m upload window follows`,
+          isLive: true,
+          totalRemainingSec: remainingTotalSec,
+          writingRemainingSec: remainingWriting,
+        };
+      } else if (remainingTotalSec > 0) {
+        const m = Math.floor(remainingTotalSec / 60);
+        const s = remainingTotalSec % 60;
+        return {
+          status: 'upload_grace' as const,
+          label: 'Upload Window Active',
+          badgeClass: 'bg-amber-100 text-amber-950 border-amber-400 font-extrabold shadow-2xs',
+          timeText: `${m}m ${s.toString().padStart(2, '0')}s remaining`,
+          subText: test.extendedMinutes ? `Includes +${test.extendedMinutes}m admin extension` : 'Scanning & uploading answer sheets',
+          isLive: true,
+          totalRemainingSec: remainingTotalSec,
+          writingRemainingSec: 0,
+        };
+      } else {
+        return {
+          status: 'overdue' as const,
+          label: 'Time Limit Expired',
+          badgeClass: 'bg-rose-100 text-rose-900 border-rose-300 font-semibold',
+          timeText: 'Grace period ended',
+          subText: undefined,
+          isLive: false,
+          totalRemainingSec: 0,
+          writingRemainingSec: 0,
+        };
+      }
+    }
+    if (test.scheduledStartTime) {
+      const scheduled = new Date(test.scheduledStartTime).getTime();
+      if (scheduled > now) {
+        const diffSec = Math.floor((scheduled - now) / 1000);
+        const h = Math.floor(diffSec / 3600);
+        const m = Math.floor((diffSec % 3600) / 60);
+        const s = diffSec % 60;
+        return {
+          status: 'scheduled' as const,
+          label: 'Scheduled',
+          badgeClass: 'bg-blue-100 text-blue-900 border-blue-300 font-bold',
+          timeText: `Starts in ${h > 0 ? `${h}h ` : ''}${m}m ${s.toString().padStart(2, '0')}s`,
+          subText: new Date(test.scheduledStartTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          isLive: false,
+          totalRemainingSec: diffSec,
+          writingRemainingSec: 0,
+        };
+      } else {
+        return {
+          status: 'scheduled_due' as const,
+          label: 'Scheduled Time Reached',
+          badgeClass: 'bg-purple-100 text-purple-900 border-purple-300 font-bold',
+          timeText: 'Ready to start live exam',
+          subText: undefined,
+          isLive: false,
+          totalRemainingSec: 0,
+          writingRemainingSec: 0,
+        };
+      }
+    }
+    return {
+      status: 'idle' as const,
+      label: 'Self-Paced / Inactive',
+      badgeClass: 'bg-slate-100 text-slate-600 border-slate-200',
+      timeText: `${test.durationMinutes}m writing + ${test.uploadGraceMinutes ?? 15}m upload`,
+      subText: undefined,
+      isLive: false,
+      totalRemainingSec: 0,
+      writingRemainingSec: 0,
+    };
+  };
 
   // Mock Exam Shift Management state (Admin fixes time and shifts)
   const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
@@ -422,9 +551,13 @@ export const AdminDashboardPage: React.FC = () => {
     const handleAdminLogin = (e: React.FormEvent) => {
       e.preventDefault();
       setAuthError('');
-      const ok = loginAsAdmin(adminPass);
+      if (!adminPass.trim()) {
+        setAuthError('Please enter the administrative access passcode.');
+        return;
+      }
+      const ok = loginAsAdmin(adminPass.trim());
       if (!ok) {
-        setAuthError('Incorrect administrator access code.');
+        setAuthError('Access Denied: Incorrect administrator passcode. Please contact central administration.');
       }
     };
 
@@ -450,13 +583,13 @@ export const AdminDashboardPage: React.FC = () => {
 
             <div>
               <label className="block font-bold text-slate-700 mb-1">
-                Enter Administrator Passcode
+                Enter Authorized Administrator Passcode
               </label>
               <div className="relative">
                 <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="password"
-                  placeholder="Enter passcode (or leave blank for dev access)"
+                  placeholder="Enter administrator passcode"
                   value={adminPass}
                   onChange={(e) => setAdminPass(e.target.value)}
                   className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -473,7 +606,7 @@ export const AdminDashboardPage: React.FC = () => {
             </button>
 
             <p className="text-[11px] text-slate-400 text-center">
-              Secured administrative dashboard. Changes update live database instantly.
+              Protected administrative portal. Authorized institutional personnel only.
             </p>
           </form>
         </div>
@@ -3941,129 +4074,394 @@ export const AdminDashboardPage: React.FC = () => {
 
           {/* SUBVIEW 1: MOCK TESTS LIST */}
           {mockTestSubView === 'tests' && (
-            <div className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead>
-                    <tr className="border-b border-slate-100 bg-slate-50/80 text-slate-500 text-[10px] uppercase font-bold tracking-wider">
-                      <th className="py-3 px-4">Test Title & Subject</th>
-                      <th className="py-3 px-4">Course & Stream</th>
-                      <th className="py-3 px-4">Duration & Marks</th>
-                      <th className="py-3 px-4">Student Submissions</th>
-                      <th className="py-3 px-4">Status</th>
-                      <th className="py-3 px-4 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {mockTests
-                      .filter((t) => {
-                        if (mockTestCourseFilter !== 'ALL' && t.courseSlug !== mockTestCourseFilter) return false;
-                        if (mockTestYearFilter !== 'ALL' && t.semesterOrYear && t.semesterOrYear !== mockTestYearFilter) return false;
-                        if (mockTestSubjectFilter !== 'ALL' && t.subject !== mockTestSubjectFilter) return false;
-                        if (mockTestTypeFilter !== 'ALL' && t.courseType !== mockTestTypeFilter) return false;
-                        if (!mockTestSearch.trim()) return true;
-                        const q = mockTestSearch.toLowerCase();
+            <div className="space-y-4">
+              {/* Feedback Toast */}
+              {mockTimerToast && (
+                <div className="p-3.5 rounded-2xl bg-[#12315A] text-white shadow-lg border border-amber-400/40 flex items-center justify-between text-xs animate-fadeIn">
+                  <div className="flex items-center gap-2.5">
+                    <Clock className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span className="font-bold">{mockTimerToast}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setMockTimerToast(null)}
+                    className="text-white/60 hover:text-white cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
+              {/* LIVE EXAM CONTROL & TIMING DASHBOARD */}
+              <div className="bg-gradient-to-r from-[#12315A] via-[#1a4176] to-[#12315A] text-white rounded-3xl p-5 sm:p-6 shadow-md border border-blue-900/40 relative overflow-hidden space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-amber-400 text-slate-950">
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>Live Exam Controller & Timer Sync</span>
+                    </span>
+                    <h3 className="text-base sm:text-lg font-black text-white mt-1">
+                      Official Mock Examination Clock & Upload Window Manager
+                    </h3>
+                    <p className="text-xs text-blue-100 max-w-2xl">
+                      Control real-time start times, grant extra upload grace periods (+10m, +15m, +30m) for student answer sheet scanning, and conclude examinations. All timer changes synchronize immediately to the Student Portal.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 text-amber-300 border border-white/15">
+                      <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+                      <span>Synchronized Real-Time Clocks</span>
+                    </span>
+                  </div>
+                </div>
+
+                {/* Active / Scheduled Tests Highlights */}
+                {(() => {
+                  const activeOrScheduledTests = mockTests.filter(
+                    (t) => t.published && (t.liveExamStartedAt || t.scheduledStartTime) && !t.concludedAt
+                  );
+
+                  if (activeOrScheduledTests.length === 0) {
+                    return (
+                      <div className="bg-white/5 border border-white/10 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-blue-100">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                          <span>No live exams currently running. Pick any test from the table below and click <strong>"Start Exam Now"</strong> to begin an official timed session for all students.</span>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                      {activeOrScheduledTests.map((test) => {
+                        const timer = getExamTimerInfo(test);
                         return (
-                          t.title.toLowerCase().includes(q) ||
-                          t.subject.toLowerCase().includes(q) ||
-                          t.courseName.toLowerCase().includes(q) ||
-                          (t.semesterOrYear && t.semesterOrYear.toLowerCase().includes(q))
-                        );
-                      })
-                      .map((test) => {
-                        const testSubs = mockTestSubmissions.filter((s) => (s.mockTestId || s.testId) === test.id);
-                        const evaluatedCount = testSubs.filter((s) => s.evaluationStatus === 'Evaluated').length;
-
-                        return (
-                          <tr key={test.id} className="hover:bg-slate-50/80 transition-colors">
-                            <td className="py-3 px-4">
-                              <p className="font-bold text-slate-900">{test.title}</p>
-                              <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
-                                <p className="text-[11px] text-blue-700 font-bold">
-                                  Subject: {test.subject}
-                                </p>
-                                {test.semesterOrYear && (
-                                  <span className="text-[10px] font-semibold text-purple-700 bg-purple-50 px-2 py-0.2 rounded-full border border-purple-200">
-                                    {test.semesterOrYear}
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-
-                            <td className="py-3 px-4">
-                              <p className="font-medium text-slate-700">{test.courseName}</p>
-                              <span
-                                className={`inline-block mt-0.5 text-[9px] font-bold px-2 py-0.2 rounded-full uppercase ${
-                                  test.courseType === 'Old Course'
-                                    ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                                    : 'bg-blue-100 text-blue-900 border border-blue-200'
-                                }`}
-                              >
-                                {test.courseType}
-                              </span>
-                            </td>
-
-                            <td className="py-3 px-4">
-                              <p className="font-mono text-slate-800 font-semibold">
-                                {test.durationMinutes} Mins
-                              </p>
-                              <p className="text-[10px] text-slate-500">
-                                Full: {test.fullMarks} • Pass: {test.passMarks}
-                              </p>
-                            </td>
-
-                            <td className="py-3 px-4">
-                              <button
-                                type="button"
-                                onClick={() => setSelectedTestForSubmissions(test)}
-                                className="px-2.5 py-1 rounded-lg text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-colors flex items-center gap-1.5 cursor-pointer"
-                              >
-                                <FileCheck className="w-3.5 h-3.5" />
-                                <span>
-                                  {testSubs.length} Uploads ({evaluatedCount} Evaluated)
+                          <div
+                            key={test.id}
+                            className="bg-white/10 border border-white/20 rounded-2xl p-4 space-y-3 backdrop-blur-xs"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full uppercase border ${timer.badgeClass}`}>
+                                  {timer.label}
                                 </span>
-                              </button>
-                            </td>
+                                <h4 className="font-bold text-white text-sm line-clamp-1 mt-1">
+                                  {test.title}
+                                </h4>
+                                <p className="text-[11px] text-blue-200">
+                                  Subject: <span className="text-amber-300 font-semibold">{test.subject}</span> • {test.courseName}
+                                </p>
+                              </div>
 
-                            <td className="py-3 px-4">
-                              <button
-                                type="button"
-                                onClick={() => togglePublishMockTest(test.id)}
-                                className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer ${
-                                  test.published
-                                    ? 'bg-emerald-100 text-emerald-800'
-                                    : 'bg-slate-200 text-slate-600'
-                                }`}
-                              >
-                                {test.published ? 'Live Active' : 'Draft Hidden'}
-                              </button>
-                            </td>
+                              <div className="text-right shrink-0">
+                                <p className="text-[10px] uppercase font-bold text-white/70">Live Clock</p>
+                                <p className="text-lg font-mono font-black text-amber-300">
+                                  {timer.timeText}
+                                </p>
+                              </div>
+                            </div>
 
-                            <td className="py-3 px-4 text-right">
-                              <div className="flex items-center justify-end gap-1.5">
+                            {/* Control Action Buttons */}
+                            <div className="flex items-center gap-2 flex-wrap pt-1 border-t border-white/10">
+                              {!test.liveExamStartedAt && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    startMockExamTimer(test.id);
+                                    setMockTimerToast(`Live exam timer started for "${test.title}"! Students can now access questions and timer countdown is running.`);
+                                    setTimeout(() => setMockTimerToast(null), 5000);
+                                  }}
+                                  className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-950 bg-emerald-400 hover:bg-emerald-300 transition-colors flex items-center gap-1.5 cursor-pointer shadow-sm"
+                                >
+                                  <Play className="w-3.5 h-3.5 fill-current" />
+                                  <span>Start Exam Now</span>
+                                </button>
+                              )}
+
+                              {test.liveExamStartedAt && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      extendMockExamTimer(test.id, 15, 'Official 15-minute answer sheet scanning and upload grace extension');
+                                      setMockTimerToast(`+15 minutes upload grace added to "${test.title}"! All connected students notified.`);
+                                      setTimeout(() => setMockTimerToast(null), 5000);
+                                    }}
+                                    className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-950 bg-amber-400 hover:bg-amber-300 transition-colors flex items-center gap-1 cursor-pointer shadow-sm"
+                                  >
+                                    <Clock className="w-3.5 h-3.5" />
+                                    <span>+15m Upload Grace</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setExtendTimeModalTest(test);
+                                      setExtendMinutesInput(15);
+                                    }}
+                                    className="px-2.5 py-1.5 rounded-xl text-xs font-bold text-white bg-white/20 hover:bg-white/30 transition-colors cursor-pointer"
+                                  >
+                                    Custom Extension...
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (confirm(`Conclude exam now for "${test.title}"? Students will immediately see that the exam is finished.`)) {
+                                        concludeMockExamTimer(test.id);
+                                        setMockTimerToast(`Exam "${test.title}" officially concluded.`);
+                                        setTimeout(() => setMockTimerToast(null), 5000);
+                                      }
+                                    }}
+                                    className="px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-500 transition-colors flex items-center gap-1 cursor-pointer ml-auto"
+                                  >
+                                    <Square className="w-3 h-3 fill-current" />
+                                    <span>End Exam</span>
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Table of all tests */}
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-slate-100 bg-slate-50/80 text-slate-500 text-[10px] uppercase font-bold tracking-wider">
+                        <th className="py-3 px-4">Test Title & Subject</th>
+                        <th className="py-3 px-4">Course & Stream</th>
+                        <th className="py-3 px-4">Duration & Marks</th>
+                        <th className="py-3 px-4">Exam Timer & Controls</th>
+                        <th className="py-3 px-4">Student Submissions</th>
+                        <th className="py-3 px-4">Status</th>
+                        <th className="py-3 px-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {mockTests
+                        .filter((t) => {
+                          if (mockTestCourseFilter !== 'ALL' && t.courseSlug !== mockTestCourseFilter) return false;
+                          if (mockTestYearFilter !== 'ALL' && t.semesterOrYear && t.semesterOrYear !== mockTestYearFilter) return false;
+                          if (mockTestSubjectFilter !== 'ALL' && t.subject !== mockTestSubjectFilter) return false;
+                          if (mockTestTypeFilter !== 'ALL' && t.courseType !== mockTestTypeFilter) return false;
+                          if (!mockTestSearch.trim()) return true;
+                          const q = mockTestSearch.toLowerCase();
+                          return (
+                            t.title.toLowerCase().includes(q) ||
+                            t.subject.toLowerCase().includes(q) ||
+                            t.courseName.toLowerCase().includes(q) ||
+                            (t.semesterOrYear && t.semesterOrYear.toLowerCase().includes(q))
+                          );
+                        })
+                        .map((test) => {
+                          const testSubs = mockTestSubmissions.filter((s) => (s.mockTestId || s.testId) === test.id);
+                          const evaluatedCount = testSubs.filter((s) => s.evaluationStatus === 'Evaluated').length;
+                          const timerInfo = getExamTimerInfo(test);
+
+                          return (
+                            <tr key={test.id} className="hover:bg-slate-50/80 transition-colors">
+                              <td className="py-3 px-4">
+                                <p className="font-bold text-slate-900">{test.title}</p>
+                                <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                                  <p className="text-[11px] text-blue-700 font-bold">
+                                    Subject: {test.subject}
+                                  </p>
+                                  {test.semesterOrYear && (
+                                    <span className="text-[10px] font-semibold text-purple-700 bg-purple-50 px-2 py-0.2 rounded-full border border-purple-200">
+                                      {test.semesterOrYear}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+
+                              <td className="py-3 px-4">
+                                <p className="font-medium text-slate-700">{test.courseName}</p>
+                                <span
+                                  className={`inline-block mt-0.5 text-[9px] font-bold px-2 py-0.2 rounded-full uppercase ${
+                                    test.courseType === 'Old Course'
+                                      ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                                      : 'bg-blue-100 text-blue-900 border border-blue-200'
+                                  }`}
+                                >
+                                  {test.courseType}
+                                </span>
+                              </td>
+
+                              <td className="py-3 px-4">
+                                <p className="font-mono text-slate-800 font-semibold">
+                                  {test.durationMinutes} Mins
+                                </p>
+                                <p className="text-[10px] text-slate-500">
+                                  Full: {test.fullMarks} • Pass: {test.passMarks}
+                                </p>
+                              </td>
+
+                              {/* Exam Timer & Live Controls Column */}
+                              <td className="py-3 px-4">
+                                <div className="space-y-1.5 min-w-[200px]">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span
+                                      className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${timerInfo.badgeClass}`}
+                                    >
+                                      <Clock className="w-3 h-3" />
+                                      <span>{timerInfo.label}</span>
+                                    </span>
+                                    {test.extendedMinutes ? (
+                                      <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded bg-amber-200 text-amber-950 border border-amber-300">
+                                        +{test.extendedMinutes}m Grace
+                                      </span>
+                                    ) : null}
+                                  </div>
+
+                                  <p className="text-xs font-mono font-extrabold text-slate-800">
+                                    {timerInfo.timeText}
+                                  </p>
+                                  {timerInfo.subText && (
+                                    <p className="text-[10px] text-slate-500 font-medium">
+                                      {timerInfo.subText}
+                                    </p>
+                                  )}
+
+                                  {/* Quick Actions */}
+                                  <div className="flex items-center gap-1 pt-0.5 flex-wrap">
+                                    {!test.liveExamStartedAt && !test.concludedAt && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          startMockExamTimer(test.id);
+                                          setMockTimerToast(`Live exam timer started for "${test.title}"! Writing clock is now live on student portal.`);
+                                          setTimeout(() => setMockTimerToast(null), 5000);
+                                        }}
+                                        className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-2xs flex items-center gap-0.5"
+                                        title="Start exam countdown now"
+                                      >
+                                        <Play className="w-2.5 h-2.5 fill-current" />
+                                        <span>Start Exam Now</span>
+                                      </button>
+                                    )}
+
+                                    {test.liveExamStartedAt && !test.concludedAt && (
+                                      <>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            extendMockExamTimer(test.id, 15, '15-minute standard scan and upload grace period');
+                                            setMockTimerToast(`+15 minutes upload grace added to "${test.title}"! All students notified.`);
+                                            setTimeout(() => setMockTimerToast(null), 5000);
+                                          }}
+                                          className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-400 hover:bg-amber-500 text-slate-950 cursor-pointer shadow-2xs"
+                                          title="Grant quick +15 mins upload window"
+                                        >
+                                          +15m Upload
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setExtendTimeModalTest(test);
+                                            setExtendMinutesInput(15);
+                                          }}
+                                          className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer border border-slate-200"
+                                          title="Extend upload time with custom minutes"
+                                        >
+                                          Extend...
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            if (confirm(`Conclude exam timer for "${test.title}"? Students will no longer be able to submit.`)) {
+                                              concludeMockExamTimer(test.id);
+                                              setMockTimerToast(`Exam "${test.title}" marked as Concluded.`);
+                                              setTimeout(() => setMockTimerToast(null), 5000);
+                                            }
+                                          }}
+                                          className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-600 hover:bg-rose-700 text-white cursor-pointer shadow-2xs"
+                                          title="End exam immediately"
+                                        >
+                                          End
+                                        </button>
+                                      </>
+                                    )}
+
+                                    {(test.liveExamStartedAt || test.concludedAt) && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          if (confirm(`Reset live timer for "${test.title}"?`)) {
+                                            resetMockExamTimer(test.id);
+                                            setMockTimerToast(`Timer reset for "${test.title}".`);
+                                            setTimeout(() => setMockTimerToast(null), 5000);
+                                          }
+                                        }}
+                                        className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+                                        title="Reset Timer"
+                                      >
+                                        <RotateCcw className="w-2.5 h-2.5" />
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              </td>
+
+                              <td className="py-3 px-4">
                                 <button
                                   type="button"
                                   onClick={() => setSelectedTestForSubmissions(test)}
-                                  className="p-1.5 text-blue-700 hover:bg-blue-50 rounded-lg cursor-pointer"
-                                  title="Grade Submissions"
+                                  className="px-2.5 py-1 rounded-lg text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-colors flex items-center gap-1.5 cursor-pointer"
                                 >
-                                  <Award className="w-4 h-4" />
+                                  <FileCheck className="w-3.5 h-3.5" />
+                                  <span>
+                                    {testSubs.length} Uploads ({evaluatedCount} Evaluated)
+                                  </span>
                                 </button>
+                              </td>
+
+                              <td className="py-3 px-4">
                                 <button
                                   type="button"
-                                  onClick={() => {
-                                    setEditingMockTest(test);
-                                    setIsMockTestModalOpen(true);
-                                  }}
-                                  className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg cursor-pointer"
-                                  title="Edit Test Details"
+                                  onClick={() => togglePublishMockTest(test.id)}
+                                  className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer ${
+                                    test.published
+                                      ? 'bg-emerald-100 text-emerald-800'
+                                      : 'bg-slate-200 text-slate-600'
+                                  }`}
                                 >
-                                  <Edit2 className="w-4 h-4" />
+                                  {test.published ? 'Live Active' : 'Draft Hidden'}
                                 </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    if (confirm(`Delete mock test "${test.title}"?`)) {
+                              </td>
+
+                              <td className="py-3 px-4 text-right">
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedTestForSubmissions(test)}
+                                    className="p-1.5 text-blue-700 hover:bg-blue-50 rounded-lg cursor-pointer"
+                                    title="Grade Submissions"
+                                  >
+                                    <Award className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingMockTest(test);
+                                      setIsMockTestModalOpen(true);
+                                    }}
+                                    className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg cursor-pointer"
+                                    title="Edit Test Details"
+                                  >
+                                    <Edit2 className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (confirm(`Delete mock test "${test.title}"?`)) {
                                       deleteMockTest(test.id);
                                     }
                                   }}
@@ -4081,7 +4479,8 @@ export const AdminDashboardPage: React.FC = () => {
                 </table>
               </div>
             </div>
-          )}
+          </div>
+        )}
 
           {/* SUBVIEW 2: FACULTY ANSWER SHEET CHECKING (FILTERED BY COURSE & SUBJECT) */}
           {mockTestSubView === 'answer-sheets' && (
@@ -5053,6 +5452,117 @@ export const AdminDashboardPage: React.FC = () => {
             setIsMockTestModalOpen(false);
           }}
         />
+      )}
+
+      {/* EXTEND UPLOAD TIME MODAL */}
+      {extendTimeModalTest && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl border border-slate-200 relative max-h-[90vh] overflow-y-auto space-y-4 text-xs sm:text-sm">
+            <button
+              type="button"
+              onClick={() => setExtendTimeModalTest(null)}
+              className="absolute top-5 right-5 p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100">
+              <div className="p-2.5 bg-amber-50 text-amber-700 rounded-2xl">
+                <Clock className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-black text-base text-[#12315A]">
+                  Extend Student Answer Sheet Upload Window
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  {extendTimeModalTest.title} ({extendTimeModalTest.subject})
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3.5 bg-amber-50/70 border border-amber-200/80 rounded-2xl space-y-2 text-xs text-amber-950">
+              <p className="font-bold flex items-center gap-1.5">
+                <AlertCircle className="w-4 h-4 text-amber-600" />
+                <span>Live Student Sync Notice</span>
+              </p>
+              <p className="text-[11px] leading-relaxed">
+                Extending time will update the live countdown on student exam screens immediately. Students will receive an extra grace allowance to finish scanning and uploading their handwritten answer sheets.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1.5">
+                  Extra Grace Minutes to Add *
+                </label>
+                <div className="flex items-center gap-2 mb-2">
+                  <input
+                    type="number"
+                    min={1}
+                    max={120}
+                    value={extendMinutesInput}
+                    onChange={(e) => setExtendMinutesInput(Math.max(1, Number(e.target.value)))}
+                    className="w-28 px-3 py-2 rounded-xl border border-slate-200 font-mono font-bold text-sm"
+                  />
+                  <span className="text-slate-600 font-semibold text-xs">Minutes</span>
+                </div>
+                {/* Quick Presets */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {[5, 10, 15, 20, 30, 45, 60].map((mins) => (
+                    <button
+                      key={mins}
+                      type="button"
+                      onClick={() => setExtendMinutesInput(mins)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors cursor-pointer ${
+                        extendMinutesInput === mins
+                          ? 'bg-amber-400 text-slate-950 border-amber-500 shadow-2xs'
+                          : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      +{mins} Mins
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Extension Reason / Public Announcement Note
+                </label>
+                <input
+                  type="text"
+                  value={extendReasonInput}
+                  onChange={(e) => setExtendReasonInput(e.target.value)}
+                  placeholder="e.g. Granted upload grace for network slowdown / scanner delays"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs"
+                />
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setExtendTimeModalTest(null)}
+                className="px-4 py-2 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  extendMockExamTimer(extendTimeModalTest.id, extendMinutesInput, extendReasonInput);
+                  setMockTimerToast(`+${extendMinutesInput} minutes upload grace granted to all candidates for "${extendTimeModalTest.title}"!`);
+                  setExtendTimeModalTest(null);
+                  setTimeout(() => setMockTimerToast(null), 5000);
+                }}
+                className="px-5 py-2 rounded-xl font-bold text-slate-950 bg-amber-400 hover:bg-amber-500 shadow cursor-pointer flex items-center gap-1.5"
+              >
+                <Check className="w-4 h-4" />
+                <span>Apply Time Extension</span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* CREATE / EDIT MOCK EXAM SHIFT MODAL */}
@@ -6377,9 +6887,23 @@ const MockTestEditModal: React.FC<{
       : mockTest?.instructions ||
           'Candidates are required to give answers in their own words as far as practicable. Figures in the margin indicate full marks. Upload your scanned handwritten answers before the countdown expires.'
   );
-  const [questionText, setQuestionText] = useState<string>(
-    mockTest?.questionText ||
-      `Group A: Brief Answer Questions (Attempt ALL - 10 x 2 = 20 Marks)\n1. Define Capital Structure and Financial Leverage.\n2. State the primary objective of Financial Management.\n\nGroup B: Descriptive Answer Questions (Attempt Any FIVE - 5 x 10 = 50 Marks)\n3. Explain the Determinants of Dividend Policy in Nepali commercial banks.\n4. Numerical: Calculate Net Present Value (NPV) and Internal Rate of Return (IRR) for Project Alpha and Beta.\n\nGroup C: Comprehensive Analysis Question (Attempt Any ONE - 1 x 30 = 30 Marks)\n5. Detailed Case on Working Capital Management Strategy.`
+  // Admin Exam Timer & Upload Window Configuration
+  const [scheduledStartTime, setScheduledStartTime] = useState<string>(() => {
+    if (mockTest?.scheduledStartTime) {
+      try {
+        const d = new Date(mockTest.scheduledStartTime);
+        return !isNaN(d.getTime()) ? d.toISOString().slice(0, 16) : '';
+      } catch {
+        return '';
+      }
+    }
+    return '';
+  });
+  const [uploadGraceMinutes, setUploadGraceMinutes] = useState<number>(
+    mockTest?.uploadGraceMinutes !== undefined ? mockTest.uploadGraceMinutes : 15
+  );
+  const [endOption, setEndOption] = useState<'automatic' | 'manual'>(
+    mockTest?.concludedAt ? 'manual' : 'automatic'
   );
 
   // File Upload State
@@ -6407,7 +6931,7 @@ const MockTestEditModal: React.FC<{
             <span>{mockTest ? 'Edit Mock Test Examination' : 'Upload Questions / Create Mock Test'}</span>
           </h3>
           <p className="text-xs text-slate-500 mt-0.5">
-            Select course and subject from dropdowns, and upload official question papers in PDF, Word, or image format.
+            Select course and subject from dropdowns, set examination timers, and upload official question papers in PDF, Word, or image format.
           </p>
         </div>
 
@@ -6470,13 +6994,14 @@ const MockTestEditModal: React.FC<{
               durationMinutes,
               fullMarks,
               passMarks,
+              scheduledStartTime: scheduledStartTime ? new Date(scheduledStartTime).toISOString() : undefined,
+              uploadGraceMinutes,
               questionPaperUrl: fileDataUrl || undefined,
               questionFileName: uploadedFileName || (fileDataUrl ? 'Official_Question_Paper.pdf' : undefined),
               questionPaperName: uploadedFileName || (fileDataUrl ? 'Official_Question_Paper.pdf' : undefined),
               questionPaperSize: uploadedFileSize || (fileDataUrl ? '2.4 MB' : undefined),
               questionFileType: uploadedFileType || 'pdf',
               instructions: instructions.includes('\n') ? instructions.split('\n').filter(Boolean) : [instructions],
-              questionText,
             });
           }}
           className="space-y-3.5"
@@ -6629,28 +7154,102 @@ const MockTestEditModal: React.FC<{
             </div>
           </div>
 
-          {/* Exam Instructions */}
-          <div>
-            <label className="block font-bold text-slate-700 mb-1">Exam Instructions</label>
-            <textarea
-              rows={2}
-              value={instructions}
-              onChange={(e) => setInstructions(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs"
-            />
-          </div>
+          {/* Admin Exam Schedule, Timer & Upload Window Settings */}
+          <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-200/80 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5 uppercase tracking-wider">
+                <Clock className="w-4 h-4 text-amber-600" />
+                <span>Exam Timer, Schedule & Upload Window Settings</span>
+              </span>
+              <span className="text-[10px] font-semibold text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-full border border-amber-300/60">
+                Live Synced with Student Portal
+              </span>
+            </div>
 
-          {/* Structured Question Text */}
-          <div>
-            <label className="block font-bold text-slate-700 mb-1">
-              Structured Question Text / Prompts (Displayed directly to students)
-            </label>
-            <textarea
-              rows={4}
-              value={questionText}
-              onChange={(e) => setQuestionText(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 font-mono text-xs"
-            />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Scheduled Start Time */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Scheduled Start Date & Time (Optional)
+                </label>
+                <input
+                  type="datetime-local"
+                  value={scheduledStartTime}
+                  onChange={(e) => setScheduledStartTime(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-mono"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Leave blank to allow student self-paced start or use "Start Exam Now" button anytime.
+                </p>
+              </div>
+
+              {/* Upload Grace Period for Students */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Upload Grace Time for Students (Minutes) *
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={5}
+                    max={120}
+                    value={uploadGraceMinutes}
+                    onChange={(e) => setUploadGraceMinutes(Math.max(5, Number(e.target.value)))}
+                    className="w-24 px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold font-mono"
+                  />
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {[10, 15, 20, 30].map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setUploadGraceMinutes(m)}
+                        className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition-colors cursor-pointer ${
+                          uploadGraceMinutes === m
+                            ? 'bg-amber-400 text-slate-950 border-amber-500'
+                            : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        +{m}m
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Extra minutes granted after writing time to scan & upload handwritten answer sheets.
+                </p>
+              </div>
+            </div>
+
+            {/* Ending Time Option */}
+            <div className="pt-2 border-t border-amber-200/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <label className="text-[11px] font-bold text-slate-700">
+                Exam Ending Time Behavior:
+              </label>
+              <div className="flex items-center gap-3 text-xs">
+                <label className="inline-flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="endOption"
+                    value="automatic"
+                    checked={endOption === 'automatic'}
+                    onChange={() => setEndOption('automatic')}
+                    className="text-amber-600"
+                  />
+                  <span className="text-slate-700 font-medium">Auto-Conclude when Time + Grace Expires</span>
+                </label>
+                <label className="inline-flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="endOption"
+                    value="manual"
+                    checked={endOption === 'manual'}
+                    onChange={() => setEndOption('manual')}
+                    className="text-amber-600"
+                  />
+                  <span className="text-slate-700 font-medium">Manual End by Admin Only</span>
+                </label>
+              </div>
+            </div>
           </div>
 
           <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">

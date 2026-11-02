@@ -598,7 +598,7 @@ export async function syncAllDataToSupabase(data: {
     }
   }
 
-  // Always write comprehensive master backup snapshot to app_storage
+  // Write sanitized telemetry stats to app_storage without exposing student PII
   try {
     await supabase.from('app_storage').upsert({
       key: 'shikshyalaya_master_backup',
@@ -607,9 +607,7 @@ export async function syncAllDataToSupabase(data: {
         inquiriesCount: data.inquiries.length,
         submissionsCount: data.mockSubmissions.length,
         groupsCount: data.studentGroups.length,
-        inquiries: data.inquiries,
-        submissions: data.mockSubmissions,
-        settings: data.settings,
+        coursesCount: Object.keys(syncedCounts).length,
       },
       updated_at: new Date().toISOString(),
     });
@@ -625,9 +623,27 @@ export async function syncAllDataToSupabase(data: {
 }
 
 /**
- * Loads inquiries from Supabase if table is populated
+ * Checks if current browser session has active administrative authorization
  */
-export async function fetchInquiriesFromSupabase(): Promise<AdmissionInquiry[] | null> {
+export function isCurrentAdminSession(): boolean {
+  try {
+    const raw = localStorage.getItem('shikshyalaya_auth_profile');
+    if (!raw) return false;
+    const parsed = JSON.parse(raw);
+    return parsed?.role === 'admin';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Loads inquiries from Supabase for authorized administrators only
+ */
+export async function fetchInquiriesFromSupabase(forceAdminCheck = true): Promise<AdmissionInquiry[] | null> {
+  // Prevent anonymous reading of student PII
+  if (forceAdminCheck && !isCurrentAdminSession()) {
+    return null;
+  }
   try {
     const { data, error } = await supabase
       .from('admission_inquiries')
@@ -682,9 +698,13 @@ export async function fetchInquiriesFromSupabase(): Promise<AdmissionInquiry[] |
 }
 
 /**
- * Loads mock test submissions from Supabase
+ * Loads mock test submissions from Supabase (Authorized Administrators only)
  */
-export async function fetchSubmissionsFromSupabase(): Promise<MockTestSubmission[] | null> {
+export async function fetchSubmissionsFromSupabase(forceAdminCheck = true): Promise<MockTestSubmission[] | null> {
+  // Prevent anonymous bulk reading of student submissions and evaluation scores
+  if (forceAdminCheck && !isCurrentAdminSession()) {
+    return null;
+  }
   try {
     const { data, error } = await supabase
       .from('mock_test_submissions')
@@ -732,9 +752,13 @@ export async function fetchSubmissionsFromSupabase(): Promise<MockTestSubmission
 }
 
 /**
- * Loads mock test registrations from Supabase
+ * Loads mock test registrations from Supabase (Authorized Administrators only)
  */
-export async function fetchMockRegistrationsFromSupabase(): Promise<MockTestRegistration[] | null> {
+export async function fetchMockRegistrationsFromSupabase(forceAdminCheck = true): Promise<MockTestRegistration[] | null> {
+  // Prevent anonymous bulk reading of mock registrations
+  if (forceAdminCheck && !isCurrentAdminSession()) {
+    return null;
+  }
   try {
     const { data, error } = await supabase
       .from('mock_test_registrations')
@@ -767,19 +791,76 @@ export async function fetchMockRegistrationsFromSupabase(): Promise<MockTestRegi
       });
     }
 
-    // Fallback: check app_storage for mock_reg:* keys
-    const { data: storageData } = await supabase
-      .from('app_storage')
-      .select('value')
-      .like('key', 'mock_reg:%');
-
-    if (storageData && storageData.length > 0) {
-      return storageData.map((s: any) => s.value as MockTestRegistration);
-    }
-
     return null;
   } catch (err) {
     console.warn('[Supabase] Failed to fetch mock registrations:', err);
     return null;
+  }
+}
+
+/**
+ * Dual-verification student result lookup:
+ * Requires BOTH exact roll number AND exact registered phone number to return results.
+ */
+export async function fetchStudentResultByCredentials(
+  rollNumber: string,
+  phone: string
+): Promise<MockTestSubmission[]> {
+  const cleanRoll = rollNumber.trim().toLowerCase();
+  const cleanPhone = phone.trim().replace(/[^0-9]/g, '');
+
+  if (!cleanRoll || cleanPhone.length < 7) {
+    return [];
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('mock_test_submissions')
+      .select('*')
+      .or(`roll_number.ilike.${cleanRoll},student_id.ilike.${cleanRoll}`);
+
+    if (error || !data || data.length === 0) return [];
+
+    // Filter strictly by phone match to prevent roll-number brute forcing
+    return data
+      .filter((row: any) => {
+        const studentPhone = (row.student_phone || '').replace(/[^0-9]/g, '');
+        return studentPhone && (studentPhone === cleanPhone || studentPhone.endsWith(cleanPhone) || cleanPhone.endsWith(studentPhone));
+      })
+      .map((row: any) => {
+        if (row.raw_data && row.raw_data.studentName) {
+          return row.raw_data as MockTestSubmission;
+        }
+        return {
+          id: row.id,
+          mockTestId: row.mock_test_id,
+          mockTestTitle: row.mock_test_title || undefined,
+          courseSlug: row.course_slug,
+          courseType: row.course_type || 'New Course',
+          subject: row.subject || undefined,
+          studentId: row.student_id,
+          studentName: row.student_name,
+          studentEmail: row.student_email || undefined,
+          studentPhone: row.student_phone || undefined,
+          rollNumber: row.roll_number || undefined,
+          submittedAt: row.submitted_at,
+          timeTakenSeconds: row.time_taken_seconds || 0,
+          isLateSubmission: row.is_late_submission || false,
+          answerFileUrl: row.answer_file_url || undefined,
+          answerFileName: row.answer_file_name || undefined,
+          answerFileSize: row.answer_file_size || undefined,
+          typedAnswers: row.typed_answers || undefined,
+          marksObtained: row.marks_obtained !== null ? Number(row.marks_obtained) : undefined,
+          evaluationStatus: row.evaluation_status || 'Submitted',
+          evaluatedBy: row.evaluated_by || undefined,
+          evaluatedAt: row.evaluated_at || undefined,
+          feedbackRemarks: row.feedback_remarks || undefined,
+          evaluatedPaperUrl: row.evaluated_paper_url || undefined,
+          evaluatedPaperName: row.evaluated_paper_name || undefined,
+        } as MockTestSubmission;
+      });
+  } catch (err) {
+    console.warn('[Supabase] Dual verification student lookup failed:', err);
+    return [];
   }
 }

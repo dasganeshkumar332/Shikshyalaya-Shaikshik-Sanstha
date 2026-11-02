@@ -17,7 +17,7 @@ import { useApp } from '../context/AppContext';
 
 export const StudentLoginPage: React.FC = () => {
   const navigate = useNavigate();
-  const { loginAsStudent, currentUser, courses, inquiries } = useApp();
+  const { loginAsStudent, currentUser, courses, inquiries, mockTestRegistrations, studentGroups } = useApp();
 
   const [studentId, setStudentId] = useState('');
   const [email, setEmail] = useState('');
@@ -36,14 +36,14 @@ export const StudentLoginPage: React.FC = () => {
 
     const rawInput = (studentId || email || '').trim();
     if (!rawInput) {
-      setError('Please enter your Student ID, Application Reference Number, or Registered Email.');
+      setError('Please enter your Student ID, Application Reference Number, or Registered Mobile / Email.');
       return;
     }
 
     const cleanInput = rawInput.toLowerCase();
     const cleanDigits = rawInput.replace(/[^0-9]/g, '');
 
-    // Check if user is an applicant from admission inquiries
+    // 1. Check if user is an applicant from admission inquiries
     const foundInq = inquiries.find(
       (inq) =>
         (inq.referenceNumber && inq.referenceNumber.toLowerCase() === cleanInput) ||
@@ -55,7 +55,7 @@ export const StudentLoginPage: React.FC = () => {
     if (foundInq) {
       if (foundInq.status !== 'Verified & Enrolled' && !foundInq.paymentVerified) {
         setError(
-          `Application Found (${foundInq.referenceNumber}): Your admission application for "${foundInq.courseName}" is currently awaiting administrative payment verification. Please allow our admissions office a short time to review your uploaded voucher, or contact 9801234567.`
+          `Application Found (${foundInq.referenceNumber}): Your admission application for "${foundInq.courseName}" is currently awaiting administrative payment verification. Please allow our admissions office a short time to review your uploaded voucher, or contact +977 9767648342.`
         );
         return;
       }
@@ -65,54 +65,100 @@ export const StudentLoginPage: React.FC = () => {
         foundInq.assignedStudentId || foundInq.referenceNumber,
         foundInq.email || 'student@shikshyalaya.edu.np',
         [foundInq.courseSlug],
-        foundInq.fullName
+        foundInq.fullName,
+        foundInq.enrolledSubjects
       );
       if (success) {
         navigate('/student/dashboard');
       } else {
-        setError('Unable to authenticate student profile.');
+        setError('Unable to authenticate student profile. Please contact administration.');
       }
       return;
     }
 
-    // Standard credential login
-    const c = courses.find((x) => x.slug === selectedCourseSlug);
-    const courseTitle = c ? c.title : selectedCourseSlug.toUpperCase();
-
-    const success = loginAsStudent(
-      studentId || `SSS-STU-${selectedCourseSlug.slice(0, 3).toUpperCase()}-2026`,
-      email || 'student@shikshyalaya.edu.np',
-      [selectedCourseSlug],
-      `${courseTitle} Enrolled Scholar`
+    // 2. Check if student is registered for mock test series
+    const foundMockReg = mockTestRegistrations.find(
+      (reg) =>
+        (reg.referenceNumber && reg.referenceNumber.toLowerCase() === cleanInput) ||
+        (reg.studentRollNo && reg.studentRollNo.toLowerCase() === cleanInput) ||
+        (reg.email && reg.email.toLowerCase() === cleanInput) ||
+        (cleanDigits.length >= 7 && reg.phone.replace(/[^0-9]/g, '') === cleanDigits)
     );
 
-    if (success) {
-      navigate('/student/dashboard');
-    } else {
-      setError('Invalid student credentials.');
+    if (foundMockReg) {
+      const success = loginAsStudent(
+        foundMockReg.studentRollNo || foundMockReg.referenceNumber,
+        foundMockReg.email || `${foundMockReg.phone}@student.shikshyalaya.edu.np`,
+        [foundMockReg.courseSlug],
+        foundMockReg.fullName,
+        foundMockReg.enrolledSubjects
+      );
+      if (success) {
+        navigate('/student/dashboard');
+      } else {
+        setError('Unable to activate session for this mock test registration.');
+      }
+      return;
     }
+
+    // 3. Check student group cohort members
+    for (const group of studentGroups) {
+      const foundMember = group.members.find(
+        (m) =>
+          (m.studentId && m.studentId.toLowerCase() === cleanInput) ||
+          (m.email && m.email.toLowerCase() === cleanInput) ||
+          (cleanDigits.length >= 7 && m.phone?.replace(/[^0-9]/g, '') === cleanDigits)
+      );
+      if (foundMember) {
+        const memberId = foundMember.studentId || foundMember.rollNumber || foundMember.referenceNumber || foundMember.id;
+        const success = loginAsStudent(
+          memberId,
+          foundMember.email || `${memberId.toLowerCase()}@shikshyalaya.edu.np`,
+          [foundMember.enrolledCourseSlug || group.courseSlug],
+          foundMember.fullName,
+          foundMember.enrolledSubjects
+        );
+        if (success) {
+          navigate('/student/dashboard');
+          return;
+        }
+      }
+    }
+
+    // 4. Authorized demo student credentials
+    const demoIds = ['sss-demo-bbm', 'sss-demo-bbs', 'sss-demo-mbs', 'sss-demo-bba', 'sss-demo-sci', 'sss-demo-mgmt', 'sss-demo-pubba'];
+    if (demoIds.includes(cleanInput)) {
+      const success = loginAsStudent(cleanInput.toUpperCase(), `${cleanInput}@shikshyalaya.edu.np`, [selectedCourseSlug]);
+      if (success) {
+        navigate('/student/dashboard');
+        return;
+      }
+    }
+
+    // If no verified record exists, strictly deny access!
+    setError(
+      'Authentication failed: No active enrolled student or registered examinee found matching this ID or phone number. For newly submitted admission applications, administrative verification is required before student portal activation.'
+    );
   };
 
-  const handleQuickDemoLogin = (courseSlug: string, name: string) => {
-    const c = courses.find((x) => x.slug === courseSlug);
-    const courseTitle = c ? c.title : courseSlug.toUpperCase();
+  const handleQuickDemoLogin = (demoId: string, courseSlug: string, name: string) => {
     loginAsStudent(
-      `SSS-STU-${courseSlug.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 4)}-2026`,
-      `${courseSlug.replace(/[^a-z]/g, '')}.student@shikshyalaya.edu.np`,
+      demoId,
+      `${demoId.toLowerCase()}@shikshyalaya.edu.np`,
       [courseSlug],
-      name || `${courseTitle} Student`
+      name
     );
     navigate('/student/dashboard');
   };
 
   const demoAccounts = [
-    { slug: 'bbm-tu', title: 'BBM (TU) Student', desc: 'Enrolled in BBM only' },
-    { slug: 'bbs-tu', title: 'BBS (TU) Student', desc: 'Enrolled in BBS only' },
-    { slug: 'mbs-tu', title: 'MBS (TU) Student', desc: 'Enrolled in MBS only' },
-    { slug: 'bba-tu', title: 'BBA (TU) Student', desc: 'Enrolled in BBA only' },
-    { slug: 'plus-two-science', title: '+2 Science Student', desc: 'Enrolled in +2 Science only' },
-    { slug: 'plus-two-management', title: '+2 Management Student', desc: 'Enrolled in +2 Mgmt only' },
-    { slug: 'bba-pokhara-university', title: 'PU BBA Student', desc: 'Enrolled in PU BBA only' },
+    { id: 'SSS-DEMO-BBM', slug: 'bbm-tu', title: 'BBM (TU) Student', desc: 'Authorized Demo (BBM enrolled)' },
+    { id: 'SSS-DEMO-BBS', slug: 'bbs-tu', title: 'BBS (TU) Student', desc: 'Authorized Demo (BBS enrolled)' },
+    { id: 'SSS-DEMO-MBS', slug: 'mbs-tu', title: 'MBS (TU) Student', desc: 'Authorized Demo (MBS enrolled)' },
+    { id: 'SSS-DEMO-BBA', slug: 'bba-tu', title: 'BBA (TU) Student', desc: 'Authorized Demo (BBA enrolled)' },
+    { id: 'SSS-DEMO-SCI', slug: 'plus-two-science', title: '+2 Science Student', desc: 'Authorized Demo (+2 Science)' },
+    { id: 'SSS-DEMO-MGMT', slug: 'plus-two-management', title: '+2 Management Student', desc: 'Authorized Demo (+2 Mgmt)' },
+    { id: 'SSS-DEMO-PUBBA', slug: 'bba-pokhara-university', title: 'PU BBA Student', desc: 'Authorized Demo (PU BBA)' },
   ];
 
   return (
@@ -272,7 +318,7 @@ export const StudentLoginPage: React.FC = () => {
             {demoAccounts.map((acc) => (
               <button
                 key={acc.slug}
-                onClick={() => handleQuickDemoLogin(acc.slug, acc.title)}
+                onClick={() => handleQuickDemoLogin(acc.id, acc.slug, acc.title)}
                 className="p-3 rounded-xl border border-slate-200 hover:border-blue-400 hover:bg-blue-50/50 text-left transition-all group flex items-start justify-between cursor-pointer"
               >
                 <div>

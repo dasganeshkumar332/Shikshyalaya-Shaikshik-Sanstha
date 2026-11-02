@@ -36,6 +36,7 @@ export const Footer: React.FC = () => {
                 rel="noreferrer"
                 className="w-8 h-8 rounded-full bg-emerald-600/30 text-emerald-400 border border-emerald-500/40 flex items-center justify-center hover:bg-emerald-600 hover:text-white transition-colors"
                 title="Chat on WhatsApp"
+                aria-label="Chat with Shikshyalaya Shaikshik Sanstha on WhatsApp"
               >
                 <MessageCircle className="w-4 h-4" />
               </a>
@@ -45,6 +46,7 @@ export const Footer: React.FC = () => {
                 rel="noreferrer"
                 className="w-8 h-8 rounded-full bg-blue-600/30 text-blue-400 border border-blue-500/40 flex items-center justify-center hover:bg-blue-600 hover:text-white transition-colors"
                 title="Facebook"
+                aria-label="Visit Shikshyalaya Shaikshik Sanstha on Facebook"
               >
                 <span className="text-xs font-bold">f</span>
               </a>
@@ -54,6 +56,7 @@ export const Footer: React.FC = () => {
                 rel="noreferrer"
                 className="w-8 h-8 rounded-full bg-red-600/30 text-red-400 border border-red-500/40 flex items-center justify-center hover:bg-red-600 hover:text-white transition-colors"
                 title="YouTube"
+                aria-label="Watch Shikshyalaya lectures on YouTube"
               >
                 <span className="text-xs font-bold">▶</span>
               </a>

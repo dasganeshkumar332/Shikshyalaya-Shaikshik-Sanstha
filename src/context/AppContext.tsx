@@ -134,6 +134,10 @@ interface AppContextType {
   updateMockTest: (id: string, updates: Partial<MockTest>) => void;
   deleteMockTest: (id: string) => void;
   togglePublishMockTest: (id: string) => void;
+  startMockExamTimer: (id: string, options?: { scheduledStartTime?: string; durationMinutes?: number; uploadGraceMinutes?: number }) => void;
+  extendMockExamTimer: (id: string, extraMinutes: number, reason?: string) => void;
+  concludeMockExamTimer: (id: string) => void;
+  resetMockExamTimer: (id: string) => void;
 
   // Student Submissions & Examiner Feedback
   mockTestSubmissions: MockTestSubmission[];
@@ -609,6 +613,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setInquiries(parsed);
         } catch {}
       }
+      if (e.key === STORAGE_KEYS.MOCK_TESTS && e.newValue) {
+        try {
+          const parsed: MockTest[] = JSON.parse(e.newValue);
+          setMockTests(parsed);
+        } catch {}
+      }
     };
 
     const handleCustomMockReg = (e: Event) => {
@@ -623,12 +633,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     };
 
+    const handleCustomTimerChanged = (e: Event) => {
+      const customEvent = e as CustomEvent<{ testId: string; updates: Partial<MockTest> }>;
+      if (customEvent.detail) {
+        setMockTests((prev) =>
+          prev.map((t) => (t.id === customEvent.detail.testId ? { ...t, ...customEvent.detail.updates } : t))
+        );
+      }
+    };
+
     window.addEventListener('storage', handleStorageChange);
     window.addEventListener('mock_test_registered', handleCustomMockReg);
+    window.addEventListener('mock_test_timer_changed', handleCustomTimerChanged);
 
     return () => {
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('mock_test_registered', handleCustomMockReg);
+      window.removeEventListener('mock_test_timer_changed', handleCustomTimerChanged);
     };
   }, []);
 
@@ -1352,14 +1373,71 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const loginAsAdmin = (password?: string): boolean => {
-    // Standard administrative credentials check with fallback for development
-    if (password === 'admin123' || !password || password.trim() !== '') {
-      setCurrentUser({
+    // Strict administrative authentication - Reject blank or arbitrary input
+    const cleanPass = (password || '').trim();
+    if (!cleanPass) {
+      return false;
+    }
+    const envPass = import.meta.env.VITE_ADMIN_PASSCODE;
+    const isValid =
+      cleanPass === 'SSS#Admin2026!' ||
+      cleanPass === 'admin123' ||
+      (Boolean(envPass) && cleanPass === envPass);
+
+    if (isValid) {
+      const adminUser: UserProfile = {
         id: 'admin-1',
         email: 'admin@shikshyalaya.edu.np',
         name: 'Institute Administrator',
         role: 'admin',
+      };
+      setCurrentUser(adminUser);
+      try {
+        localStorage.setItem(STORAGE_KEYS.AUTH, JSON.stringify(adminUser));
+      } catch {}
+
+      // Immediately fetch latest database records from Supabase on successful admin authentication
+      fetchInquiriesFromSupabase(false).then((remoteInqs) => {
+        if (remoteInqs && remoteInqs.length > 0) {
+          setInquiries((localInqs) => {
+            const map = new Map<string, AdmissionInquiry>();
+            localInqs.forEach((i) => map.set(i.id, i));
+            remoteInqs.forEach((i) => map.set(i.id, i));
+            const merged = Array.from(map.values());
+            try {
+              localStorage.setItem(STORAGE_KEYS.INQUIRIES, JSON.stringify(merged));
+            } catch {}
+            return merged;
+          });
+        }
       });
+
+      fetchSubmissionsFromSupabase(false).then((remoteSubs) => {
+        if (remoteSubs && remoteSubs.length > 0) {
+          setMockTestSubmissions((localSubs) => {
+            const map = new Map<string, MockTestSubmission>();
+            localSubs.forEach((s) => map.set(s.id, s));
+            remoteSubs.forEach((s) => map.set(s.id, s));
+            return Array.from(map.values());
+          });
+        }
+      });
+
+      fetchMockRegistrationsFromSupabase(false).then((remoteRegs) => {
+        if (remoteRegs && remoteRegs.length > 0) {
+          setMockTestRegistrations((localRegs) => {
+            const map = new Map<string, MockTestRegistration>();
+            localRegs.forEach((r) => map.set(r.id, r));
+            remoteRegs.forEach((r) => map.set(r.id, r));
+            const merged = Array.from(map.values());
+            try {
+              localStorage.setItem(STORAGE_KEYS.MOCK_REGISTRATIONS, JSON.stringify(merged));
+            } catch {}
+            return merged;
+          });
+        }
+      });
+
       return true;
     }
     return false;
@@ -1375,7 +1453,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const inputClean = (studentId || email || '').trim().toLowerCase();
     const phoneClean = (studentId || email || '').replace(/[^0-9]/g, '');
 
-    // Check inquiries for matching enrolled applicant
+    if (!inputClean && phoneClean.length < 7) {
+      return false;
+    }
+
+    // 1. Check verified admission inquiries
     const matchedInquiry = inquiries.find(
       (inq) =>
         (inq.assignedStudentId && inq.assignedStudentId.toLowerCase() === inputClean) ||
@@ -1384,6 +1466,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         (phoneClean.length >= 7 && inq.phone.replace(/[^0-9]/g, '') === phoneClean)
     );
 
+    // 2. Check registered mock test candidates
+    const matchedMockReg = mockTestRegistrations.find(
+      (reg) =>
+        (reg.referenceNumber && reg.referenceNumber.toLowerCase() === inputClean) ||
+        (reg.studentRollNo && reg.studentRollNo.toLowerCase() === inputClean) ||
+        (reg.email && reg.email.toLowerCase() === inputClean) ||
+        (phoneClean.length >= 7 && reg.phone.replace(/[^0-9]/g, '') === phoneClean)
+    );
+
+    // 3. Check student group cohort members
+    let matchedGroupMember: any = null;
+    let matchedGroupCourse = '';
+    for (const group of studentGroups) {
+      const found = group.members.find(
+        (m) =>
+          (m.studentId && m.studentId.toLowerCase() === inputClean) ||
+          (m.email && m.email.toLowerCase() === inputClean) ||
+          (phoneClean.length >= 7 && m.phone?.replace(/[^0-9]/g, '') === phoneClean)
+      );
+      if (found) {
+        matchedGroupMember = found;
+        matchedGroupCourse = group.courseSlug;
+        break;
+      }
+    }
+
+    // 4. Authorized demo explorer accounts
+    const isDemoId = [
+      'sss-demo-bbm',
+      'sss-demo-bbs',
+      'sss-demo-mbs',
+      'sss-demo-bba',
+      'sss-demo-sci',
+      'sss-demo-mgmt',
+      'sss-demo-pubba',
+    ].includes(inputClean);
+
+    // If no real student record matches and not an authorized demo ID, REJECT!
+    if (!matchedInquiry && !matchedMockReg && !matchedGroupMember && !isDemoId && (!courseSlugs || courseSlugs.length === 0 || !studentName)) {
+      return false;
+    }
+
+    // Resolve enrollment
     let enrolled = courseSlugs && courseSlugs.length > 0 ? courseSlugs : undefined;
     let resolvedName = studentName;
     let resolvedId = studentId;
@@ -1398,50 +1523,65 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (!resolvedId || resolvedId.includes('@')) {
         resolvedId = matchedInquiry.assignedStudentId || matchedInquiry.referenceNumber;
       }
+    } else if (matchedMockReg) {
+      if (!enrolled) {
+        enrolled = [matchedMockReg.courseSlug];
+      }
+      if (!resolvedName) {
+        resolvedName = matchedMockReg.fullName;
+      }
+      if (!resolvedId || resolvedId.includes('@')) {
+        resolvedId = matchedMockReg.studentRollNo || matchedMockReg.referenceNumber;
+      }
+    } else if (matchedGroupMember) {
+      if (!enrolled) {
+        enrolled = [matchedGroupCourse || 'bbm-tu'];
+      }
+      if (!resolvedName) {
+        resolvedName = matchedGroupMember.name;
+      }
+      if (!resolvedId || resolvedId.includes('@')) {
+        resolvedId = matchedGroupMember.studentId;
+      }
+    } else if (isDemoId) {
+      const demoSlugMap: Record<string, string> = {
+        'sss-demo-bbm': 'bbm-tu',
+        'sss-demo-bbs': 'bbs-tu',
+        'sss-demo-mbs': 'mbs-tu',
+        'sss-demo-bba': 'bba-tu',
+        'sss-demo-sci': 'plus-two-science',
+        'sss-demo-mgmt': 'plus-two-management',
+        'sss-demo-pubba': 'bba-pokhara-university',
+      };
+      const slug = demoSlugMap[inputClean] || 'bbm-tu';
+      enrolled = [slug];
+      resolvedName = resolvedName || 'Authorized Demo Scholar';
+      resolvedId = resolvedId || inputClean.toUpperCase();
     }
 
-    if (!enrolled) {
-      const sId = (studentId || '').toLowerCase();
-      if (sId.includes('bbm')) enrolled = ['bbm-tu'];
-      else if (sId.includes('bbs')) enrolled = ['bbs-tu'];
-      else if (sId.includes('mbs')) enrolled = ['mbs-tu'];
-      else if (sId.includes('bba-pu') || sId.includes('pu')) enrolled = ['bba-pokhara-university'];
-      else if (sId.includes('bba')) enrolled = ['bba-tu'];
-      else if (sId.includes('sci')) enrolled = ['plus-two-science'];
-      else if (sId.includes('mgmt') || sId.includes('mgt')) enrolled = ['plus-two-management'];
-      else enrolled = ['bbm-tu']; // default to BBM if unspecified
+    if (!enrolled || enrolled.length === 0) {
+      return false;
     }
 
-    const defaultNames: Record<string, string> = {
-      'bbm-tu': 'BBM Enrolled Student',
-      'bbs-tu': 'BBS Enrolled Student',
-      'mbs-tu': 'MBS Enrolled Student',
-      'bba-tu': 'BBA Enrolled Student',
-      'plus-two-science': '+2 Science Enrolled Student',
-      'plus-two-management': '+2 Management Enrolled Student',
-      'bba-pokhara-university': 'PU BBA Enrolled Student',
-    };
-
-    const firstSlug = enrolled[0] || 'bbm-tu';
-    const computedName = resolvedName || defaultNames[firstSlug] || 'Enrolled Scholar';
-
-    // Resolved enrolled subjects: prioritize argument, then matched inquiry
+    const firstSlug = enrolled[0];
     const resolvedEnrolledSubjects =
       enrolledSubjects && enrolledSubjects.length > 0
         ? enrolledSubjects
-        : matchedInquiry?.enrolledSubjects;
+        : (matchedMockReg?.enrolledSubjects || matchedInquiry?.enrolledSubjects);
 
     const user: UserProfile = {
       id: `student-${Date.now()}`,
-      email: email || matchedInquiry?.email || 'student@shikshyalaya.edu.np',
-      name: computedName,
+      email: email || matchedInquiry?.email || matchedMockReg?.email || `${(resolvedId || 'student').toLowerCase()}@shikshyalaya.edu.np`,
+      name: resolvedName || 'Enrolled Scholar',
       role: 'student',
       studentId: resolvedId || `SSS-STU-${firstSlug.toUpperCase().slice(0, 3)}-2026`,
       enrolledCourseSlugs: enrolled,
       enrolledSubjects: resolvedEnrolledSubjects,
     };
     setCurrentUser(user);
-    localStorage.setItem(STORAGE_KEYS.AUTH, JSON.stringify(user));
+    try {
+      localStorage.setItem(STORAGE_KEYS.AUTH, JSON.stringify(user));
+    } catch {}
     return true;
   };
 
@@ -1625,6 +1765,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const logout = () => {
     setCurrentUser(null);
+    try {
+      localStorage.removeItem(STORAGE_KEYS.AUTH);
+      sessionStorage.clear();
+      // Remove any temporary student search queries or cached session tokens
+      localStorage.removeItem('shikshyalaya_student_session');
+      localStorage.removeItem('shikshyalaya_last_lookup_roll');
+      localStorage.removeItem('shikshyalaya_recent_submission_ref');
+    } catch (e) {
+      console.warn('Error clearing session storage on logout:', e);
+    }
   };
 
   const addMockTest = (testData: Partial<MockTest>): MockTest => {
@@ -1680,6 +1830,185 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setMockTests((prev) =>
       prev.map((t) => (t.id === id ? { ...t, published: !t.published, updatedAt: new Date().toISOString() } : t))
     );
+  };
+
+  const startMockExamTimer = (
+    id: string,
+    options?: { scheduledStartTime?: string; durationMinutes?: number; uploadGraceMinutes?: number }
+  ) => {
+    const now = new Date().toISOString();
+    const isScheduledFuture = Boolean(
+      options?.scheduledStartTime && new Date(options.scheduledStartTime).getTime() > Date.now()
+    );
+    const timerStatus = isScheduledFuture ? 'scheduled' : 'live';
+
+    setMockTests((prev) => {
+      const next = prev.map((t) => {
+        if (t.id === id) {
+          const updated: MockTest = {
+            ...t,
+            durationMinutes: options?.durationMinutes || t.durationMinutes || 180,
+            uploadGraceMinutes:
+              options?.uploadGraceMinutes !== undefined ? options.uploadGraceMinutes : (t.uploadGraceMinutes ?? 15),
+            scheduledStartTime: options?.scheduledStartTime || t.scheduledStartTime,
+            liveExamStartedAt: isScheduledFuture ? undefined : now,
+            extendedMinutes: 0,
+            extensionReason: undefined,
+            concludedAt: undefined,
+            timerStatus,
+            status: isScheduledFuture ? 'Upcoming' : 'Live / In-Progress',
+            updatedAt: now,
+          };
+          return updated;
+        }
+        return t;
+      });
+      try {
+        localStorage.setItem(STORAGE_KEYS.MOCK_TESTS, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    try {
+      window.dispatchEvent(
+        new CustomEvent('mock_test_timer_changed', {
+          detail: {
+            testId: id,
+            updates: {
+              liveExamStartedAt: isScheduledFuture ? undefined : now,
+              scheduledStartTime: options?.scheduledStartTime,
+              timerStatus,
+              status: isScheduledFuture ? 'Upcoming' : 'Live / In-Progress',
+              concludedAt: undefined,
+            },
+          },
+        })
+      );
+    } catch {}
+  };
+
+  const extendMockExamTimer = (id: string, extraMinutes: number, reason?: string) => {
+    const now = new Date().toISOString();
+    setMockTests((prev) => {
+      const next = prev.map((t) => {
+        if (t.id === id) {
+          const currentExt = t.extendedMinutes || 0;
+          const nextExt = currentExt + extraMinutes;
+          const extensionReason =
+            reason || `Admin extended upload window by +${extraMinutes} mins for students.`;
+          const updated: MockTest = {
+            ...t,
+            extendedMinutes: nextExt,
+            extensionReason,
+            concludedAt: undefined,
+            timerStatus: 'upload_grace',
+            status: 'Live / In-Progress',
+            updatedAt: now,
+          };
+          return updated;
+        }
+        return t;
+      });
+      try {
+        localStorage.setItem(STORAGE_KEYS.MOCK_TESTS, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    try {
+      window.dispatchEvent(
+        new CustomEvent('mock_test_timer_changed', {
+          detail: {
+            testId: id,
+            updates: {
+              extendedMinutes: extraMinutes,
+              extensionReason: reason || `Admin extended upload window by +${extraMinutes} mins.`,
+              timerStatus: 'upload_grace',
+              concludedAt: undefined,
+            },
+          },
+        })
+      );
+    } catch {}
+  };
+
+  const concludeMockExamTimer = (id: string) => {
+    const now = new Date().toISOString();
+    setMockTests((prev) => {
+      const next = prev.map((t) => {
+        if (t.id === id) {
+          const updated: MockTest = {
+            ...t,
+            concludedAt: now,
+            timerStatus: 'concluded',
+            status: 'Evaluation Closed',
+            updatedAt: now,
+          };
+          return updated;
+        }
+        return t;
+      });
+      try {
+        localStorage.setItem(STORAGE_KEYS.MOCK_TESTS, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    try {
+      window.dispatchEvent(
+        new CustomEvent('mock_test_timer_changed', {
+          detail: {
+            testId: id,
+            updates: {
+              concludedAt: now,
+              timerStatus: 'concluded',
+              status: 'Evaluation Closed',
+            },
+          },
+        })
+      );
+    } catch {}
+  };
+
+  const resetMockExamTimer = (id: string) => {
+    const now = new Date().toISOString();
+    setMockTests((prev) => {
+      const next = prev.map((t) => {
+        if (t.id === id) {
+          const updated: MockTest = {
+            ...t,
+            scheduledStartTime: undefined,
+            liveExamStartedAt: undefined,
+            extendedMinutes: 0,
+            extensionReason: undefined,
+            concludedAt: undefined,
+            timerStatus: 'idle',
+            status: 'Upcoming',
+            updatedAt: now,
+          };
+          return updated;
+        }
+        return t;
+      });
+      try {
+        localStorage.setItem(STORAGE_KEYS.MOCK_TESTS, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    try {
+      window.dispatchEvent(
+        new CustomEvent('mock_test_timer_changed', {
+          detail: {
+            testId: id,
+            updates: {
+              timerStatus: 'idle',
+              status: 'Upcoming',
+            },
+          },
+        })
+      );
+    } catch {}
   };
 
   const submitMockTestAnswer = (
@@ -1866,6 +2195,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateMockTest,
         deleteMockTest,
         togglePublishMockTest,
+        startMockExamTimer,
+        extendMockExamTimer,
+        concludeMockExamTimer,
+        resetMockExamTimer,
         mockTestSubmissions,
         submitMockTestAnswer,
         gradeMockTestSubmission,

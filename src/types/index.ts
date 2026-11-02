@@ -298,6 +298,16 @@ export interface MockTest {
   modelAnswerUrl?: string;
   status?: 'Upcoming' | 'Live / In-Progress' | 'Evaluation Closed' | 'Archived';
   published: boolean;
+
+  // Real-time Administrator Exam Timer Controls:
+  scheduledStartTime?: string;      // ISO string or YYYY-MM-DDTHH:mm for scheduled start
+  liveExamStartedAt?: string;       // ISO string when admin starts exam writing timer
+  uploadGraceMinutes?: number;      // Extra minutes allocated specifically for students to scan & upload answer sheets
+  extendedMinutes?: number;         // Cumulative extension minutes granted by admin (+10, +15, +30)
+  extensionReason?: string;         // e.g. "Admin extended upload time by 15 mins for all candidates"
+  concludedAt?: string;             // ISO string when exam was officially ended by admin
+  timerStatus?: 'scheduled' | 'live' | 'upload_grace' | 'concluded' | 'idle';
+
   createdAt?: string;
   updatedAt?: string;
 }

@@ -29,8 +29,8 @@ export interface SupabaseConnectionStatus {
 export async function checkSupabaseConnection(): Promise<SupabaseConnectionStatus> {
   const timestamp = new Date().toISOString();
   try {
-    // Attempt a light ping/query
-    const { error } = await supabase.from('admission_inquiries').select('id').limit(1);
+    // Attempt a light ping/query against public metadata table
+    const { error } = await supabase.from('site_settings').select('id').limit(1);
 
     if (!error) {
       return {
@@ -295,36 +295,63 @@ CREATE TABLE IF NOT EXISTS public.mock_test_registrations (
 
 -- ===============================================================
 -- ROW LEVEL SECURITY (RLS) POLICIES
--- Allow public insert and read access with anon key for this applet
+-- Zero anonymous reads for student personal information (PII).
+-- Public users can only INSERT their own forms; SELECT requires authenticated admin role.
 -- ===============================================================
 
+-- 1. Inquiries (Contains student name, phone, email, address, voucher)
 ALTER TABLE public.admission_inquiries ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public Read/Write Inquiries" ON public.admission_inquiries FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Public Read/Write Inquiries" ON public.admission_inquiries;
+DROP POLICY IF EXISTS "Allow Public Insert Inquiries" ON public.admission_inquiries;
+DROP POLICY IF EXISTS "Allow Admin Read Inquiries" ON public.admission_inquiries;
+CREATE POLICY "Allow Public Insert Inquiries" ON public.admission_inquiries FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow Admin Read Inquiries" ON public.admission_inquiries FOR SELECT USING (auth.role() = 'authenticated' OR current_setting('request.jwt.claims', true)::jsonb->>'role' = 'service_role');
+CREATE POLICY "Allow Admin Modify Inquiries" ON public.admission_inquiries FOR UPDATE USING (auth.role() = 'authenticated');
+CREATE POLICY "Allow Admin Delete Inquiries" ON public.admission_inquiries FOR DELETE USING (auth.role() = 'authenticated');
 
+-- 2. Mock Test Submissions (Contains student marks, answer sheets, feedback)
 ALTER TABLE public.mock_test_submissions ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public Read/Write Submissions" ON public.mock_test_submissions FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Public Read/Write Submissions" ON public.mock_test_submissions;
+DROP POLICY IF EXISTS "Allow Public Insert Submissions" ON public.mock_test_submissions;
+DROP POLICY IF EXISTS "Allow Admin Read Submissions" ON public.mock_test_submissions;
+CREATE POLICY "Allow Public Insert Submissions" ON public.mock_test_submissions FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow Admin Read Submissions" ON public.mock_test_submissions FOR SELECT USING (auth.role() = 'authenticated' OR current_setting('request.jwt.claims', true)::jsonb->>'role' = 'service_role');
+CREATE POLICY "Allow Admin Modify Submissions" ON public.mock_test_submissions FOR UPDATE USING (auth.role() = 'authenticated');
 
+-- 3. Contact Messages
 ALTER TABLE public.contact_messages ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public Read/Write Contact" ON public.contact_messages FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Public Read/Write Contact" ON public.contact_messages;
+CREATE POLICY "Allow Public Insert Contact" ON public.contact_messages FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow Admin Read Contact" ON public.contact_messages FOR SELECT USING (auth.role() = 'authenticated' OR current_setting('request.jwt.claims', true)::jsonb->>'role' = 'service_role');
 
+-- 4. Mock Test Registrations (Contains candidate names and phone numbers)
+ALTER TABLE public.mock_test_registrations ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public Read/Write Registrations" ON public.mock_test_registrations;
+CREATE POLICY "Allow Public Insert Registrations" ON public.mock_test_registrations FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow Admin Read Registrations" ON public.mock_test_registrations FOR SELECT USING (auth.role() = 'authenticated' OR current_setting('request.jwt.claims', true)::jsonb->>'role' = 'service_role');
+CREATE POLICY "Allow Admin Modify Registrations" ON public.mock_test_registrations FOR UPDATE USING (auth.role() = 'authenticated');
+
+-- 5. Public Educational Content (Notices, Study Materials, Mock Tests, Settings)
 ALTER TABLE public.student_groups ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public Read/Write Groups" ON public.student_groups FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow Public Read Groups" ON public.student_groups FOR SELECT USING (true);
+CREATE POLICY "Allow Admin Modify Groups" ON public.student_groups FOR ALL USING (auth.role() = 'authenticated');
 
 ALTER TABLE public.mock_tests ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public Read/Write Mock Tests" ON public.mock_tests FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow Public Read Mock Tests" ON public.mock_tests FOR SELECT USING (true);
+CREATE POLICY "Allow Admin Modify Mock Tests" ON public.mock_tests FOR ALL USING (auth.role() = 'authenticated');
 
 ALTER TABLE public.notices ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public Read/Write Notices" ON public.notices FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow Public Read Notices" ON public.notices FOR SELECT USING (true);
+CREATE POLICY "Allow Admin Modify Notices" ON public.notices FOR ALL USING (auth.role() = 'authenticated');
 
 ALTER TABLE public.study_materials ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public Read/Write Materials" ON public.study_materials FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow Public Read Materials" ON public.study_materials FOR SELECT USING (true);
+CREATE POLICY "Allow Admin Modify Materials" ON public.study_materials FOR ALL USING (auth.role() = 'authenticated');
 
 ALTER TABLE public.site_settings ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public Read/Write Settings" ON public.site_settings FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow Public Read Settings" ON public.site_settings FOR SELECT USING (true);
+CREATE POLICY "Allow Admin Modify Settings" ON public.site_settings FOR ALL USING (auth.role() = 'authenticated');
 
 ALTER TABLE public.app_storage ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public Read/Write Storage" ON public.app_storage FOR ALL USING (true) WITH CHECK (true);
-
-ALTER TABLE public.mock_test_registrations ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public Read/Write Registrations" ON public.mock_test_registrations FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow Admin Only Storage" ON public.app_storage FOR ALL USING (auth.role() = 'authenticated');
 `;

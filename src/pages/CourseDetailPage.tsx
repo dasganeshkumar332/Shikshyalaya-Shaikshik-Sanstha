@@ -26,12 +26,84 @@ export const CourseDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const { courses, teachers, submitAdmissionInquiry, language } = useApp();
 
-  const course = courses.find(
-    (c) =>
-      c.slug === slug ||
-      (slug === '3-year-bbs-tu' && c.slug === 'bbs-tu-old') ||
-      (slug === 'bbs-tu-old' && c.slug === '3-year-bbs-tu')
-  );
+  const cleanSlug = (slug || '').trim().toLowerCase().replace(/^\/+|\/+$/g, '');
+
+  const COURSE_SLUG_MAP: Record<string, string> = {
+    // BBA / BBM compound and shorthand slugs
+    'bba-bbm-tu': 'bba-tu',
+    'bba-bbm': 'bba-tu',
+    'bbm-bba-tu': 'bbm-tu',
+    'bba': 'bba-tu',
+    'bbm': 'bbm-tu',
+    'tu-bba': 'bba-tu',
+    'tu-bbm': 'bbm-tu',
+
+    // BBS variants
+    'bbs': 'bbs-tu',
+    'tu-bbs': 'bbs-tu',
+    '3-year-bbs-tu': '3-year-bbs-tu',
+    '3-year-bbs': '3-year-bbs-tu',
+    'bbs-3yr': '3-year-bbs-tu',
+    'bbs-old': '3-year-bbs-tu',
+    'bbs-tu-old': '3-year-bbs-tu',
+    'bbs-old-course': '3-year-bbs-tu',
+
+    // MBS variants
+    'mbs': 'mbs-tu',
+    'tu-mbs': 'mbs-tu',
+    'mbs-old': 'mbs-tu-old',
+    'mbs-tu-old': 'mbs-tu-old',
+    'mbs-annual': 'mbs-tu-old',
+
+    // +2 variants
+    'plus-two-science': 'plus-two-science',
+    'plus-two-mgmt': 'plus-two-management',
+    'plus-two-management': 'plus-two-management',
+    '+2-science': 'plus-two-science',
+    '+2-management': 'plus-two-management',
+    'plus-two-old': 'plus-two-old',
+    '+2-old': 'plus-two-old',
+
+    // Pokhara University
+    'bba-pu': 'bba-pokhara-university',
+    'pu-bba': 'bba-pokhara-university',
+    'bba-pokhara': 'bba-pokhara-university',
+    'pokhara-university-bba': 'bba-pokhara-university',
+
+    // Loksewa variants
+    'loksewa': 'loksewa-officer-level-6',
+    'loksewa-preparation': 'loksewa-officer-level-6',
+    'loksewa-officer': 'loksewa-section-officer',
+    'loksewa-section-officer': 'loksewa-section-officer',
+    'section-officer': 'loksewa-section-officer',
+    'shakha-adhikrit': 'loksewa-section-officer',
+    'loksewa-nasu': 'loksewa-nayab-subba',
+    'loksewa-nayab-subba': 'loksewa-nayab-subba',
+    'nayab-subba': 'loksewa-nayab-subba',
+    'nasu': 'loksewa-nayab-subba',
+    'loksewa-kharidar': 'loksewa-kharidar',
+    'kharidar': 'loksewa-kharidar',
+    'loksewa-rbb-level-4': 'loksewa-rbb-level-4',
+    'rbb-level-4': 'loksewa-rbb-level-4',
+    'rbb4': 'loksewa-rbb-level-4',
+    'rbb-assistant': 'loksewa-rbb-level-4',
+    'loksewa-rbb-level-6': 'loksewa-rbb-level-6',
+    'rbb-level-6': 'loksewa-rbb-level-6',
+    'rbb6': 'loksewa-rbb-level-6',
+    'rbb-officer': 'loksewa-rbb-level-6',
+    'banking-preparation': 'loksewa-rbb-level-4',
+  };
+
+  // Robust multi-tier resolution:
+  // 1. Direct slug match
+  // 2. Exact lowercase match
+  // 3. Known alias dictionary match
+  // 4. Fuzzy containment match
+  let course =
+    courses.find((c) => c.slug === slug) ||
+    courses.find((c) => c.slug.toLowerCase() === cleanSlug) ||
+    (COURSE_SLUG_MAP[cleanSlug] ? courses.find((c) => c.slug === COURSE_SLUG_MAP[cleanSlug]) : undefined) ||
+    courses.find((c) => c.slug.includes(cleanSlug) || cleanSlug.includes(c.slug));
 
   // Quick inquiry form state
   const [inquiryName, setInquiryName] = useState('');
@@ -62,18 +134,50 @@ export const CourseDetailPage: React.FC = () => {
 
   if (!course) {
     return (
-      <div className="py-20 max-w-xl mx-auto px-4 text-center space-y-4">
-        <h2 className="text-2xl font-bold text-slate-800">Course Not Found</h2>
-        <p className="text-sm text-slate-500">
-          The requested educational course could not be located in our directory.
-        </p>
-        <Link
-          to="/courses"
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-white bg-[#12315A]"
-        >
-          <span>Browse All Available Courses</span>
-          <ArrowRight className="w-4 h-4" />
-        </Link>
+      <div className="py-16 max-w-4xl mx-auto px-4 text-center space-y-6">
+        <div className="w-16 h-16 rounded-2xl bg-blue-100 text-[#12315A] flex items-center justify-center mx-auto shadow-sm">
+          <BookOpen className="w-8 h-8" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-2xl font-bold text-slate-800">Explore Available Academic Programs</h2>
+          <p className="text-sm text-slate-500 max-w-md mx-auto">
+            The requested course URL <code className="bg-slate-100 text-blue-700 px-2 py-0.5 rounded font-mono text-xs">{slug}</code> has been mapped to our current course directory. Choose your program below:
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-left pt-4">
+          {courses.map((c) => (
+            <Link
+              key={c.id}
+              to={`/courses/${c.slug}`}
+              className="p-4 rounded-2xl border border-slate-200 bg-white hover:border-blue-400 hover:shadow-md transition-all group flex flex-col justify-between"
+            >
+              <div>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-800 uppercase tracking-wider">
+                  {c.category}
+                </span>
+                <h3 className="font-bold text-sm text-[#12315A] group-hover:text-blue-700 mt-2 line-clamp-1">
+                  {c.title}
+                </h3>
+                <p className="text-xs text-slate-500 line-clamp-2 mt-1">{c.shortDescription}</p>
+              </div>
+              <div className="pt-3 border-t border-slate-100 mt-3 flex items-center justify-between text-xs font-bold text-blue-700">
+                <span>View Syllabus</span>
+                <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              </div>
+            </Link>
+          ))}
+        </div>
+
+        <div className="pt-4">
+          <Link
+            to="/courses"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-bold text-white bg-[#12315A] hover:bg-blue-900 transition-colors shadow-md"
+          >
+            <span>Browse Full Course Directory</span>
+            <ArrowRight className="w-4 h-4" />
+          </Link>
+        </div>
       </div>
     );
   }
