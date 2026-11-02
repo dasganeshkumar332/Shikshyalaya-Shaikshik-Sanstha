@@ -35,3 +35,14 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
+
+/* Ensure hosting / preview badges do not obstruct UI elements */
+#netlify-badge,
+.netlify-badge,
+[data-netlify-badge],
+div[class*="netlify-badge"],
+iframe[src*="netlify"] {
+  display: none !important;
+  pointer-events: none !important;
+}
+
