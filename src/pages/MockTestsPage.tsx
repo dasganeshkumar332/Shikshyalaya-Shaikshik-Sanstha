@@ -48,6 +48,7 @@ export const MockTestsPage: React.FC = () => {
     submitMockTestAnswer,
     language,
     settings,
+    isStudentEnrolledInSubject,
   } = useApp();
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -126,9 +127,20 @@ export const MockTestsPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
 
   // Course, Year & Subject Quick Attender / Uploader Widget State
-  const [quickCourseSlug, setQuickCourseSlug] = useState<string>(courses[0]?.slug || '3-year-bbs-tu');
+  const [quickCourseSlug, setQuickCourseSlug] = useState<string>(
+    (currentUser?.role === 'student' && currentUser.enrolledCourseSlugs?.[0]) || courses[0]?.slug || '3-year-bbs-tu'
+  );
   const [quickYearOrSem, setQuickYearOrSem] = useState<string>('ALL');
   const [quickSubject, setQuickSubject] = useState<string>('');
+
+  useEffect(() => {
+    if (currentUser?.role === 'student' && currentUser.enrolledCourseSlugs?.[0]) {
+      setQuickCourseSlug(currentUser.enrolledCourseSlugs[0]);
+      if (selectedCourseSlug === 'ALL') {
+        setSelectedCourseSlug(currentUser.enrolledCourseSlugs[0]);
+      }
+    }
+  }, [currentUser]);
 
   // Active Exam Modal State
   const [activeExamTest, setActiveExamTest] = useState<MockTest | null>(null);
@@ -203,24 +215,33 @@ export const MockTestsPage: React.FC = () => {
         testsForCourse = testsForCourse.filter((t) => t.semesterOrYear === selectedYearOrSem);
       }
       const subsFromTests = testsForCourse.map((t) => t.subject);
-      const combined = Array.from(new Set([...subsFromCourse, ...subsFromTests])).filter(Boolean);
+      const combined = Array.from(new Set([...subsFromCourse, ...subsFromTests])).filter(
+        (sub) => Boolean(sub) && (currentUser?.role !== 'student' || isStudentEnrolledInSubject(selectedCourseSlug, sub))
+      );
       return combined.sort();
     }
     const set = new Set<string>();
     courses.forEach((c) => {
       c.subjectsOffered?.forEach((s) => {
-        if (selectedYearOrSem === 'ALL' || s.semesterOrYear === selectedYearOrSem) {
+        if (
+          (selectedYearOrSem === 'ALL' || s.semesterOrYear === selectedYearOrSem) &&
+          (currentUser?.role !== 'student' || isStudentEnrolledInSubject(c.slug, s.name))
+        ) {
           set.add(s.name);
         }
       });
     });
     mockTests.forEach((t) => {
-      if (t.subject && (selectedYearOrSem === 'ALL' || t.semesterOrYear === selectedYearOrSem)) {
+      if (
+        t.subject &&
+        (selectedYearOrSem === 'ALL' || t.semesterOrYear === selectedYearOrSem) &&
+        (currentUser?.role !== 'student' || isStudentEnrolledInSubject(t.courseSlug, t.subject))
+      ) {
         set.add(t.subject);
       }
     });
     return Array.from(set).filter(Boolean).sort();
-  }, [courses, mockTests, selectedCourseSlug, selectedYearOrSem]);
+  }, [courses, mockTests, selectedCourseSlug, selectedYearOrSem, currentUser, isStudentEnrolledInSubject]);
 
   // Reset subject filter if selected course or year changes and subject is not in available subjects
   useEffect(() => {
@@ -257,13 +278,17 @@ export const MockTestsPage: React.FC = () => {
       tests = tests.filter((t) => t.semesterOrYear === quickYearOrSem);
     }
     const subsFromTests = tests.map((t) => t.subject);
-    return Array.from(new Set([...subNames, ...subsFromTests])).filter(Boolean).sort();
-  }, [courses, mockTests, quickCourseSlug, quickYearOrSem]);
+    return Array.from(new Set([...subNames, ...subsFromTests]))
+      .filter((sub) => Boolean(sub) && (currentUser?.role !== 'student' || isStudentEnrolledInSubject(quickCourseSlug, sub)))
+      .sort();
+  }, [courses, mockTests, quickCourseSlug, quickYearOrSem, currentUser, isStudentEnrolledInSubject]);
 
   // Keep quick subject updated when course or year changes
   useEffect(() => {
     if (quickCourseSubjects.length > 0 && (!quickSubject || !quickCourseSubjects.includes(quickSubject))) {
       setQuickSubject(quickCourseSubjects[0]);
+    } else if (quickCourseSubjects.length === 0) {
+      setQuickSubject('');
     }
   }, [quickCourseSubjects, quickSubject]);
 
@@ -273,18 +298,26 @@ export const MockTestsPage: React.FC = () => {
     const qSubLower = quickSubject.toLowerCase();
     return mockTests.filter(
       (t) =>
+        t.published &&
+        (currentUser?.role !== 'student' || isStudentEnrolledInSubject(t.courseSlug, t.subject)) &&
         t.courseSlug === quickCourseSlug &&
         (quickYearOrSem === 'ALL' || t.semesterOrYear === quickYearOrSem || t.title.toLowerCase().includes(quickYearOrSem.toLowerCase())) &&
         (t.subject.toLowerCase() === qSubLower ||
           t.subject.toLowerCase().includes(qSubLower) ||
           t.title.toLowerCase().includes(qSubLower))
     );
-  }, [mockTests, quickCourseSlug, quickYearOrSem, quickSubject]);
+  }, [mockTests, quickCourseSlug, quickYearOrSem, quickSubject, currentUser, isStudentEnrolledInSubject]);
 
   // Filtered mock tests
   const filteredTests = useMemo(() => {
     return mockTests
       .filter((t) => t.published)
+      .filter((t) => {
+        if (currentUser?.role === 'student') {
+          return isStudentEnrolledInSubject(t.courseSlug, t.subject);
+        }
+        return true;
+      })
       .filter((t) => {
         if (selectedCourseSlug === 'ALL') return true;
         return t.courseSlug === selectedCourseSlug;
@@ -323,7 +356,7 @@ export const MockTestsPage: React.FC = () => {
               : t.instructions.toLowerCase().includes(q)))
         );
       });
-  }, [mockTests, selectedCourseSlug, selectedCourseType, selectedYearOrSem, selectedSubject, searchQuery]);
+  }, [mockTests, selectedCourseSlug, selectedCourseType, selectedYearOrSem, selectedSubject, searchQuery, currentUser, isStudentEnrolledInSubject]);
 
   // Private evaluated results visible to the logged-in student ONLY
   const myEvaluatedSubmissions = useMemo(() => {
@@ -380,6 +413,9 @@ export const MockTestsPage: React.FC = () => {
 
   // Start exam timer (Synchronized with official admin timer)
   const handleStartExam = (test: MockTest) => {
+    if (currentUser?.role === 'student' && !isStudentEnrolledInSubject(test.courseSlug, test.subject)) {
+      return;
+    }
     setActiveExamTest(test);
     const durationSec = test.durationMinutes * 60;
     const graceSec = (test.uploadGraceMinutes ?? 15) * 60;
@@ -747,7 +783,10 @@ export const MockTestsPage: React.FC = () => {
                     }}
                     className="w-full px-3.5 py-2.5 rounded-xl bg-white text-slate-900 text-xs sm:text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-amber-400 border border-white/20 shadow-xs"
                   >
-                    {courses.map((c) => (
+                    {(currentUser?.role === 'student'
+                      ? courses.filter((c) => currentUser.enrolledCourseSlugs?.includes(c.slug))
+                      : courses
+                    ).map((c) => (
                       <option key={c.id} value={c.slug}>
                         {c.title} ({c.board})
                       </option>
@@ -897,7 +936,10 @@ export const MockTestsPage: React.FC = () => {
                   className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-xs font-medium bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="ALL">All Academic Programs</option>
-                  {courses.map((c) => (
+                  {(currentUser?.role === 'student'
+                    ? courses.filter((c) => currentUser.enrolledCourseSlugs?.includes(c.slug))
+                    : courses
+                  ).map((c) => (
                     <option key={c.id} value={c.slug}>
                       {c.title} ({c.board})
                     </option>
@@ -993,8 +1035,73 @@ export const MockTestsPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Mock Tests Cards Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {/* Mock Tests Cards Grid (Only after clicking/selecting a Subject or searching) */}
+          {selectedSubject === 'ALL' && !searchQuery.trim() ? (
+            <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 space-y-4 shadow-xs">
+              <div>
+                <h3 className="text-base sm:text-lg font-bold text-[#12315A]">
+                  Select a Subject to View Mock Tests
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Click the subject you want to practice. Only mock examinations for your chosen subject will appear.
+                </p>
+              </div>
+              {(() => {
+                const subjectsWithTests = Array.from(new Set(filteredTests.map((t) => t.subject))).sort();
+                if (subjectsWithTests.length === 0) {
+                  return (
+                    <div className="p-8 text-center rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-500">
+                      No mock tests available for the selected program or syllabus.
+                    </div>
+                  );
+                }
+                return (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                    {subjectsWithTests.map((sub) => {
+                      const count = filteredTests.filter((t) => t.subject === sub).length;
+                      return (
+                        <button
+                          key={sub}
+                          type="button"
+                          onClick={() => setSelectedSubject(sub)}
+                          className="p-4 rounded-2xl border border-slate-200 bg-slate-50/70 hover:bg-blue-50/70 hover:border-blue-300 text-left transition-all cursor-pointer flex items-center justify-between gap-3 group"
+                        >
+                          <div className="min-w-0">
+                            <p className="text-sm font-bold text-slate-900 group-hover:text-[#12315A] truncate">
+                              {sub}
+                            </p>
+                            <p className="text-[11px] text-slate-500 mt-0.5">
+                              {count} mock test{count !== 1 ? 's' : ''}
+                            </p>
+                          </div>
+                          <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-blue-700 shrink-0" />
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
+                  {selectedSubject !== 'ALL' && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedSubject('ALL')}
+                      className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-100 transition-colors cursor-pointer"
+                    >
+                      &larr; All Subjects
+                    </button>
+                  )}
+                  <p className="text-xs sm:text-sm font-semibold text-slate-600">
+                    Showing <strong>{filteredTests.length}</strong> mock test{filteredTests.length !== 1 ? 's' : ''}
+                    {selectedSubject !== 'ALL' ? ` for ${selectedSubject}` : ''}
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredTests.length === 0 ? (
               <div className="col-span-full bg-white rounded-2xl border border-slate-200 p-12 text-center space-y-3">
                 <FileText className="w-10 h-10 text-slate-400 mx-auto" />
@@ -1173,7 +1280,9 @@ export const MockTestsPage: React.FC = () => {
                 );
               })
             )}
-          </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

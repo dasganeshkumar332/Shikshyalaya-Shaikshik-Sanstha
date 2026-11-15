@@ -40,6 +40,7 @@ export const UploadAnswerSheetPage: React.FC = () => {
     currentUser,
     submitMockTestAnswer,
     language,
+    isStudentEnrolledInSubject,
   } = useApp();
 
   const [searchParams] = useSearchParams();
@@ -52,7 +53,7 @@ export const UploadAnswerSheetPage: React.FC = () => {
 
   // Form State
   const [selectedCourseSlug, setSelectedCourseSlug] = useState<string>(
-    preselectedCourse || 'bbs-tu'
+    (currentUser?.role === 'student' && currentUser.enrolledCourseSlugs?.[0]) || preselectedCourse || 'bbs-tu'
   );
   const [selectedCourseType, setSelectedCourseType] = useState<CourseType>('New Course');
   const [selectedYearOrSem, setSelectedYearOrSem] = useState<string>(preselectedYear || '1st Year');
@@ -145,9 +146,11 @@ export const UploadAnswerSheetPage: React.FC = () => {
     return currentCourse.subjectsOffered.filter((s) => {
       const matchType = !s.courseType || s.courseType === 'Both' || s.courseType === selectedCourseType;
       const matchTerm = !selectedYearOrSem || s.semesterOrYear === selectedYearOrSem;
-      return matchType && matchTerm;
+      const matchStudent =
+        currentUser?.role !== 'student' || isStudentEnrolledInSubject(selectedCourseSlug, s.name);
+      return matchType && matchTerm && matchStudent;
     });
-  }, [currentCourse, selectedCourseType, selectedYearOrSem]);
+  }, [currentCourse, selectedCourseType, selectedYearOrSem, currentUser, selectedCourseSlug, isStudentEnrolledInSubject]);
 
   // Auto-set subject when subjects change
   useEffect(() => {
@@ -517,7 +520,10 @@ export const UploadAnswerSheetPage: React.FC = () => {
                         className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                         required
                       >
-                        {courses.map((c) => (
+                        {(currentUser?.role === 'student'
+                          ? courses.filter((c) => currentUser.enrolledCourseSlugs?.includes(c.slug))
+                          : courses
+                        ).map((c) => (
                           <option key={c.id} value={c.slug}>
                             {c.title} ({c.board})
                           </option>
@@ -611,7 +617,9 @@ export const UploadAnswerSheetPage: React.FC = () => {
                               {sub.name} {sub.code ? `(${sub.code})` : ''}
                             </option>
                           ))}
-                          <option value="Other Subject">Other Subject (Custom / Unlisted Paper)</option>
+                          {!(currentUser?.role === 'student' && currentUser.enrolledSubjects && currentUser.enrolledSubjects.length > 0) && (
+                            <option value="Other Subject">Other Subject (Custom / Unlisted Paper)</option>
+                          )}
                         </select>
 
                         {selectedSubject === 'Other Subject' && (

@@ -113,19 +113,10 @@ export const Navbar: React.FC = () => {
               <div className="flex items-center gap-2">
                 <Link
                   to="/student/login"
-                  className="flex items-center gap-1 text-slate-300 hover:text-white transition-colors"
+                  className="flex items-center gap-1.5 text-slate-200 hover:text-amber-300 font-medium transition-colors"
                 >
                   <GraduationCap className="w-3.5 h-3.5 text-amber-400" />
-                  <span>{language === 'ne' ? 'विद्यार्थी लगइन' : 'Student Login'}</span>
-                </Link>
-                <span className="text-slate-600">·</span>
-                <Link
-                  to="/admin"
-                  className="flex items-center gap-1 text-slate-300 hover:text-white transition-colors"
-                  title="Administrator login"
-                >
-                  <Shield className="w-3 h-3 text-slate-400" />
-                  <span>Admin</span>
+                  <span>{language === 'ne' ? 'लगइन' : 'Login'}</span>
                 </Link>
               </div>
             )}
@@ -753,15 +744,7 @@ export const Navbar: React.FC = () => {
               onClick={() => setMobileMenuOpen(false)}
             >
               <User className="w-4 h-4 text-blue-700" />
-              <span>{language === 'ne' ? 'विद्यार्थी लगइन' : 'Student Login'}</span>
-            </Link>
-            <Link
-              to="/admin"
-              className="flex items-center justify-center gap-2 w-full py-2.5 text-sm font-semibold text-slate-700 bg-slate-100 rounded-lg"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              <Shield className="w-4 h-4 text-slate-600" />
-              <span>Admin Dashboard</span>
+              <span>{language === 'ne' ? 'पोर्टल लगइन' : 'Portal Login'}</span>
             </Link>
             <Link
               to="/admission"

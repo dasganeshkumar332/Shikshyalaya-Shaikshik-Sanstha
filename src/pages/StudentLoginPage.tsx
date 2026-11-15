@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   GraduationCap,
@@ -17,7 +17,7 @@ import { useApp } from '../context/AppContext';
 
 export const StudentLoginPage: React.FC = () => {
   const navigate = useNavigate();
-  const { loginAsStudent, currentUser, courses, inquiries, mockTestRegistrations, studentGroups } = useApp();
+  const { loginAsStudent, loginAsAdmin, currentUser, courses, inquiries, mockTestRegistrations, studentGroups } = useApp();
 
   const [studentId, setStudentId] = useState('');
   const [email, setEmail] = useState('');
@@ -25,10 +25,14 @@ export const StudentLoginPage: React.FC = () => {
   const [selectedCourseSlug, setSelectedCourseSlug] = useState('bbm-tu');
   const [error, setError] = useState('');
 
-  // If already logged in
-  if (currentUser && currentUser.role === 'student') {
-    navigate('/student/dashboard');
-  }
+  // If already logged in, automatically route based on role
+  useEffect(() => {
+    if (currentUser?.role === 'admin') {
+      navigate('/admin');
+    } else if (currentUser?.role === 'student') {
+      navigate('/student/dashboard');
+    }
+  }, [currentUser, navigate]);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,37 +40,51 @@ export const StudentLoginPage: React.FC = () => {
 
     const rawInput = (studentId || email || '').trim();
     if (!rawInput) {
-      setError('Please enter your Student ID, Application Reference Number, or Registered Mobile / Email.');
+      setError('Please enter your User ID, Application Reference Number, Mobile Phone, or Email.');
       return;
     }
 
     const cleanInput = rawInput.toLowerCase();
     const cleanDigits = rawInput.replace(/[^0-9]/g, '');
 
-    // 1. Check if user is an applicant from admission inquiries
-    const foundInq = inquiries.find(
-      (inq) =>
-        (inq.referenceNumber && inq.referenceNumber.toLowerCase() === cleanInput) ||
-        (inq.assignedStudentId && inq.assignedStudentId.toLowerCase() === cleanInput) ||
-        (inq.email && inq.email.toLowerCase() === cleanInput) ||
-        (cleanDigits.length >= 7 && inq.phone.replace(/[^0-9]/g, '') === cleanDigits)
-    );
+    // Automatic Admin Detection & Authentication
+    const isAdminIdentifier =
+      cleanInput === 'admin' ||
+      cleanInput === 'administrator' ||
+      cleanInput === 'sss-admin' ||
+      cleanInput === 'admin@shikshyalaya.edu.np';
 
-    if (foundInq) {
-      if (foundInq.status !== 'Verified & Enrolled' && !foundInq.paymentVerified) {
-        setError(
-          `Application Found (${foundInq.referenceNumber}): Your admission application for "${foundInq.courseName}" is currently awaiting administrative payment verification. Please allow our admissions office a short time to review your uploaded voucher, or contact +977 9767648342.`
-        );
+    if (isAdminIdentifier) {
+      if (!password.trim()) {
+        setError('Please enter your administrator passcode.');
         return;
       }
+      const ok = loginAsAdmin(password.trim());
+      if (ok) {
+        navigate('/admin');
+      } else {
+        setError('Access Denied: Incorrect administrator passcode.');
+      }
+      return;
+    }
 
-      // Found verified inquiry
+    // 1. Check verified admission inquiries
+    const foundVerifiedInq = inquiries.find(
+      (inq) =>
+        (inq.status === 'Verified & Enrolled' || Boolean(inq.paymentVerified)) &&
+        ((inq.referenceNumber && inq.referenceNumber.toLowerCase() === cleanInput) ||
+          (inq.assignedStudentId && inq.assignedStudentId.toLowerCase() === cleanInput) ||
+          (inq.email && inq.email.toLowerCase() === cleanInput) ||
+          (cleanDigits.length >= 7 && inq.phone.replace(/[^0-9]/g, '') === cleanDigits))
+    );
+
+    if (foundVerifiedInq) {
       const success = loginAsStudent(
-        foundInq.assignedStudentId || foundInq.referenceNumber,
-        foundInq.email || 'student@shikshyalaya.edu.np',
-        [foundInq.courseSlug],
-        foundInq.fullName,
-        foundInq.enrolledSubjects
+        foundVerifiedInq.assignedStudentId || foundVerifiedInq.referenceNumber,
+        foundVerifiedInq.email || 'student@shikshyalaya.edu.np',
+        [foundVerifiedInq.courseSlug],
+        foundVerifiedInq.fullName,
+        foundVerifiedInq.enrolledSubjects
       );
       if (success) {
         navigate('/student/dashboard');
@@ -106,6 +124,8 @@ export const StudentLoginPage: React.FC = () => {
       const foundMember = group.members.find(
         (m) =>
           (m.studentId && m.studentId.toLowerCase() === cleanInput) ||
+          (m.rollNumber && m.rollNumber.toLowerCase() === cleanInput) ||
+          (m.referenceNumber && m.referenceNumber.toLowerCase() === cleanInput) ||
           (m.email && m.email.toLowerCase() === cleanInput) ||
           (cleanDigits.length >= 7 && m.phone?.replace(/[^0-9]/g, '') === cleanDigits)
       );
@@ -125,7 +145,23 @@ export const StudentLoginPage: React.FC = () => {
       }
     }
 
-    // 4. Authorized demo student credentials
+    // 4. Check pending admission inquiries
+    const foundPendingInq = inquiries.find(
+      (inq) =>
+        (inq.referenceNumber && inq.referenceNumber.toLowerCase() === cleanInput) ||
+        (inq.assignedStudentId && inq.assignedStudentId.toLowerCase() === cleanInput) ||
+        (inq.email && inq.email.toLowerCase() === cleanInput) ||
+        (cleanDigits.length >= 7 && inq.phone.replace(/[^0-9]/g, '') === cleanDigits)
+    );
+
+    if (foundPendingInq) {
+      setError(
+        `Application Found (${foundPendingInq.referenceNumber}): Your admission application for "${foundPendingInq.courseName}" is currently awaiting administrative payment verification. Please allow our admissions office a short time to review your uploaded voucher, or contact +977 9767648342.`
+      );
+      return;
+    }
+
+    // 5. Authorized demo student credentials
     const demoIds = ['sss-demo-bbm', 'sss-demo-bbs', 'sss-demo-mbs', 'sss-demo-bba', 'sss-demo-sci', 'sss-demo-mgmt', 'sss-demo-pubba'];
     if (demoIds.includes(cleanInput)) {
       const success = loginAsStudent(cleanInput.toUpperCase(), `${cleanInput}@shikshyalaya.edu.np`, [selectedCourseSlug]);
@@ -170,9 +206,9 @@ export const StudentLoginPage: React.FC = () => {
             <div className="w-12 h-12 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center mx-auto shadow-md">
               <GraduationCap className="w-7 h-7" />
             </div>
-            <h2 className="text-xl sm:text-2xl font-bold">Student Portal Login</h2>
+            <h2 className="text-xl sm:text-2xl font-bold">Portal Login</h2>
             <p className="text-xs text-blue-200">
-              Access your registered classes, lecture notes & study resources
+              Sign in to access your Student Dashboard or Administrative Portal
             </p>
           </div>
 
@@ -258,7 +294,7 @@ export const StudentLoginPage: React.FC = () => {
                 type="submit"
                 className="w-full py-3 rounded-xl font-bold text-white bg-[#12315A] hover:bg-blue-900 transition-colors shadow-md flex items-center justify-center gap-2 cursor-pointer"
               >
-                <span>Sign In to Student Portal</span>
+                <span>Sign In</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </form>

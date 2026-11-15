@@ -874,6 +874,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 (v.phone && m.phone.replace(/[^0-9]/g, '') === v.phone.replace(/[^0-9]/g, ''))
             );
             if (exists) return g;
+            const parsedSubjects =
+              v.enrolledSubjects && v.enrolledSubjects.length > 0
+                ? v.enrolledSubjects
+                : v.subjectsOfInterest &&
+                  !/^(all subjects under|general mock series|all offered subjects)/i.test(v.subjectsOfInterest.trim())
+                ? v.subjectsOfInterest
+                    .split(/[,|]+/)
+                    .map((s) => s.replace(/^additional:\s*/i, '').trim())
+                    .filter(Boolean)
+                : undefined;
             const newMem: StudentGroupMember = {
               id: `mem-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
               fullName: v.fullName,
@@ -882,6 +892,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               studentId: issuedId,
               referenceNumber: v.referenceNumber,
               enrolledCourseSlug: v.courseSlug,
+              enrolledSubjects: parsedSubjects,
               semesterOrYear: v.academicLevel,
               addedAt: now,
               notes: 'Auto-added upon verified enrollment',
@@ -1265,18 +1276,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       );
     });
 
-    const newMembers: StudentGroupMember[] = candidates.map((inq) => ({
-      id: `mem-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      fullName: inq.fullName,
-      phone: inq.phone,
-      email: inq.email,
-      studentId: inq.assignedStudentId,
-      referenceNumber: inq.referenceNumber,
-      enrolledCourseSlug: inq.courseSlug,
-      semesterOrYear: inq.academicLevel,
-      addedAt: now,
-      notes: inq.paymentVerified ? 'Payment Verified & Enrolled' : undefined,
-    }));
+    const newMembers: StudentGroupMember[] = candidates.map((inq) => {
+      const parsedSubjects =
+        inq.enrolledSubjects && inq.enrolledSubjects.length > 0
+          ? inq.enrolledSubjects
+          : inq.subjectsOfInterest &&
+            !/^(all subjects under|general mock series|all offered subjects)/i.test(inq.subjectsOfInterest.trim())
+          ? inq.subjectsOfInterest
+              .split(/[,|]+/)
+              .map((s) => s.replace(/^additional:\s*/i, '').trim())
+              .filter(Boolean)
+          : undefined;
+      return {
+        id: `mem-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        fullName: inq.fullName,
+        phone: inq.phone,
+        email: inq.email,
+        studentId: inq.assignedStudentId,
+        referenceNumber: inq.referenceNumber,
+        enrolledCourseSlug: inq.courseSlug,
+        enrolledSubjects: parsedSubjects,
+        semesterOrYear: inq.academicLevel,
+        addedAt: now,
+        notes: inq.paymentVerified ? 'Payment Verified & Enrolled' : undefined,
+      };
+    });
 
     if (newMembers.length > 0) {
       setStudentGroups((prev) =>
@@ -1443,6 +1467,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return false;
   };
 
+  const parseInquirySubjects = (inq?: AdmissionInquiry): string[] | undefined => {
+    if (!inq) return undefined;
+    if (inq.enrolledSubjects && inq.enrolledSubjects.length > 0) {
+      return inq.enrolledSubjects;
+    }
+    const raw = (inq.subjectsOfInterest || '').trim();
+    if (!raw || /^(all subjects under|general mock series|all offered subjects)/i.test(raw)) {
+      return undefined;
+    }
+    const parsed = raw
+      .split(/[,|]+/)
+      .map((s) => s.replace(/^additional:\s*/i, '').trim())
+      .filter(Boolean);
+    return parsed.length > 0 ? parsed : undefined;
+  };
+
   const loginAsStudent = (
     studentId: string,
     email: string,
@@ -1457,13 +1497,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return false;
     }
 
-    // 1. Check verified admission inquiries
+    // 1. Check strictly VERIFIED admission inquiries
     const matchedInquiry = inquiries.find(
       (inq) =>
-        (inq.assignedStudentId && inq.assignedStudentId.toLowerCase() === inputClean) ||
-        (inq.referenceNumber && inq.referenceNumber.toLowerCase() === inputClean) ||
-        (inq.email && inq.email.toLowerCase() === inputClean) ||
-        (phoneClean.length >= 7 && inq.phone.replace(/[^0-9]/g, '') === phoneClean)
+        (inq.status === 'Verified & Enrolled' || Boolean(inq.paymentVerified)) &&
+        ((inq.assignedStudentId && inq.assignedStudentId.toLowerCase() === inputClean) ||
+          (inq.referenceNumber && inq.referenceNumber.toLowerCase() === inputClean) ||
+          (inq.email && inq.email.toLowerCase() === inputClean) ||
+          (phoneClean.length >= 7 && inq.phone.replace(/[^0-9]/g, '') === phoneClean))
     );
 
     // 2. Check registered mock test candidates
@@ -1476,12 +1517,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
 
     // 3. Check student group cohort members
-    let matchedGroupMember: any = null;
+    let matchedGroupMember: StudentGroupMember | null = null;
     let matchedGroupCourse = '';
     for (const group of studentGroups) {
       const found = group.members.find(
         (m) =>
           (m.studentId && m.studentId.toLowerCase() === inputClean) ||
+          (m.rollNumber && m.rollNumber.toLowerCase() === inputClean) ||
+          (m.referenceNumber && m.referenceNumber.toLowerCase() === inputClean) ||
           (m.email && m.email.toLowerCase() === inputClean) ||
           (phoneClean.length >= 7 && m.phone?.replace(/[^0-9]/g, '') === phoneClean)
       );
@@ -1535,13 +1578,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     } else if (matchedGroupMember) {
       if (!enrolled) {
-        enrolled = [matchedGroupCourse || 'bbm-tu'];
+        enrolled = [matchedGroupMember.enrolledCourseSlug || matchedGroupCourse || 'bbm-tu'];
       }
       if (!resolvedName) {
-        resolvedName = matchedGroupMember.name;
+        resolvedName = matchedGroupMember.fullName;
       }
       if (!resolvedId || resolvedId.includes('@')) {
-        resolvedId = matchedGroupMember.studentId;
+        resolvedId =
+          matchedGroupMember.studentId ||
+          matchedGroupMember.rollNumber ||
+          matchedGroupMember.referenceNumber ||
+          matchedGroupMember.id ||
+          studentId;
       }
     } else if (isDemoId) {
       const demoSlugMap: Record<string, string> = {
@@ -1567,12 +1615,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const resolvedEnrolledSubjects =
       enrolledSubjects && enrolledSubjects.length > 0
         ? enrolledSubjects
-        : (matchedMockReg?.enrolledSubjects || matchedInquiry?.enrolledSubjects);
+        : matchedMockReg?.enrolledSubjects && matchedMockReg.enrolledSubjects.length > 0
+        ? matchedMockReg.enrolledSubjects
+        : parseInquirySubjects(matchedInquiry) ||
+          (matchedGroupMember?.enrolledSubjects && matchedGroupMember.enrolledSubjects.length > 0
+            ? matchedGroupMember.enrolledSubjects
+            : undefined);
+
+    const resolvedPhone =
+      matchedInquiry?.phone || matchedMockReg?.phone || matchedGroupMember?.phone || undefined;
 
     const user: UserProfile = {
       id: `student-${Date.now()}`,
-      email: email || matchedInquiry?.email || matchedMockReg?.email || `${(resolvedId || 'student').toLowerCase()}@shikshyalaya.edu.np`,
+      email: email || matchedInquiry?.email || matchedMockReg?.email || matchedGroupMember?.email || `${(resolvedId || 'student').toLowerCase()}@shikshyalaya.edu.np`,
       name: resolvedName || 'Enrolled Scholar',
+      phone: resolvedPhone,
       role: 'student',
       studentId: resolvedId || `SSS-STU-${firstSlug.toUpperCase().slice(0, 3)}-2026`,
       enrolledCourseSlugs: enrolled,
@@ -1613,21 +1670,58 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return currentUser.enrolledCourseSlugs?.includes(courseSlug) ?? false;
   };
 
+  const normalizeSubjectParts = (raw: string) => {
+    const cleaned = (raw || '')
+      .replace(/^[A-Z]{2,5}\s*\d{2,4}\s*[:\-–]\s*/i, '')
+      .replace(/&/g, ' and ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
+    const parenMatches = Array.from(cleaned.matchAll(/\(([^)]+)\)/g)).map((m) => m[1].trim());
+    const base = cleaned.replace(/\s*\([^)]*\)\s*/g, ' ').replace(/\s+/g, ' ').trim();
+    const partNums = cleaned.match(/\b(i|ii|iii|iv|1|2|3|4|11|12)\b/g) || [];
+    return { full: cleaned, base, parenMatches, partNums };
+  };
+
+  const subjectsMatch = (enrolled: string, target: string): boolean => {
+    const e = normalizeSubjectParts(enrolled);
+    const t = normalizeSubjectParts(target);
+    if (!e.full || !t.full) return false;
+
+    if (e.full === t.full || e.base === t.base) return true;
+    if (t.parenMatches.some((p) => p === e.full || p === e.base)) return true;
+    if (e.parenMatches.some((p) => p === t.full || p === t.base)) return true;
+
+    // Prevent Grade 11 vs Grade 12 or Part I vs Part II cross-leakage
+    if (e.partNums.length > 0 && t.partNums.length > 0 && e.partNums.join(',') !== t.partNums.join(',')) {
+      return false;
+    }
+
+    // Allow suffix qualifier match (e.g. "Business Statistics" -> "Business Statistics & Data Analysis (PU)")
+    // only when the enrolled subject starts the target base at a word boundary
+    if (
+      e.base.length >= 6 &&
+      (t.base.startsWith(`${e.base} `) || t.base.startsWith(`${e.base}:`))
+    ) {
+      return true;
+    }
+    if (
+      t.base.length >= 6 &&
+      (e.base.startsWith(`${t.base} `) || e.base.startsWith(`${t.base}:`))
+    ) {
+      return true;
+    }
+    return false;
+  };
+
   const isStudentEnrolledInSubject = (courseSlug: string, subjectName: string): boolean => {
     if (!currentUser) return false;
     if (currentUser.role === 'admin') return true;
     if (!currentUser.enrolledCourseSlugs?.includes(courseSlug)) return false;
     // If student has specific enrolledSubjects restriction:
     if (currentUser.enrolledSubjects && currentUser.enrolledSubjects.length > 0) {
-      const cleanTarget = (subjectName || '').trim().toLowerCase();
-      return currentUser.enrolledSubjects.some((s) => {
-        const cleanEnrolled = s.trim().toLowerCase();
-        return (
-          cleanTarget === cleanEnrolled ||
-          cleanTarget.includes(cleanEnrolled) ||
-          cleanEnrolled.includes(cleanTarget)
-        );
-      });
+      if (!subjectName || !subjectName.trim()) return false;
+      return currentUser.enrolledSubjects.some((s) => subjectsMatch(s, subjectName));
     }
     // If no specific subject restriction list was attached, user can view the enrolled course's subjects
     return true;

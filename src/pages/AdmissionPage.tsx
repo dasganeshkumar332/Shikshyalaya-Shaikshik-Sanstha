@@ -348,6 +348,7 @@ export const AdmissionPage: React.FC = () => {
             ? courseObj?.syllabusVersion || 'Old Annual/Semester Syllabus (Backpaper Exam Prep)'
             : courseObj?.syllabusVersion || 'New Regular CBCS Syllabus',
         subjectsOfInterest: finalSubjectsList,
+        enrolledSubjects: selectedSubjects.length > 0 ? selectedSubjects : undefined,
         preferredMode,
         preferredShift,
         message,

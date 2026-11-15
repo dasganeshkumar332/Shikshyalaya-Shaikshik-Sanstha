@@ -32,8 +32,6 @@ export const StudyMaterialsPage: React.FC = () => {
     currentUser,
     language,
     isStudentEnrolledInSubject,
-    updateStudentEnrolledSubjects,
-    loginAsStudent,
   } = useApp();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -197,7 +195,9 @@ export const StudyMaterialsPage: React.FC = () => {
     targetCourses.forEach((c) => {
       c.subjectsOffered.forEach((s) => {
         if (selectedYearOrSemester === 'ALL' || matchesYearOrSemester(s.semesterOrYear, selectedYearOrSemester)) {
-          set.add(s.name);
+          if (currentUser?.role !== 'student' || isStudentEnrolledInSubject(c.slug, s.name)) {
+            set.add(s.name);
+          }
         }
       });
     });
@@ -208,12 +208,14 @@ export const StudyMaterialsPage: React.FC = () => {
       const courseMatch = selectedCourse === 'ALL' || m.courseSlug === selectedCourse;
       const yearMatch = selectedYearOrSemester === 'ALL' || matchesYearOrSemester(m.semesterOrYear, selectedYearOrSemester);
       if (courseMatch && yearMatch && m.subject) {
-        set.add(m.subject);
+        if (currentUser?.role !== 'student' || isStudentEnrolledInSubject(m.courseSlug, m.subject)) {
+          set.add(m.subject);
+        }
       }
     });
 
     return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [courses, studyMaterials, selectedCourse, selectedYearOrSemester]);
+  }, [courses, studyMaterials, selectedCourse, selectedYearOrSemester, currentUser, isStudentEnrolledInSubject]);
 
   // Handler when Course changes: resets downstream Year/Semester and Subject
   const handleCourseChange = (newCourse: string) => {
@@ -267,13 +269,19 @@ export const StudyMaterialsPage: React.FC = () => {
         return m.accessLevel === selectedAccess;
       })
       .filter((m) => {
+        if (currentUser?.role === 'student') {
+          return isStudentEnrolledInSubject(m.courseSlug, m.subject);
+        }
+        return true;
+      })
+      .filter((m) => {
         if (!filterEnrolledOnly) return true;
         if (currentUser?.role === 'student') {
-          return currentUser.enrolledCourseSlugs?.includes(m.courseSlug);
+          return isStudentEnrolledInSubject(m.courseSlug, m.subject);
         }
         return true;
       });
-  }, [studyMaterials, searchQuery, selectedCourse, selectedCourseType, selectedYearOrSemester, selectedSubject, selectedType, selectedAccess, filterEnrolledOnly, currentUser]);
+  }, [studyMaterials, searchQuery, selectedCourse, selectedCourseType, selectedYearOrSemester, selectedSubject, selectedType, selectedAccess, filterEnrolledOnly, currentUser, isStudentEnrolledInSubject]);
 
   // Dynamic counts for each resource type based on current Course + Year/Semester + Subject filters
   const resourceCountsByType = useMemo(() => {
@@ -284,6 +292,12 @@ export const StudyMaterialsPage: React.FC = () => {
 
     studyMaterials
       .filter((m) => m.published)
+      .filter((m) => {
+        if (currentUser?.role === 'student') {
+          return isStudentEnrolledInSubject(m.courseSlug, m.subject);
+        }
+        return true;
+      })
       .filter((m) => {
         if (!searchQuery.trim()) return true;
         const q = searchQuery.toLowerCase();
@@ -306,16 +320,21 @@ export const StudyMaterialsPage: React.FC = () => {
       });
 
     return counts;
-  }, [studyMaterials, searchQuery, selectedCourse, selectedCourseType, selectedYearOrSemester, selectedSubject, selectedAccess]);
+  }, [studyMaterials, searchQuery, selectedCourse, selectedCourseType, selectedYearOrSemester, selectedSubject, selectedAccess, currentUser, isStudentEnrolledInSubject]);
 
   const recordedVideosTotalCount = useMemo(() => {
-    return studyMaterials.filter((m) => m.published && m.resourceType === 'Recorded Videos').length;
-  }, [studyMaterials]);
+    return studyMaterials.filter(
+      (m) =>
+        m.published &&
+        m.resourceType === 'Recorded Videos' &&
+        (currentUser?.role !== 'student' || isStudentEnrolledInSubject(m.courseSlug, m.subject))
+    ).length;
+  }, [studyMaterials, currentUser, isStudentEnrolledInSubject]);
 
   const handleDownload = (material: StudyMaterial) => {
     const isEnrolled =
       currentUser?.role === 'admin' ||
-      (currentUser?.role === 'student' && currentUser.enrolledCourseSlugs?.includes(material.courseSlug));
+      (currentUser?.role === 'student' && isStudentEnrolledInSubject(material.courseSlug, material.subject));
 
     if (!isEnrolled) {
       setRestrictedMaterial(material);
@@ -327,7 +346,7 @@ export const StudyMaterialsPage: React.FC = () => {
   const handleOpenVideo = (material: StudyMaterial) => {
     const isEnrolled =
       currentUser?.role === 'admin' ||
-      (currentUser?.role === 'student' && currentUser.enrolledCourseSlugs?.includes(material.courseSlug));
+      (currentUser?.role === 'student' && isStudentEnrolledInSubject(material.courseSlug, material.subject));
 
     if (!isEnrolled) {
       setRestrictedMaterial(material);
@@ -508,44 +527,9 @@ export const StudyMaterialsPage: React.FC = () => {
                     ))
                   ) : (
                     <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                      All Course Subjects (Unrestricted)
+                      All Course Subjects
                     </span>
                   )}
-                </div>
-
-                {/* Quick Subject Access Simulation Bar */}
-                <div className="pt-1 flex items-center gap-2 flex-wrap text-[11px]">
-                  <span className="text-slate-500 font-semibold">Simulate Subject Enrollment:</span>
-                  <button
-                    onClick={() => updateStudentEnrolledSubjects(['Business Statistics'])}
-                    className={`px-2.5 py-1 rounded-lg font-bold border transition-all cursor-pointer ${
-                      currentUser.enrolledSubjects?.includes('Business Statistics') && currentUser.enrolledSubjects.length === 1
-                        ? 'bg-[#12315A] text-white border-[#12315A] shadow-xs'
-                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
-                    }`}
-                  >
-                    Business Statistics Only
-                  </button>
-                  <button
-                    onClick={() => updateStudentEnrolledSubjects(['Microeconomics'])}
-                    className={`px-2.5 py-1 rounded-lg font-bold border transition-all cursor-pointer ${
-                      currentUser.enrolledSubjects?.includes('Microeconomics') && currentUser.enrolledSubjects.length === 1
-                        ? 'bg-[#12315A] text-white border-[#12315A] shadow-xs'
-                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
-                    }`}
-                  >
-                    Microeconomics Only
-                  </button>
-                  <button
-                    onClick={() => updateStudentEnrolledSubjects([])}
-                    className={`px-2.5 py-1 rounded-lg font-bold border transition-all cursor-pointer ${
-                      !currentUser.enrolledSubjects || currentUser.enrolledSubjects.length === 0
-                        ? 'bg-[#12315A] text-white border-[#12315A] shadow-xs'
-                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
-                    }`}
-                  >
-                    Full Package (All Subjects)
-                  </button>
                 </div>
               </div>
             </div>
@@ -588,20 +572,6 @@ export const StudyMaterialsPage: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-2.5 shrink-0 self-start sm:self-center flex-wrap">
-              <button
-                onClick={() =>
-                  loginAsStudent(
-                    'SSS-STU-BBS-2026',
-                    'anuj@shikshyalaya.edu.np',
-                    ['bbs-tu'],
-                    'Anuj Das (BBS 1st Year)',
-                    ['Business Statistics']
-                  )
-                }
-                className="px-3 py-2 rounded-xl text-xs font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 transition-colors cursor-pointer shadow-xs"
-              >
-                Test BBS Student (Enrolled in Business Statistics Only)
-              </button>
               <Link
                 to="/student/login"
                 className="px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-[#12315A] hover:bg-blue-900 transition-colors shadow-sm"
@@ -673,7 +643,10 @@ export const StudyMaterialsPage: React.FC = () => {
                 className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs font-semibold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="ALL">All Academic Courses</option>
-                {courses.map((c) => (
+                {(currentUser?.role === 'student'
+                  ? courses.filter((c) => currentUser.enrolledCourseSlugs?.includes(c.slug))
+                  : courses
+                ).map((c) => (
                   <option key={c.slug} value={c.slug}>
                     {getCourseDisplayName(c)}
                   </option>
@@ -876,40 +849,107 @@ export const StudyMaterialsPage: React.FC = () => {
 
       {/* Materials List */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
-        <div className="flex items-center justify-between mb-6">
-          <p className="text-xs sm:text-sm font-semibold text-slate-600">
-            Showing <strong>{filteredMaterials.length}</strong> academic resources matching criteria
-          </p>
+        {selectedSubject === 'ALL' && selectedType === 'ALL' && !searchQuery.trim() ? (
+          <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 space-y-5 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h2 className="text-lg font-bold text-[#12315A]">
+                  Select a Subject to View Resources
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Click the specific subject you want to study. Only materials for your selected subject will be displayed.
+                </p>
+              </div>
+              {!currentUser && (
+                <Link
+                  to="/student/login"
+                  className="text-xs text-blue-700 font-semibold hover:underline flex items-center gap-1"
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>Log in to access enrolled materials</span>
+                </Link>
+              )}
+            </div>
 
-          {!currentUser && (
-            <Link
-              to="/student/login"
-              className="text-xs text-blue-700 font-semibold hover:underline flex items-center gap-1"
-            >
-              <Lock className="w-3.5 h-3.5" />
-              <span>Log in to unlock enrolled student materials</span>
-            </Link>
-          )}
-        </div>
-
-        {filteredMaterials.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center space-y-3">
-            <BookOpen className="w-10 h-10 text-slate-400 mx-auto" />
-            <h3 className="text-base font-bold text-slate-800">No resources found matching the selected filters</h3>
-            <p className="text-xs text-slate-500 max-w-md mx-auto">
-              Try adjusting your Year/Semester, Subject, or Resource Type filter, or search query to find relevant materials.
-            </p>
-            <button
-              onClick={resetAllFilters}
-              className="mt-2 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors cursor-pointer"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>Reset All Filters</span>
-            </button>
+            {availableSubjects.length === 0 ? (
+              <div className="p-8 text-center rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-500">
+                No subjects match the selected course or semester filter.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                {availableSubjects.map((sub) => {
+                  const subCount = filteredMaterials.filter(
+                    (m) => m.subject.toLowerCase() === sub.toLowerCase()
+                  ).length;
+                  return (
+                    <button
+                      key={sub}
+                      type="button"
+                      onClick={() => setSelectedSubject(sub)}
+                      className="p-4 rounded-2xl border border-slate-200 bg-slate-50/70 hover:bg-blue-50/70 hover:border-blue-300 text-left transition-all cursor-pointer flex items-center justify-between gap-3 group"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-slate-900 group-hover:text-[#12315A] truncate">
+                          {sub}
+                        </p>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          {subCount} resource{subCount !== 1 ? 's' : ''} available
+                        </p>
+                      </div>
+                      <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-blue-700 shrink-0" />
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {filteredMaterials.map((mat) => {
+          <>
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+              <div className="flex items-center gap-3 flex-wrap">
+                {selectedSubject !== 'ALL' && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedSubject('ALL')}
+                    className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-100 transition-colors cursor-pointer"
+                  >
+                    &larr; All Subjects
+                  </button>
+                )}
+                <p className="text-xs sm:text-sm font-semibold text-slate-600">
+                  Showing <strong>{filteredMaterials.length}</strong> academic resources matching criteria
+                </p>
+              </div>
+
+              {!currentUser && (
+                <Link
+                  to="/student/login"
+                  className="text-xs text-blue-700 font-semibold hover:underline flex items-center gap-1"
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>Log in to unlock enrolled student materials</span>
+                </Link>
+              )}
+            </div>
+
+            {filteredMaterials.length === 0 ? (
+              <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center space-y-3">
+                <BookOpen className="w-10 h-10 text-slate-400 mx-auto" />
+                <h3 className="text-base font-bold text-slate-800">No resources found matching the selected filters</h3>
+                <p className="text-xs text-slate-500 max-w-md mx-auto">
+                  Try adjusting your Year/Semester, Subject, or Resource Type filter, or search query to find relevant materials.
+                </p>
+                <button
+                  onClick={resetAllFilters}
+                  className="mt-2 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Reset All Filters</span>
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {filteredMaterials.map((mat) => {
               const isCourseEnrolled =
                 currentUser?.role === 'admin' ||
                 (currentUser?.role === 'student' && currentUser.enrolledCourseSlugs?.includes(mat.courseSlug));
@@ -1069,6 +1109,8 @@ export const StudyMaterialsPage: React.FC = () => {
               );
             })}
           </div>
+        )}
+          </>
         )}
       </div>
 

@@ -211,9 +211,9 @@ export const Footer: React.FC = () => {
               Terms & Conditions
             </Link>
             <span>•</span>
-            <Link to="/admin" className="inline-flex items-center gap-1 text-slate-400 hover:text-amber-300 transition-colors">
+            <Link to="/student/login" className="inline-flex items-center gap-1 text-slate-400 hover:text-amber-300 transition-colors">
               <Shield className="w-3 h-3" />
-              <span>Admin Portal</span>
+              <span>Portal Login</span>
             </Link>
           </div>
         </div>
