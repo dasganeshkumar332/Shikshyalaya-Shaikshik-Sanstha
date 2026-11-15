@@ -12,8 +12,10 @@ import {
   BookOpen,
   Receipt,
   FileCheck,
+  Phone,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { normalizeMobileNumber, mobileMatches } from '../utils/phone';
 
 export const StudentLoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -40,12 +42,11 @@ export const StudentLoginPage: React.FC = () => {
 
     const rawInput = (studentId || email || '').trim();
     if (!rawInput) {
-      setError('Please enter your User ID, Application Reference Number, Mobile Phone, or Email.');
+      setError('Please enter your Registered Mobile Number (Login ID).');
       return;
     }
 
     const cleanInput = rawInput.toLowerCase();
-    const cleanDigits = rawInput.replace(/[^0-9]/g, '');
 
     // Automatic Admin Detection & Authentication
     const isAdminIdentifier =
@@ -68,19 +69,23 @@ export const StudentLoginPage: React.FC = () => {
       return;
     }
 
-    // 1. Check verified admission inquiries
+    // 1. Check verified admission inquiries (primary: mobile number)
     const foundVerifiedInq = inquiries.find(
       (inq) =>
         (inq.status === 'Verified & Enrolled' || Boolean(inq.paymentVerified)) &&
-        ((inq.referenceNumber && inq.referenceNumber.toLowerCase() === cleanInput) ||
+        (mobileMatches(rawInput, inq.phone) ||
           (inq.assignedStudentId && inq.assignedStudentId.toLowerCase() === cleanInput) ||
-          (inq.email && inq.email.toLowerCase() === cleanInput) ||
-          (cleanDigits.length >= 7 && inq.phone.replace(/[^0-9]/g, '') === cleanDigits))
+          (inq.referenceNumber && inq.referenceNumber.toLowerCase() === cleanInput) ||
+          (inq.email && inq.email.toLowerCase() === cleanInput))
     );
 
     if (foundVerifiedInq) {
+      const mobileLoginId =
+        normalizeMobileNumber(foundVerifiedInq.phone) ||
+        foundVerifiedInq.assignedStudentId ||
+        foundVerifiedInq.referenceNumber;
       const success = loginAsStudent(
-        foundVerifiedInq.assignedStudentId || foundVerifiedInq.referenceNumber,
+        mobileLoginId,
         foundVerifiedInq.email || 'student@shikshyalaya.edu.np',
         [foundVerifiedInq.courseSlug],
         foundVerifiedInq.fullName,
@@ -94,19 +99,23 @@ export const StudentLoginPage: React.FC = () => {
       return;
     }
 
-    // 2. Check if student is registered for mock test series
+    // 2. Check if student is registered for mock test series (primary: mobile number)
     const foundMockReg = mockTestRegistrations.find(
       (reg) =>
+        mobileMatches(rawInput, reg.phone) ||
         (reg.referenceNumber && reg.referenceNumber.toLowerCase() === cleanInput) ||
         (reg.studentRollNo && reg.studentRollNo.toLowerCase() === cleanInput) ||
-        (reg.email && reg.email.toLowerCase() === cleanInput) ||
-        (cleanDigits.length >= 7 && reg.phone.replace(/[^0-9]/g, '') === cleanDigits)
+        (reg.email && reg.email.toLowerCase() === cleanInput)
     );
 
     if (foundMockReg) {
+      const mobileLoginId =
+        normalizeMobileNumber(foundMockReg.phone) ||
+        foundMockReg.studentRollNo ||
+        foundMockReg.referenceNumber;
       const success = loginAsStudent(
-        foundMockReg.studentRollNo || foundMockReg.referenceNumber,
-        foundMockReg.email || `${foundMockReg.phone}@student.shikshyalaya.edu.np`,
+        mobileLoginId,
+        foundMockReg.email || `${mobileLoginId}@student.shikshyalaya.edu.np`,
         [foundMockReg.courseSlug],
         foundMockReg.fullName,
         foundMockReg.enrolledSubjects
@@ -119,18 +128,23 @@ export const StudentLoginPage: React.FC = () => {
       return;
     }
 
-    // 3. Check student group cohort members
+    // 3. Check student group cohort members (primary: mobile number)
     for (const group of studentGroups) {
       const foundMember = group.members.find(
         (m) =>
+          mobileMatches(rawInput, m.phone) ||
           (m.studentId && m.studentId.toLowerCase() === cleanInput) ||
           (m.rollNumber && m.rollNumber.toLowerCase() === cleanInput) ||
           (m.referenceNumber && m.referenceNumber.toLowerCase() === cleanInput) ||
-          (m.email && m.email.toLowerCase() === cleanInput) ||
-          (cleanDigits.length >= 7 && m.phone?.replace(/[^0-9]/g, '') === cleanDigits)
+          (m.email && m.email.toLowerCase() === cleanInput)
       );
       if (foundMember) {
-        const memberId = foundMember.studentId || foundMember.rollNumber || foundMember.referenceNumber || foundMember.id;
+        const memberId =
+          normalizeMobileNumber(foundMember.phone) ||
+          foundMember.studentId ||
+          foundMember.rollNumber ||
+          foundMember.referenceNumber ||
+          foundMember.id;
         const success = loginAsStudent(
           memberId,
           foundMember.email || `${memberId.toLowerCase()}@shikshyalaya.edu.np`,
@@ -148,10 +162,10 @@ export const StudentLoginPage: React.FC = () => {
     // 4. Check pending admission inquiries
     const foundPendingInq = inquiries.find(
       (inq) =>
+        mobileMatches(rawInput, inq.phone) ||
         (inq.referenceNumber && inq.referenceNumber.toLowerCase() === cleanInput) ||
         (inq.assignedStudentId && inq.assignedStudentId.toLowerCase() === cleanInput) ||
-        (inq.email && inq.email.toLowerCase() === cleanInput) ||
-        (cleanDigits.length >= 7 && inq.phone.replace(/[^0-9]/g, '') === cleanDigits)
+        (inq.email && inq.email.toLowerCase() === cleanInput)
     );
 
     if (foundPendingInq) {
@@ -173,7 +187,7 @@ export const StudentLoginPage: React.FC = () => {
 
     // If no verified record exists, strictly deny access!
     setError(
-      'Authentication failed: No active enrolled student or registered examinee found matching this ID or phone number. For newly submitted admission applications, administrative verification is required before student portal activation.'
+      'Authentication failed: No active enrolled student or registered examinee found matching this mobile number. For newly submitted admission applications, administrative verification is required before student portal activation.'
     );
   };
 
@@ -244,23 +258,26 @@ export const StudentLoginPage: React.FC = () => {
 
               <div>
                 <label className="block font-bold text-slate-700 mb-1">
-                  Student ID or Reference Code
+                  Mobile Number (Student Login ID) <span className="text-rose-500">*</span>
                 </label>
                 <div className="relative">
-                  <User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
-                    placeholder="e.g. SSS-BBM-2026-101"
+                    placeholder="Enter registered mobile number (e.g. 98XXXXXXXX)"
                     value={studentId}
                     onChange={(e) => setStudentId(e.target.value)}
-                    className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
                   />
                 </div>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Your registered mobile number is your official Student Portal Login ID.
+                </p>
               </div>
 
               <div>
                 <label className="block font-bold text-slate-700 mb-1">
-                  Email Address
+                  Email Address <span className="text-[11px] font-normal text-slate-400">(Optional)</span>
                 </label>
                 <div className="relative">
                   <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -312,26 +329,26 @@ export const StudentLoginPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => {
-                    setStudentId('SSS-STU-BBA-1004');
+                    setStudentId('9849876543');
                     setEmail('prashant.sharma@example.com');
                     setSelectedCourseSlug('bba-tu');
                   }}
                   className="px-2.5 py-1 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-900 font-bold border border-emerald-300 transition-colors cursor-pointer text-left"
                   title="Officially verified with ConnectIPS payment slip"
                 >
-                  ✓ Prashant (Verified ID: SSS-STU-BBA-1004)
+                  ✓ Prashant (Mobile ID: 9849876543)
                 </button>
                 <button
                   type="button"
                   onClick={() => {
-                    setStudentId('SSS-ADM-2026-1004');
+                    setStudentId('9860123456');
                     setEmail('sunil.thapa@example.com');
                     setSelectedCourseSlug('bbm-tu');
                   }}
                   className="px-2.5 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold border border-amber-300 transition-colors cursor-pointer text-left"
                   title="Has eSewa voucher pending admin review"
                 >
-                  ⏳ Sunil (Ref: SSS-ADM-2026-1004 • eSewa Slip)
+                  ⏳ Sunil (Mobile ID: 9860123456 • Pending Slip)
                 </button>
               </div>
             </div>

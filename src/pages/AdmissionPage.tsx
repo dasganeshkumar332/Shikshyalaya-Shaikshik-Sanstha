@@ -524,7 +524,7 @@ export const AdmissionPage: React.FC = () => {
               <h4 className="font-bold text-sm text-[#12315A]">What Happens Next?</h4>
               <ul className="space-y-1.5 list-disc list-inside text-slate-600">
                 <li>Our academic coordinator will contact you at <strong>{phone}</strong> to confirm your batch timings.</li>
-                <li>Your enrolled student access will be activated upon verification of your payment voucher.</li>
+                <li>Once verified, your Student Portal Login ID will be your registered mobile number (<strong>{phone}</strong>).</li>
                 <li>Authorized study materials, revision questions, and live lectures will be unlocked for your enrolled course.</li>
               </ul>
             </div>

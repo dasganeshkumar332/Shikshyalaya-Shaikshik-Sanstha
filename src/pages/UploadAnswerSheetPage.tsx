@@ -31,6 +31,8 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Course, CourseType, MockTestSubmission } from '../types';
+import { sortByDate } from '../utils/dateSort';
+import { mobileMatches } from '../utils/phone';
 
 export const UploadAnswerSheetPage: React.FC = () => {
   const {
@@ -367,28 +369,34 @@ export const UploadAnswerSheetPage: React.FC = () => {
     const roll = trackRollNo.trim().toLowerCase();
     const phoneClean = trackPhone.trim().replace(/[^0-9]/g, '');
 
+    let matched: MockTestSubmission[] = [];
     if (!roll && !phoneClean && currentUser) {
       const uRoll = (currentUser.studentId || '').trim().toLowerCase();
-      const uPhone = (currentUser.phone || '').replace(/[^0-9]/g, '');
       const uEmail = (currentUser.email || '').trim().toLowerCase();
-      return mockTestSubmissions.filter((sub) => {
+      matched = mockTestSubmissions.filter((sub) => {
         const matchRoll = uRoll && (sub.rollNumber?.toLowerCase() === uRoll || sub.studentId?.toLowerCase() === uRoll);
-        const matchPhone = uPhone && sub.studentPhone?.replace(/[^0-9]/g, '') === uPhone;
+        const matchPhone =
+          mobileMatches(sub.studentPhone, currentUser.phone || currentUser.studentId) ||
+          mobileMatches(sub.rollNumber, currentUser.phone || currentUser.studentId) ||
+          mobileMatches(sub.studentId, currentUser.phone || currentUser.studentId);
         const matchEmail = uEmail && sub.studentEmail?.toLowerCase() === uEmail;
         return matchRoll || matchPhone || matchEmail;
       });
+    } else if (hasQueriedTrack || currentUser) {
+      matched = mockTestSubmissions.filter((sub) => {
+        const matchRoll =
+          roll &&
+          (sub.rollNumber?.toLowerCase() === roll ||
+            sub.studentId?.toLowerCase() === roll ||
+            mobileMatches(sub.studentPhone, trackRollNo));
+        if (phoneClean) {
+          return matchRoll || mobileMatches(sub.studentPhone, trackPhone);
+        }
+        return matchRoll;
+      });
     }
 
-    if (!hasQueriedTrack && !currentUser) return [];
-
-    return mockTestSubmissions.filter((sub) => {
-      const matchRoll = roll && (sub.rollNumber?.toLowerCase() === roll || sub.studentId?.toLowerCase() === roll);
-      if (phoneClean) {
-        const subPhoneClean = (sub.studentPhone || '').replace(/[^0-9]/g, '');
-        return matchRoll || (subPhoneClean && subPhoneClean === phoneClean);
-      }
-      return matchRoll;
-    });
+    return sortByDate(matched, (sub) => sub.submittedAt, 'desc', { getId: (sub) => sub.id });
   }, [mockTestSubmissions, trackRollNo, trackPhone, hasQueriedTrack, currentUser]);
 
   return (

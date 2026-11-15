@@ -22,11 +22,13 @@ import {
   GraduationCap,
   Pause,
   Eye,
+  ArrowUpDown,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { StudyMaterial, Course } from '../types';
 import { triggerFileDownload } from '../utils/fileStorage';
 import { DocumentViewerModal } from '../components/common/DocumentViewerModal';
+import { sortByDate, DateSortOrder } from '../utils/dateSort';
 
 export const StudyMaterialsPage: React.FC = () => {
   const {
@@ -47,6 +49,7 @@ export const StudyMaterialsPage: React.FC = () => {
   const [selectedType, setSelectedType] = useState('ALL');
   const [selectedAccess, setSelectedAccess] = useState('ALL');
   const [filterEnrolledOnly, setFilterEnrolledOnly] = useState(false);
+  const [dateSortOrder, setDateSortOrder] = useState<DateSortOrder>('desc');
   const [activeVideoModal, setActiveVideoModal] = useState<StudyMaterial | null>(null);
   const [isPlayingVideo, setIsPlayingVideo] = useState(false);
   const [restrictedMaterial, setRestrictedMaterial] = useState<StudyMaterial | null>(null);
@@ -267,9 +270,9 @@ export const StudyMaterialsPage: React.FC = () => {
     setSelectedSubject('ALL');
   };
 
-  // Filtered study materials matching all active criteria
+  // Filtered study materials matching all active criteria (sorted by upload date)
   const filteredMaterials = useMemo(() => {
-    return studyMaterials
+    const filtered = studyMaterials
       .filter((m) => m.published)
       .filter((m) => {
         if (!searchQuery.trim()) return true;
@@ -318,7 +321,8 @@ export const StudyMaterialsPage: React.FC = () => {
         }
         return true;
       });
-  }, [studyMaterials, searchQuery, selectedCourse, selectedCourseType, selectedYearOrSemester, selectedSubject, selectedType, selectedAccess, filterEnrolledOnly, currentUser, isStudentEnrolledInSubject]);
+    return sortByDate(filtered, (m) => m.uploadDate, dateSortOrder, { getId: (m) => m.id });
+  }, [studyMaterials, searchQuery, selectedCourse, selectedCourseType, selectedYearOrSemester, selectedSubject, selectedType, selectedAccess, filterEnrolledOnly, currentUser, isStudentEnrolledInSubject, subjectsMatch, dateSortOrder]);
 
   // Dynamic counts for each resource type based on current Course + Year/Semester + Subject filters
   const resourceCountsByType = useMemo(() => {
@@ -985,15 +989,25 @@ export const StudyMaterialsPage: React.FC = () => {
                 </p>
               </div>
 
-              {!currentUser && (
-                <Link
-                  to="/student/login"
-                  className="text-xs text-blue-700 font-semibold hover:underline flex items-center gap-1"
+              <div className="flex items-center gap-3 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setDateSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'))}
+                  className="px-3 py-1.5 rounded-xl text-xs font-bold text-[#12315A] bg-white border border-slate-200 hover:bg-blue-50 transition-colors flex items-center gap-1.5 cursor-pointer"
                 >
-                  <Lock className="w-3.5 h-3.5" />
-                  <span>Log in to unlock enrolled student materials</span>
-                </Link>
-              )}
+                  <ArrowUpDown className="w-3.5 h-3.5 text-blue-700" />
+                  <span>Date: {dateSortOrder === 'desc' ? 'Newest First' : 'Oldest First'}</span>
+                </button>
+                {!currentUser && (
+                  <Link
+                    to="/student/login"
+                    className="text-xs text-blue-700 font-semibold hover:underline flex items-center gap-1"
+                  >
+                    <Lock className="w-3.5 h-3.5" />
+                    <span>Log in to unlock enrolled student materials</span>
+                  </Link>
+                )}
+              </div>
             </div>
 
             {filteredMaterials.length === 0 ? (
@@ -1012,191 +1026,207 @@ export const StudyMaterialsPage: React.FC = () => {
                 </button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-xs divide-y divide-slate-100 overflow-hidden">
                 {filteredMaterials.map((mat) => {
-              const isCourseEnrolled =
-                currentUser?.role === 'admin' ||
-                (currentUser?.role === 'student' && currentUser.enrolledCourseSlugs?.includes(mat.courseSlug));
+                  const isCourseEnrolled =
+                    currentUser?.role === 'admin' ||
+                    (currentUser?.role === 'student' && currentUser.enrolledCourseSlugs?.includes(mat.courseSlug));
 
-              const isSubjectAllowed =
-                currentUser?.role === 'admin' ||
-                isStudentEnrolledInSubject(mat.courseSlug, mat.subject);
+                  const isSubjectAllowed =
+                    currentUser?.role === 'admin' ||
+                    isStudentEnrolledInSubject(mat.courseSlug, mat.subject);
 
-              const hasAccess = isCourseEnrolled && isSubjectAllowed;
-              const isSubjectRestricted =
-                currentUser?.role === 'student' && isCourseEnrolled && !isSubjectAllowed;
+                  const hasAccess = isCourseEnrolled && isSubjectAllowed;
+                  const isSubjectRestricted =
+                    currentUser?.role === 'student' && isCourseEnrolled && !isSubjectAllowed;
 
-              return (
-                <div
-                  key={mat.id}
-                  className={`p-5 rounded-2xl border transition-all flex flex-col justify-between space-y-4 ${
-                    hasAccess
-                      ? mat.resourceType === 'Recorded Videos'
-                        ? 'bg-white border-rose-200 hover:border-rose-400 shadow-sm'
-                        : 'bg-white border-slate-200/90 hover:border-blue-300 shadow-sm'
-                      : isSubjectRestricted
-                      ? 'bg-amber-50/40 border-amber-300/80 shadow-2xs'
-                      : 'bg-slate-50/70 border-slate-200/80 shadow-2xs'
-                  }`}
-                >
-                  <div className="space-y-2.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span
-                          className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded flex items-center gap-1 ${
+                  return (
+                    <div
+                      key={mat.id}
+                      className={`p-4 sm:p-5 transition-colors flex flex-col lg:flex-row lg:items-center justify-between gap-4 ${
+                        hasAccess
+                          ? mat.resourceType === 'Recorded Videos'
+                            ? 'hover:bg-rose-50/30'
+                            : 'hover:bg-blue-50/30'
+                          : isSubjectRestricted
+                          ? 'bg-amber-50/30'
+                          : 'bg-slate-50/40'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3.5 min-w-0 flex-1">
+                        <div
+                          className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${
                             mat.resourceType === 'Recorded Videos'
-                              ? 'bg-rose-100 text-rose-800 font-extrabold border border-rose-200'
-                              : 'bg-blue-50 text-blue-800'
+                              ? 'bg-rose-50 text-rose-600 border-rose-200'
+                              : 'bg-blue-50 text-[#12315A] border-blue-200'
                           }`}
                         >
-                          {mat.resourceType === 'Recorded Videos' && <Video className="w-3 h-3 text-rose-600" />}
-                          <span>{mat.resourceType}</span>
-                        </span>
-
-                        <span
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                            mat.courseType === 'Old Course'
-                              ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                              : 'bg-slate-100 text-slate-700 border border-slate-200'
-                          }`}
-                        >
-                          {mat.courseType || 'New Course'}
-                        </span>
-                      </div>
-
-                      <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1 ${
-                          hasAccess
-                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                            : isSubjectRestricted
-                            ? 'bg-amber-100 text-amber-900 border border-amber-300 font-bold'
-                            : currentUser
-                            ? 'bg-rose-50 text-rose-900 border border-rose-200 font-semibold'
-                            : 'bg-slate-100 text-slate-700 border border-slate-200'
-                        }`}
-                      >
-                        {hasAccess ? (
-                          <>
-                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                            <span>Enrolled • Unlocked</span>
-                          </>
-                        ) : isSubjectRestricted ? (
-                          <>
-                            <Lock className="w-3 h-3 text-amber-700" />
-                            <span>Subject Restricted</span>
-                          </>
-                        ) : currentUser ? (
-                          <>
-                            <Lock className="w-3 h-3 text-rose-600" />
-                            <span>Course Restricted</span>
-                          </>
-                        ) : (
-                          <>
-                            <Lock className="w-3 h-3 text-slate-500" />
-                            <span>Enrolled Students Only</span>
-                          </>
-                        )}
-                      </span>
-                    </div>
-
-                    <h3 className="text-base font-bold text-slate-900 leading-snug">
-                      {mat.title}
-                    </h3>
-
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 font-medium">
-                      <span><strong>Course:</strong> {mat.courseName}</span>
-                      <span>•</span>
-                      <span>
-                        <strong>Subject:</strong>{' '}
-                        <span className={isSubjectRestricted ? 'text-amber-800 font-bold' : ''}>
-                          {mat.subject}
-                        </span>
-                      </span>
-                      <span>•</span>
-                      <span className="font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded">{mat.semesterOrYear}</span>
-                    </div>
-
-                    {isSubjectRestricted && (
-                      <div className="p-2.5 rounded-xl bg-amber-100/70 border border-amber-300 text-[11px] text-amber-900 flex items-center gap-2">
-                        <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
-                        <span>
-                          Enrolled in <strong>{currentUser?.enrolledSubjects?.join(', ')}</strong>. Access to <strong>{mat.subject}</strong> is restricted.
-                        </span>
-                      </div>
-                    )}
-
-                    {mat.description && (
-                      <p className="text-xs text-slate-600 leading-relaxed line-clamp-2">
-                        {mat.description}
-                      </p>
-                    )}
-
-                    {(mat.fileName || mat.attachmentName || mat.downloadUrl) && mat.resourceType !== 'Recorded Videos' && (
-                      <div className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center gap-2 text-[11px] text-slate-700">
-                        <FileText className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-                        <span className="font-semibold truncate">
-                          {mat.fileName || mat.attachmentName || 'Uploaded_Resource.pdf'}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2 text-xs">
-                    <span className="text-slate-400 font-medium">{mat.fileSize} • Uploaded {mat.uploadDate}</span>
-
-                    {hasAccess ? (
-                      mat.resourceType === 'Recorded Videos' ? (
-                        <button
-                          onClick={() => handleOpenVideo(mat)}
-                          className="px-3.5 py-1.5 rounded-lg text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
-                        >
-                          <Play className="w-3.5 h-3.5 fill-current" />
-                          <span>Watch Video</span>
-                        </button>
-                      ) : (
-                        <div className="flex items-center gap-2 shrink-0">
-                          {mat.downloadUrl && (
-                            <button
-                              type="button"
-                              onClick={() => handlePreviewMaterial(mat)}
-                              className="px-3 py-1.5 rounded-lg text-xs font-bold text-[#12315A] bg-slate-100 hover:bg-blue-50 border border-slate-200 transition-colors flex items-center gap-1 cursor-pointer"
-                            >
-                              <Eye className="w-3.5 h-3.5 text-blue-700" />
-                              <span>View</span>
-                            </button>
+                          {mat.resourceType === 'Recorded Videos' ? (
+                            <Video className="w-5 h-5" />
+                          ) : (
+                            <FileText className="w-5 h-5" />
                           )}
-                          <button
-                            onClick={() => handleDownload(mat)}
-                            className="px-3.5 py-1.5 rounded-lg text-xs font-bold text-white bg-[#12315A] hover:bg-[#1f487e] transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
-                          >
-                            <Download className="w-3.5 h-3.5 text-amber-400" />
-                            <span>Download</span>
-                          </button>
                         </div>
-                      )
-                    ) : isSubjectRestricted ? (
-                      <button
-                        onClick={() => setRestrictedMaterial(mat)}
-                        className="px-3 py-1.5 rounded-lg text-xs font-bold text-amber-950 bg-amber-200 hover:bg-amber-300 border border-amber-400 transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
-                      >
-                        <Lock className="w-3.5 h-3.5 text-amber-800" />
-                        <span>Subject Restricted</span>
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => setRestrictedMaterial(mat)}
-                        className="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                      >
-                        <Lock className="w-3.5 h-3.5 text-slate-600" />
-                        <span>{currentUser ? 'Course Locked' : 'Enroll to Access'}</span>
-                      </button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+
+                        <div className="space-y-1.5 min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span
+                              className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded flex items-center gap-1 ${
+                                mat.resourceType === 'Recorded Videos'
+                                  ? 'bg-rose-100 text-rose-800 font-extrabold border border-rose-200'
+                                  : 'bg-blue-50 text-blue-800'
+                              }`}
+                            >
+                              <span>{mat.resourceType}</span>
+                            </span>
+
+                            <span
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                                mat.courseType === 'Old Course'
+                                  ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                                  : 'bg-slate-100 text-slate-700 border border-slate-200'
+                              }`}
+                            >
+                              {mat.courseType || 'New Course'}
+                            </span>
+
+                            <span className="text-[10px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded">
+                              {mat.semesterOrYear}
+                            </span>
+
+                            <span
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1 ${
+                                hasAccess
+                                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                                  : isSubjectRestricted
+                                  ? 'bg-amber-100 text-amber-900 border border-amber-300 font-bold'
+                                  : currentUser
+                                  ? 'bg-rose-50 text-rose-900 border border-rose-200 font-semibold'
+                                  : 'bg-slate-100 text-slate-700 border border-slate-200'
+                              }`}
+                            >
+                              {hasAccess ? (
+                                <>
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                  <span>Unlocked</span>
+                                </>
+                              ) : isSubjectRestricted ? (
+                                <>
+                                  <Lock className="w-3 h-3 text-amber-700" />
+                                  <span>Subject Restricted</span>
+                                </>
+                              ) : currentUser ? (
+                                <>
+                                  <Lock className="w-3 h-3 text-rose-600" />
+                                  <span>Course Restricted</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Lock className="w-3 h-3 text-slate-500" />
+                                  <span>Enrolled Only</span>
+                                </>
+                              )}
+                            </span>
+                          </div>
+
+                          <h3 className="text-sm sm:text-base font-bold text-slate-900 leading-snug">
+                            {mat.title}
+                          </h3>
+
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 font-medium">
+                            <span><strong>Course:</strong> {mat.courseName}</span>
+                            <span>•</span>
+                            <span>
+                              <strong>Subject:</strong>{' '}
+                              <span className={isSubjectRestricted ? 'text-amber-800 font-bold' : ''}>
+                                {mat.subject}
+                              </span>
+                            </span>
+                            {(mat.fileName || mat.attachmentName) && mat.resourceType !== 'Recorded Videos' && (
+                              <>
+                                <span>•</span>
+                                <span className="text-slate-700 font-semibold truncate max-w-xs">
+                                  {mat.fileName || mat.attachmentName}
+                                </span>
+                              </>
+                            )}
+                          </div>
+
+                          {mat.description && (
+                            <p className="text-xs text-slate-600 leading-relaxed line-clamp-1">
+                              {mat.description}
+                            </p>
+                          )}
+
+                          {isSubjectRestricted && (
+                            <div className="p-2 rounded-xl bg-amber-100/70 border border-amber-300 text-[11px] text-amber-900 flex items-center gap-2">
+                              <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
+                              <span>
+                                Enrolled in <strong>{currentUser?.enrolledSubjects?.join(', ')}</strong>. Access to <strong>{mat.subject}</strong> is restricted.
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap sm:flex-nowrap items-center justify-between lg:justify-end gap-3 shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-100">
+                        <span className="text-xs text-slate-400 font-medium whitespace-nowrap">
+                          {mat.fileSize} • {mat.uploadDate}
+                        </span>
+
+                        {hasAccess ? (
+                          mat.resourceType === 'Recorded Videos' ? (
+                            <button
+                              onClick={() => handleOpenVideo(mat)}
+                              className="px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
+                            >
+                              <Play className="w-3.5 h-3.5 fill-current" />
+                              <span>Watch Video</span>
+                            </button>
+                          ) : (
+                            <div className="flex items-center gap-2 shrink-0">
+                              {mat.downloadUrl && (
+                                <button
+                                  type="button"
+                                  onClick={() => handlePreviewMaterial(mat)}
+                                  className="px-3.5 py-2 rounded-xl text-xs font-bold text-[#12315A] bg-slate-100 hover:bg-blue-50 border border-slate-200 transition-colors flex items-center gap-1.5 cursor-pointer"
+                                >
+                                  <Eye className="w-3.5 h-3.5 text-blue-700" />
+                                  <span>View</span>
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleDownload(mat)}
+                                className="px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-[#12315A] hover:bg-[#1f487e] transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
+                              >
+                                <Download className="w-3.5 h-3.5 text-amber-400" />
+                                <span>Download</span>
+                              </button>
+                            </div>
+                          )
+                        ) : isSubjectRestricted ? (
+                          <button
+                            onClick={() => setRestrictedMaterial(mat)}
+                            className="px-3 py-2 rounded-xl text-xs font-bold text-amber-950 bg-amber-200 hover:bg-amber-300 border border-amber-400 transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+                          >
+                            <Lock className="w-3.5 h-3.5 text-amber-800" />
+                            <span>Subject Restricted</span>
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => setRestrictedMaterial(mat)}
+                            className="px-3 py-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                          >
+                            <Lock className="w-3.5 h-3.5 text-slate-600" />
+                            <span>{currentUser ? 'Course Locked' : 'Enroll to Access'}</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </>
         )}
       </div>

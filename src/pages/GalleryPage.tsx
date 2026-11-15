@@ -6,13 +6,16 @@ import {
   Filter,
   Maximize2,
   Info,
+  ArrowUpDown,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { GalleryItem } from '../types';
+import { sortByDate, DateSortOrder } from '../utils/dateSort';
 
 export const GalleryPage: React.FC = () => {
   const { gallery, language } = useApp();
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
+  const [dateSortOrder, setDateSortOrder] = useState<DateSortOrder>('desc');
   const [activeModalItem, setActiveModalItem] = useState<GalleryItem | null>(null);
 
   const categories = [
@@ -24,10 +27,15 @@ export const GalleryPage: React.FC = () => {
     'Student Activities',
   ];
 
-  const filteredGallery = gallery.filter((item) => {
-    if (selectedCategory === 'ALL') return true;
-    return item.category === selectedCategory;
-  });
+  const filteredGallery = sortByDate(
+    gallery.filter((item) => {
+      if (selectedCategory === 'ALL') return true;
+      return item.category === selectedCategory;
+    }),
+    (item) => item.date,
+    dateSortOrder,
+    { getId: (item) => item.id }
+  );
 
   return (
     <div className="py-12 sm:py-16 space-y-12">
@@ -84,6 +92,14 @@ export const GalleryPage: React.FC = () => {
               {cat}
             </button>
           ))}
+          <button
+            type="button"
+            onClick={() => setDateSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'))}
+            className="px-4 py-2 rounded-xl text-xs font-bold bg-blue-50 text-[#12315A] border border-blue-200 hover:bg-blue-100 transition-colors flex items-center gap-1.5 cursor-pointer"
+          >
+            <ArrowUpDown className="w-3.5 h-3.5 text-blue-700" />
+            <span>{dateSortOrder === 'desc' ? 'Newest First' : 'Oldest First'}</span>
+          </button>
         </div>
       </div>
 

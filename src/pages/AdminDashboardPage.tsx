@@ -54,10 +54,13 @@ import {
   UserCheck,
   Play,
   Square,
+  ArrowUpDown,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { triggerFileDownload, IDB_MARKER } from '../utils/fileStorage';
 import { DocumentViewerModal } from '../components/common/DocumentViewerModal';
+import { sortByDate, DateSortOrder } from '../utils/dateSort';
+import { normalizeMobileNumber } from '../utils/phone';
 import {
   SUPABASE_PROJECT_ID,
   SUPABASE_URL,
@@ -163,6 +166,7 @@ export const AdminDashboardPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<
     'overview' | 'inquiries' | 'registered-students' | 'courses' | 'groups' | 'mock-tests' | 'teachers' | 'notices' | 'materials' | 'settings' | 'database'
   >('overview');
+  const [dateSortOrder, setDateSortOrder] = useState<DateSortOrder>('desc');
 
   const [confirmAction, setConfirmAction] = useState<{
     title: string;
@@ -483,9 +487,9 @@ export const AdminDashboardPage: React.FC = () => {
     updateSettings({ mockExamShifts: updated });
   };
 
-  // Filtered registrations for Registered Students tab
+  // Filtered registrations for Registered Students tab (sorted by date)
   const filteredRegistrations = useMemo(() => {
-    return mockTestRegistrations.filter((reg) => {
+    const filtered = mockTestRegistrations.filter((reg) => {
       if (regStudentCourseFilter !== 'ALL' && reg.courseSlug !== regStudentCourseFilter) {
         return false;
       }
@@ -508,7 +512,8 @@ export const AdminDashboardPage: React.FC = () => {
       }
       return true;
     });
-  }, [mockTestRegistrations, regStudentSearch, regStudentCourseFilter, regStudentStatusFilter, regStudentShiftFilter]);
+    return sortByDate(filtered, (reg) => reg.createdAt, dateSortOrder, { getId: (reg) => reg.id });
+  }, [mockTestRegistrations, regStudentSearch, regStudentCourseFilter, regStudentStatusFilter, regStudentShiftFilter, dateSortOrder]);
 
   // Derived available Years / Semesters for admin filtering
   const adminMockTestYears = useMemo(() => {
@@ -672,33 +677,36 @@ export const AdminDashboardPage: React.FC = () => {
     totalMessages: contactMessages.length,
   };
 
-  // Filtered inquiries
-  const filteredInquiries = inquiries
-    .filter((inq) => {
-      if (inquiryStatusFilter === 'ALL') return true;
-      if (inquiryStatusFilter === 'Needs Verification') return inq.hasPaymentProof && !inq.paymentVerified;
-      if (inquiryStatusFilter === 'Verified & Enrolled') return inq.status === 'Verified & Enrolled';
-      return inq.status === inquiryStatusFilter;
-    })
-    .filter((inq) => {
-      if (!inquirySearch.trim()) return true;
-      const q = inquirySearch.toLowerCase();
-      return (
-        inq.fullName.toLowerCase().includes(q) ||
-        inq.referenceNumber.toLowerCase().includes(q) ||
-        inq.phone.includes(q) ||
-        inq.courseName.toLowerCase().includes(q) ||
-        (inq.transactionReference && inq.transactionReference.toLowerCase().includes(q)) ||
-        (inq.assignedStudentId && inq.assignedStudentId.toLowerCase().includes(q))
-      );
-    });
+  // Filtered inquiries (sorted by date)
+  const filteredInquiries = sortByDate(
+    inquiries
+      .filter((inq) => {
+        if (inquiryStatusFilter === 'ALL') return true;
+        if (inquiryStatusFilter === 'Needs Verification') return inq.hasPaymentProof && !inq.paymentVerified;
+        if (inquiryStatusFilter === 'Verified & Enrolled') return inq.status === 'Verified & Enrolled';
+        return inq.status === inquiryStatusFilter;
+      })
+      .filter((inq) => {
+        if (!inquirySearch.trim()) return true;
+        const q = inquirySearch.toLowerCase();
+        return (
+          inq.fullName.toLowerCase().includes(q) ||
+          inq.referenceNumber.toLowerCase().includes(q) ||
+          inq.phone.includes(q) ||
+          inq.courseName.toLowerCase().includes(q) ||
+          (inq.transactionReference && inq.transactionReference.toLowerCase().includes(q)) ||
+          (inq.assignedStudentId && inq.assignedStudentId.toLowerCase().includes(q))
+        );
+      }),
+    (inq) => inq.createdAt,
+    dateSortOrder,
+    { getFallbackDate: (inq) => inq.updatedAt, getId: (inq) => inq.id }
+  );
 
   const handleOpenInquiryDetail = (inq: any) => {
     setSelectedInquiryDetail(inq);
-    const courseCode = inq.courseSlug.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 4) || 'SCH';
-    const suggestedId =
-      inq.assignedStudentId ||
-      `SSS-STU-${courseCode}-${inq.referenceNumber ? inq.referenceNumber.slice(-4) : Math.floor(1000 + Math.random() * 9000)}`;
+    const mobileId = normalizeMobileNumber(inq.phone);
+    const suggestedId = mobileId || inq.assignedStudentId || inq.phone || '';
     setAssignedStudentIdInput(suggestedId);
     setVerificationSuccessToast(null);
     setCopiedWelcomeMessage(false);
@@ -896,7 +904,12 @@ export const AdminDashboardPage: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {inquiries.slice(0, 6).map((inq) => (
+                    {sortByDate(inquiries, (i) => i.createdAt, 'desc', {
+                      getFallbackDate: (i) => i.updatedAt,
+                      getId: (i) => i.id,
+                    })
+                      .slice(0, 6)
+                      .map((inq) => (
                       <tr key={inq.id} className="hover:bg-slate-50">
                         <td className="py-2.5 px-3 font-mono font-bold text-slate-700">{inq.referenceNumber}</td>
                         <td className="py-2.5 px-3 font-semibold text-slate-900">{inq.fullName}</td>
@@ -1196,6 +1209,15 @@ export const AdminDashboardPage: React.FC = () => {
                   )}
                 </button>
               ))}
+              <button
+                type="button"
+                onClick={() => setDateSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'))}
+                className="px-3 py-1.5 rounded-lg font-bold shrink-0 bg-white border border-slate-200 text-[#12315A] hover:bg-slate-50 flex items-center gap-1.5 cursor-pointer ml-auto"
+                title="Toggle Date Sort Order"
+              >
+                <ArrowUpDown className="w-3.5 h-3.5 text-blue-700" />
+                <span>{dateSortOrder === 'desc' ? 'Newest First' : 'Oldest First'}</span>
+              </button>
             </div>
           </div>
 
@@ -1295,8 +1317,13 @@ export const AdminDashboardPage: React.FC = () => {
                           className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer w-4 h-4"
                         />
                       </td>
-                      <td className="py-3 px-3 font-mono font-bold text-slate-800">
-                        {inq.referenceNumber}
+                      <td className="py-3 px-3 font-mono">
+                        <span className="font-bold text-slate-800 block">{inq.referenceNumber}</span>
+                        {inq.createdAt && (
+                          <span className="text-[10px] text-slate-400 font-sans">
+                            {new Date(inq.createdAt).toLocaleDateString()}
+                          </span>
+                        )}
                       </td>
                       <td className="py-3 px-4">
                         <p className="font-bold text-slate-900">{inq.fullName}</p>
@@ -1636,7 +1663,8 @@ export const AdminDashboardPage: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => {
-                            const msg = `Namaste ${selectedInquiryDetail.fullName}! Your admission and payment of NPR ${selectedInquiryDetail.paymentAmount || ''} for ${selectedInquiryDetail.courseName} at Shikshyalaya Shaikshik Sanstha has been verified. Your official Student ID is ${selectedInquiryDetail.assignedStudentId}. Please log in to your Student Portal to access enrolled study materials & live classes: https://shikshyalaya.edu.np/student/login`;
+                            const loginId = assignedStudentIdInput || normalizeMobileNumber(selectedInquiryDetail.phone) || selectedInquiryDetail.assignedStudentId;
+                            const msg = `Namaste ${selectedInquiryDetail.fullName}! Your admission and payment of NPR ${selectedInquiryDetail.paymentAmount || ''} for ${selectedInquiryDetail.courseName} at Shikshyalaya Shaikshik Sanstha has been verified. Your Student Portal Login ID is your registered mobile number: ${loginId}. Please log in to access enrolled study materials & live classes: https://shikshyalaya.edu.np/student/login`;
                             navigator.clipboard.writeText(msg);
                             setCopiedWelcomeMessage(true);
                             setTimeout(() => setCopiedWelcomeMessage(false), 2500);
@@ -1674,13 +1702,13 @@ export const AdminDashboardPage: React.FC = () => {
                       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1">
                         <div className="flex-1">
                           <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">
-                            Assign Student ID
+                            Student Login ID (Mobile Number)
                           </label>
                           <input
                             type="text"
                             value={assignedStudentIdInput}
                             onChange={(e) => setAssignedStudentIdInput(e.target.value)}
-                            placeholder="e.g. SSS-STU-BBM-2026"
+                            placeholder="e.g. 98XXXXXXXX"
                             className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-mono font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none"
                           />
                         </div>
@@ -1728,7 +1756,7 @@ export const AdminDashboardPage: React.FC = () => {
                         type="text"
                         value={assignedStudentIdInput}
                         onChange={(e) => setAssignedStudentIdInput(e.target.value)}
-                        placeholder="Assign Student ID (e.g. SSS-STU-2026)"
+                        placeholder="Student Login ID / Mobile (e.g. 98XXXXXXXX)"
                         className="flex-1 px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-mono font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none"
                       />
                       <button
@@ -2184,6 +2212,16 @@ export const AdminDashboardPage: React.FC = () => {
                   Reset Filters
                 </button>
               )}
+
+              <button
+                type="button"
+                onClick={() => setDateSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'))}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-[#12315A] cursor-pointer"
+                title="Toggle Date Sort Order"
+              >
+                <ArrowUpDown className="w-3.5 h-3.5 text-blue-700" />
+                <span>Date: {dateSortOrder === 'desc' ? 'Newest First' : 'Oldest First'}</span>
+              </button>
             </div>
           </div>
 
@@ -2642,60 +2680,64 @@ export const AdminDashboardPage: React.FC = () => {
                   {type === 'ALL' ? 'All Groups' : type}
                 </button>
               ))}
+              <button
+                type="button"
+                onClick={() => setDateSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'))}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-[#12315A] bg-white border border-slate-200 hover:bg-slate-50 cursor-pointer ml-1"
+                title="Toggle Date Sort Order"
+              >
+                <ArrowUpDown className="w-3.5 h-3.5 text-blue-700" />
+                <span>{dateSortOrder === 'desc' ? 'Newest First' : 'Oldest First'}</span>
+              </button>
             </div>
           </div>
 
           {/* Groups Grid */}
-          {studentGroups
-            .filter((g) => {
-              if (groupTypeFilter !== 'ALL' && (g.courseType || 'New Course') !== groupTypeFilter) {
-                return false;
-              }
-              if (!groupSearch.trim()) return true;
-              const q = groupSearch.toLowerCase();
-              const gName = g.name || g.title || '';
+          {(() => {
+            const filteredGroups = sortByDate(
+              studentGroups.filter((g) => {
+                if (groupTypeFilter !== 'ALL' && (g.courseType || 'New Course') !== groupTypeFilter) {
+                  return false;
+                }
+                if (!groupSearch.trim()) return true;
+                const q = groupSearch.toLowerCase();
+                const gName = g.name || g.title || '';
+                return (
+                  gName.toLowerCase().includes(q) ||
+                  g.courseName.toLowerCase().includes(q) ||
+                  g.academicLevel.toLowerCase().includes(q) ||
+                  g.coordinatorName.toLowerCase().includes(q)
+                );
+              }),
+              (g) => g.createdAt,
+              dateSortOrder,
+              { getFallbackDate: (g) => g.updatedAt, getId: (g) => g.id }
+            );
+
+            if (filteredGroups.length === 0) {
               return (
-                gName.toLowerCase().includes(q) ||
-                g.courseName.toLowerCase().includes(q) ||
-                g.academicLevel.toLowerCase().includes(q) ||
-                g.coordinatorName.toLowerCase().includes(q)
+                <div className="p-12 text-center rounded-3xl bg-white border border-slate-200 space-y-3">
+                  <Users className="w-10 h-10 text-slate-300 mx-auto" />
+                  <h4 className="font-bold text-slate-800 text-sm">No student groups found</h4>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                    No cohort matches your active search or filter. Create a new group to begin organizing enrolled students.
+                  </p>
+                  <button
+                    onClick={() => {
+                      setEditingGroup(null);
+                      setIsGroupModalOpen(true);
+                    }}
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#12315A]"
+                  >
+                    Create First Group
+                  </button>
+                </div>
               );
-            })
-            .length === 0 ? (
-            <div className="p-12 text-center rounded-3xl bg-white border border-slate-200 space-y-3">
-              <Users className="w-10 h-10 text-slate-300 mx-auto" />
-              <h4 className="font-bold text-slate-800 text-sm">No student groups found</h4>
-              <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                No cohort matches your active search or filter. Create a new group to begin organizing enrolled students.
-              </p>
-              <button
-                onClick={() => {
-                  setEditingGroup(null);
-                  setIsGroupModalOpen(true);
-                }}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#12315A]"
-              >
-                Create First Group
-              </button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {studentGroups
-                .filter((g) => {
-                  if (groupTypeFilter !== 'ALL' && (g.courseType || 'New Course') !== groupTypeFilter) {
-                    return false;
-                  }
-                  if (!groupSearch.trim()) return true;
-                  const q = groupSearch.toLowerCase();
-                  const gName = g.name || g.title || '';
-                  return (
-                    gName.toLowerCase().includes(q) ||
-                    g.courseName.toLowerCase().includes(q) ||
-                    g.academicLevel.toLowerCase().includes(q) ||
-                    g.coordinatorName.toLowerCase().includes(q)
-                  );
-                })
-                .map((g) => (
+            }
+
+            return (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {filteredGroups.map((g) => (
                   <div
                     key={g.id}
                     className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4 flex flex-col justify-between hover:border-blue-300 transition-all"
@@ -2887,8 +2929,9 @@ export const AdminDashboardPage: React.FC = () => {
                     </div>
                   </div>
                 ))}
-            </div>
-          )}
+              </div>
+            );
+          })()}
         </div>
       )}
 
@@ -3117,6 +3160,16 @@ export const AdminDashboardPage: React.FC = () => {
               {notices.length > 0 && (
                 <button
                   type="button"
+                  onClick={() => setDateSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'))}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-[#12315A] bg-white border border-slate-200 hover:bg-slate-50 cursor-pointer"
+                >
+                  <ArrowUpDown className="w-3.5 h-3.5 text-blue-700" />
+                  <span>Date: {dateSortOrder === 'desc' ? 'Newest First' : 'Oldest First'}</span>
+                </button>
+              )}
+              {notices.length > 0 && (
+                <button
+                  type="button"
                   onClick={() => {
                     setConfirmAction({
                       title: 'Delete All Notices',
@@ -3152,7 +3205,7 @@ export const AdminDashboardPage: React.FC = () => {
             </div>
           ) : (
           <div className="space-y-3">
-            {notices.map((n) => (
+            {sortByDate(notices, (n) => n.publishDate, dateSortOrder, { getId: (n) => n.id }).map((n) => (
               <div
                 key={n.id}
                 className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs"
@@ -3232,6 +3285,16 @@ export const AdminDashboardPage: React.FC = () => {
               {studyMaterials.length > 0 && (
                 <button
                   type="button"
+                  onClick={() => setDateSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'))}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-[#12315A] bg-white border border-slate-200 hover:bg-slate-50 cursor-pointer"
+                >
+                  <ArrowUpDown className="w-3.5 h-3.5 text-blue-700" />
+                  <span>Date: {dateSortOrder === 'desc' ? 'Newest First' : 'Oldest First'}</span>
+                </button>
+              )}
+              {studyMaterials.length > 0 && (
+                <button
+                  type="button"
                   onClick={() => {
                     setConfirmAction({
                       title: 'Delete All Study Materials',
@@ -3270,91 +3333,104 @@ export const AdminDashboardPage: React.FC = () => {
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {studyMaterials.map((m) => {
-              const hasAttachment = Boolean(m.downloadUrl);
-              const displayFileName =
-                m.fileName || m.attachmentName || (hasAttachment ? 'Attached_Resource.pdf' : '');
-              return (
-                <div
-                  key={m.id}
-                  className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between space-y-3 text-xs"
-                >
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-blue-50 text-blue-800">
-                        {m.resourceType}
-                      </span>
-                      <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                          m.accessLevel === 'Public' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm divide-y divide-slate-100 overflow-hidden">
+              {sortByDate(studyMaterials, (m) => m.uploadDate, dateSortOrder, { getId: (m) => m.id }).map((m) => {
+                const hasAttachment = Boolean(m.downloadUrl);
+                const displayFileName =
+                  m.fileName || m.attachmentName || (hasAttachment ? 'Attached_Resource.pdf' : '');
+                const isPdfFile =
+                  displayFileName.toLowerCase().endsWith('.pdf') ||
+                  m.resourceType === 'PDF Notes' ||
+                  m.resourceType === 'Past Papers' ||
+                  m.resourceType === 'Model Question Papers' ||
+                  m.resourceType === 'Assignments';
+                return (
+                  <div
+                    key={m.id}
+                    className="p-4 sm:p-5 hover:bg-slate-50/70 transition-colors flex flex-col lg:flex-row lg:items-center justify-between gap-4 text-xs"
+                  >
+                    <div className="flex items-start gap-3.5 min-w-0 flex-1">
+                      <div
+                        className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${
+                          isPdfFile
+                            ? 'bg-rose-50 text-rose-600 border-rose-200'
+                            : 'bg-blue-50 text-blue-700 border-blue-200'
                         }`}
                       >
-                        {m.accessLevel}
-                      </span>
-                    </div>
-                    <h4 className="font-bold text-slate-900 text-sm leading-snug">{m.title}</h4>
-                    <p className="text-slate-500 font-medium">
-                      {m.courseName} • {m.subject} • {m.semesterOrYear}
-                    </p>
-                    {m.description && (
-                      <p className="text-slate-600 line-clamp-2">{m.description}</p>
-                    )}
-
-                    {/* Attached PDF / File Indicator + View & Download Controls */}
-                    {hasAttachment ? (
-                      <div className="p-2.5 rounded-xl bg-emerald-50/70 border border-emerald-200/80 flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <FileText className="w-4 h-4 text-rose-600 shrink-0" />
-                          <span className="font-semibold text-slate-800 truncate text-[11px]">
-                            {displayFileName}
+                        <FileText className="w-5 h-5" />
+                      </div>
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-blue-50 text-blue-800">
+                            {m.resourceType}
+                          </span>
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                              m.accessLevel === 'Public' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                            }`}
+                          >
+                            {m.accessLevel}
+                          </span>
+                          <span className="text-slate-400 text-[11px] font-medium">
+                            {m.fileSize} • {m.uploadDate}
                           </span>
                         </div>
-                        <div className="flex items-center gap-1.5 shrink-0">
+                        <h4 className="font-bold text-slate-900 text-sm leading-snug truncate">{m.title}</h4>
+                        <p className="text-slate-500 font-medium truncate">
+                          {m.courseName} • {m.subject} • {m.semesterOrYear}
+                        </p>
+                        {m.description && (
+                          <p className="text-slate-600 line-clamp-1">{m.description}</p>
+                        )}
+                        {hasAttachment ? (
+                          <p className="text-[11px] text-emerald-800 font-semibold truncate">
+                            Attached File: {displayFileName}
+                          </p>
+                        ) : (
+                          <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                            <span>No PDF file uploaded (Summary Note only)</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingMaterial(m);
+                                setIsMaterialModalOpen(true);
+                              }}
+                              className="text-blue-700 font-bold hover:underline cursor-pointer"
+                            >
+                              Upload PDF &rarr;
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between lg:justify-end gap-2 shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-100">
+                      {hasAttachment && (
+                        <>
                           <button
                             type="button"
                             onClick={() => handleOpenMaterialPreview(m)}
-                            className="px-2.5 py-1 rounded-lg text-[11px] font-bold text-[#12315A] bg-white border border-slate-200 hover:bg-blue-50 transition-colors flex items-center gap-1 cursor-pointer"
+                            className="px-3 py-1.5 rounded-xl text-xs font-bold text-[#12315A] bg-white border border-slate-200 hover:bg-blue-50 transition-colors flex items-center gap-1 cursor-pointer"
                           >
-                            <Eye className="w-3 h-3 text-blue-700" />
+                            <Eye className="w-3.5 h-3.5 text-blue-700" />
                             <span>View</span>
                           </button>
                           <button
                             type="button"
                             onClick={() => handleAdminDownloadMaterial(m)}
-                            className="px-2.5 py-1 rounded-lg text-[11px] font-bold text-white bg-[#12315A] hover:bg-blue-900 transition-colors flex items-center gap-1 cursor-pointer"
+                            className="px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-[#12315A] hover:bg-blue-900 transition-colors flex items-center gap-1 cursor-pointer"
                           >
-                            <Download className="w-3 h-3 text-amber-400" />
+                            <Download className="w-3.5 h-3.5 text-amber-400" />
                             <span>Download</span>
                           </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="p-2 rounded-xl bg-slate-50 border border-slate-200/80 text-[11px] text-slate-500 flex items-center justify-between">
-                        <span>No PDF file uploaded (Summary Note only)</span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingMaterial(m);
-                            setIsMaterialModalOpen(true);
-                          }}
-                          className="text-blue-700 font-bold hover:underline cursor-pointer"
-                        >
-                          Upload PDF &rarr;
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-                    <span className="text-slate-400 text-[11px]">{m.fileSize} • {m.uploadDate}</span>
-                    <div className="flex items-center gap-2">
+                        </>
+                      )}
                       <button
                         onClick={() => {
                           setEditingMaterial(m);
                           setIsMaterialModalOpen(true);
                         }}
-                        className="p-1.5 rounded-lg text-slate-600 hover:text-blue-700 hover:bg-slate-100 cursor-pointer"
+                        className="p-2 rounded-xl text-slate-600 hover:text-blue-700 hover:bg-slate-100 border border-slate-200 cursor-pointer"
                         title="Edit Resource"
                       >
                         <Edit2 className="w-4 h-4" />
@@ -3368,16 +3444,15 @@ export const AdminDashboardPage: React.FC = () => {
                             onConfirm: () => deleteStudyMaterial(m.id),
                           });
                         }}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
+                        className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 cursor-pointer"
                         title="Delete Resource"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
             </div>
           )}
         </div>
@@ -4410,6 +4485,16 @@ export const AdminDashboardPage: React.FC = () => {
                   <span>Reset</span>
                 </button>
               )}
+
+              <button
+                type="button"
+                onClick={() => setDateSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'))}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-[#12315A] cursor-pointer"
+                title="Toggle Date Sort Order"
+              >
+                <ArrowUpDown className="w-3.5 h-3.5 text-blue-700" />
+                <span>Date: {dateSortOrder === 'desc' ? 'Newest First' : 'Oldest First'}</span>
+              </button>
             </div>
           </div>
 
@@ -4587,8 +4672,8 @@ export const AdminDashboardPage: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {mockTests
-                        .filter((t) => {
+                      {sortByDate(
+                        mockTests.filter((t) => {
                           if (mockTestCourseFilter !== 'ALL' && t.courseSlug !== mockTestCourseFilter) return false;
                           if (mockTestYearFilter !== 'ALL' && t.semesterOrYear && t.semesterOrYear !== mockTestYearFilter) return false;
                           if (mockTestSubjectFilter !== 'ALL' && t.subject !== mockTestSubjectFilter) return false;
@@ -4601,8 +4686,11 @@ export const AdminDashboardPage: React.FC = () => {
                             t.courseName.toLowerCase().includes(q) ||
                             (t.semesterOrYear && t.semesterOrYear.toLowerCase().includes(q))
                           );
-                        })
-                        .map((test) => {
+                        }),
+                        (t) => t.scheduledStartTime || t.examDate || t.createdAt,
+                        dateSortOrder,
+                        { getFallbackDate: (t) => t.updatedAt, getId: (t) => t.id }
+                      ).map((test) => {
                           const testSubs = mockTestSubmissions.filter((s) => (s.mockTestId || s.testId) === test.id);
                           const evaluatedCount = testSubs.filter((s) => s.evaluationStatus === 'Evaluated').length;
                           const timerInfo = getExamTimerInfo(test);
@@ -4889,29 +4977,34 @@ export const AdminDashboardPage: React.FC = () => {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {(() => {
-                      const filteredSubmissions = mockTestSubmissions.filter((sub) => {
-                        if (mockTestCourseFilter !== 'ALL' && sub.courseSlug !== mockTestCourseFilter) return false;
-                        if (mockTestYearFilter !== 'ALL') {
-                          const tTest = mockTests.find((t) => t.id === sub.mockTestId || t.id === sub.testId);
-                          const subYr = (sub as any).semesterOrYear || tTest?.semesterOrYear;
-                          if (subYr && subYr !== mockTestYearFilter) return false;
-                        }
-                        if (mockTestSubjectFilter !== 'ALL') {
-                          const sSub = (sub.subject || '').toLowerCase();
-                          const fSub = mockTestSubjectFilter.toLowerCase();
-                          if (sSub !== fSub && !sSub.includes(fSub)) return false;
-                        }
-                        if (mockTestTypeFilter !== 'ALL' && sub.courseType && sub.courseType !== mockTestTypeFilter) return false;
-                        if (mockTestEvaluationStatusFilter !== 'ALL' && sub.evaluationStatus !== mockTestEvaluationStatusFilter) return false;
-                        if (!mockTestSearch.trim()) return true;
-                        const q = mockTestSearch.toLowerCase();
-                        return (
-                          sub.studentName.toLowerCase().includes(q) ||
-                          (sub.rollNumber || '').toLowerCase().includes(q) ||
-                          (sub.subject || '').toLowerCase().includes(q) ||
-                          (sub.mockTestTitle || sub.testTitle || '').toLowerCase().includes(q)
-                        );
-                      });
+                      const filteredSubmissions = sortByDate(
+                        mockTestSubmissions.filter((sub) => {
+                          if (mockTestCourseFilter !== 'ALL' && sub.courseSlug !== mockTestCourseFilter) return false;
+                          if (mockTestYearFilter !== 'ALL') {
+                            const tTest = mockTests.find((t) => t.id === sub.mockTestId || t.id === sub.testId);
+                            const subYr = (sub as any).semesterOrYear || tTest?.semesterOrYear;
+                            if (subYr && subYr !== mockTestYearFilter) return false;
+                          }
+                          if (mockTestSubjectFilter !== 'ALL') {
+                            const sSub = (sub.subject || '').toLowerCase();
+                            const fSub = mockTestSubjectFilter.toLowerCase();
+                            if (sSub !== fSub && !sSub.includes(fSub)) return false;
+                          }
+                          if (mockTestTypeFilter !== 'ALL' && sub.courseType && sub.courseType !== mockTestTypeFilter) return false;
+                          if (mockTestEvaluationStatusFilter !== 'ALL' && sub.evaluationStatus !== mockTestEvaluationStatusFilter) return false;
+                          if (!mockTestSearch.trim()) return true;
+                          const q = mockTestSearch.toLowerCase();
+                          return (
+                            sub.studentName.toLowerCase().includes(q) ||
+                            (sub.rollNumber || '').toLowerCase().includes(q) ||
+                            (sub.subject || '').toLowerCase().includes(q) ||
+                            (sub.mockTestTitle || sub.testTitle || '').toLowerCase().includes(q)
+                          );
+                        }),
+                        (sub) => sub.submittedAt,
+                        dateSortOrder,
+                        { getId: (sub) => sub.id }
+                      );
 
                       if (filteredSubmissions.length === 0) {
                         return (
@@ -5127,7 +5220,9 @@ export const AdminDashboardPage: React.FC = () => {
                         </td>
                       </tr>
                     ) : (
-                      mockTestRegistrations.map((reg) => (
+                      sortByDate(mockTestRegistrations, (reg) => reg.createdAt, dateSortOrder, {
+                        getId: (reg) => reg.id,
+                      }).map((reg) => (
                         <tr key={reg.id} className="hover:bg-slate-50/80 transition-colors">
                           <td className="py-3 px-4 font-mono">
                             <span className="font-bold text-slate-900">{reg.referenceNumber}</span>
@@ -5376,8 +5471,13 @@ export const AdminDashboardPage: React.FC = () => {
             {/* Submissions List */}
             <div className="p-5 sm:p-6 overflow-y-auto space-y-4 flex-1">
               {(() => {
-                const subs = mockTestSubmissions.filter(
-                  (s) => (s.mockTestId || s.testId) === selectedTestForSubmissions.id
+                const subs = sortByDate(
+                  mockTestSubmissions.filter(
+                    (s) => (s.mockTestId || s.testId) === selectedTestForSubmissions.id
+                  ),
+                  (s) => s.submittedAt,
+                  dateSortOrder,
+                  { getId: (s) => s.id }
                 );
                 if (subs.length === 0) {
                   return (
@@ -8192,7 +8292,7 @@ ${broadcastText || 'Please check your student portal for class updates and sylla
             </p>
           ) : (
             <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-              {group.broadcasts.map((b) => (
+              {sortByDate(group.broadcasts, (b) => b.sentAt, 'desc', { getId: (b) => b.id }).map((b) => (
                 <div
                   key={b.id}
                   className="p-3 rounded-xl border border-slate-200 bg-slate-50/70 flex items-start justify-between gap-3 text-xs"
@@ -8266,16 +8366,21 @@ const GroupMembersModal: React.FC<{
   const [bulkStatus, setBulkStatus] = useState<string | null>(null);
   const [importStatus, setImportStatus] = useState<string | null>(null);
 
-  // Filter group members
-  const filteredMembers = (group.members || []).filter((m) => {
-    if (!searchMember.trim()) return true;
-    const q = searchMember.toLowerCase();
-    return (
-      m.fullName.toLowerCase().includes(q) ||
-      m.phone.includes(q) ||
-      (m.rollNumber && m.rollNumber.toLowerCase().includes(q))
-    );
-  });
+  // Filter group members (sorted by addedAt newest first)
+  const filteredMembers = sortByDate(
+    (group.members || []).filter((m) => {
+      if (!searchMember.trim()) return true;
+      const q = searchMember.toLowerCase();
+      return (
+        m.fullName.toLowerCase().includes(q) ||
+        m.phone.includes(q) ||
+        (m.rollNumber && m.rollNumber.toLowerCase().includes(q))
+      );
+    }),
+    (m) => m.addedAt,
+    'desc',
+    { getId: (m) => m.id }
+  );
 
   const handleSingleAdd = (e: React.FormEvent) => {
     e.preventDefault();

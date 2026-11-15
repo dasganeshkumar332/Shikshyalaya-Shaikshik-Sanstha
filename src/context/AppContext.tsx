@@ -36,6 +36,7 @@ import {
   deleteStoredFile,
   IDB_MARKER,
 } from '../utils/fileStorage';
+import { normalizeMobileNumber, mobileMatches } from '../utils/phone';
 import {
   saveInquiryToSupabase,
   saveMockSubmissionToSupabase,
@@ -1182,8 +1183,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (inq.id === id) {
           const notes = inq.adminNotes ? [...inq.adminNotes] : [];
           const courseCode = inq.courseSlug.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 4) || 'SCH';
+          const mobileLoginId = normalizeMobileNumber(inq.phone) || inq.phone?.trim() || '';
           const autoId =
             customStudentId?.trim() ||
+            mobileLoginId ||
             inq.assignedStudentId ||
             `SSS-STU-${courseCode}-${Math.floor(1000 + Math.random() * 9000)}`;
           issuedId = autoId;
@@ -1192,7 +1195,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             date: new Date().toLocaleDateString(),
             text:
               note ||
-              `Payment verified${amountDisplay} & student officially enrolled in ${inq.courseName}. Student ID issued: ${autoId}.`,
+              `Payment verified${amountDisplay} & student officially enrolled in ${inq.courseName}. Login ID (Mobile): ${autoId}.`,
             by: currentUser?.name || 'Administrator',
           });
           const updated: AdmissionInquiry = {
@@ -1512,9 +1515,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addMemberToGroup = (groupId: string, memberData: Omit<StudentGroupMember, 'id' | 'addedAt'>) => {
     const now = new Date().toISOString();
+    const normalizedMobile = normalizeMobileNumber(memberData.phone);
     const newMember: StudentGroupMember = {
       ...memberData,
       id: `mem-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      studentId: memberData.studentId || normalizedMobile || undefined,
       addedAt: now,
     };
     setStudentGroups((prev) =>
@@ -1558,6 +1563,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           addedList.push({
             ...item,
             id: `mem-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            studentId: item.studentId || normalizeMobileNumber(item.phone) || undefined,
             enrolledCourseSlug: item.enrolledCourseSlug || targetGroup.courseSlug,
             semesterOrYear: item.semesterOrYear || targetGroup.academicLevel,
             addedAt: now,
@@ -1599,6 +1605,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             id: `mem-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
             fullName: name,
             phone: phone || cleanPhone,
+            studentId: normalizeMobileNumber(phone || cleanPhone) || undefined,
             email: email || undefined,
             enrolledCourseSlug: targetGroup.courseSlug,
             semesterOrYear: targetGroup.academicLevel,
@@ -1663,7 +1670,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         fullName: inq.fullName,
         phone: inq.phone,
         email: inq.email,
-        studentId: inq.assignedStudentId,
+        studentId: inq.assignedStudentId || normalizeMobileNumber(inq.phone) || undefined,
         referenceNumber: inq.referenceNumber,
         enrolledCourseSlug: inq.courseSlug,
         enrolledSubjects: parsedSubjects,
@@ -1877,7 +1884,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     enrolledSubjects?: string[]
   ): boolean => {
     const inputClean = (studentId || email || '').trim().toLowerCase();
-    const phoneClean = (studentId || email || '').replace(/[^0-9]/g, '');
+    const phoneClean = normalizeMobileNumber(studentId || email || '');
 
     if (!inputClean && phoneClean.length < 7) {
       return false;
@@ -1887,19 +1894,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const matchedInquiry = inquiries.find(
       (inq) =>
         (inq.status === 'Verified & Enrolled' || Boolean(inq.paymentVerified)) &&
-        ((inq.assignedStudentId && inq.assignedStudentId.toLowerCase() === inputClean) ||
+        (mobileMatches(studentId || email, inq.phone) ||
+          (inq.assignedStudentId && inq.assignedStudentId.toLowerCase() === inputClean) ||
           (inq.referenceNumber && inq.referenceNumber.toLowerCase() === inputClean) ||
-          (inq.email && inq.email.toLowerCase() === inputClean) ||
-          (phoneClean.length >= 7 && inq.phone.replace(/[^0-9]/g, '') === phoneClean))
+          (inq.email && inq.email.toLowerCase() === inputClean))
     );
 
     // 2. Check registered mock test candidates
     const matchedMockReg = mockTestRegistrations.find(
       (reg) =>
+        mobileMatches(studentId || email, reg.phone) ||
         (reg.referenceNumber && reg.referenceNumber.toLowerCase() === inputClean) ||
         (reg.studentRollNo && reg.studentRollNo.toLowerCase() === inputClean) ||
-        (reg.email && reg.email.toLowerCase() === inputClean) ||
-        (phoneClean.length >= 7 && reg.phone.replace(/[^0-9]/g, '') === phoneClean)
+        (reg.email && reg.email.toLowerCase() === inputClean)
     );
 
     // 3. Check student group cohort members
@@ -1908,11 +1915,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     for (const group of studentGroups) {
       const found = group.members.find(
         (m) =>
+          mobileMatches(studentId || email, m.phone) ||
           (m.studentId && m.studentId.toLowerCase() === inputClean) ||
           (m.rollNumber && m.rollNumber.toLowerCase() === inputClean) ||
           (m.referenceNumber && m.referenceNumber.toLowerCase() === inputClean) ||
-          (m.email && m.email.toLowerCase() === inputClean) ||
-          (phoneClean.length >= 7 && m.phone?.replace(/[^0-9]/g, '') === phoneClean)
+          (m.email && m.email.toLowerCase() === inputClean)
       );
       if (found) {
         matchedGroupMember = found;
@@ -1949,9 +1956,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (!resolvedName) {
         resolvedName = matchedInquiry.fullName;
       }
-      if (!resolvedId || resolvedId.includes('@')) {
-        resolvedId = matchedInquiry.assignedStudentId || matchedInquiry.referenceNumber;
-      }
+      const inqMobile = normalizeMobileNumber(matchedInquiry.phone);
+      resolvedId =
+        inqMobile ||
+        (!resolvedId || resolvedId.includes('@')
+          ? matchedInquiry.assignedStudentId || matchedInquiry.referenceNumber
+          : resolvedId);
     } else if (matchedMockReg) {
       if (!enrolled) {
         enrolled = [matchedMockReg.courseSlug];
@@ -1959,9 +1969,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (!resolvedName) {
         resolvedName = matchedMockReg.fullName;
       }
-      if (!resolvedId || resolvedId.includes('@')) {
-        resolvedId = matchedMockReg.studentRollNo || matchedMockReg.referenceNumber;
-      }
+      const regMobile = normalizeMobileNumber(matchedMockReg.phone);
+      resolvedId =
+        regMobile ||
+        (!resolvedId || resolvedId.includes('@')
+          ? matchedMockReg.studentRollNo || matchedMockReg.referenceNumber
+          : resolvedId);
     } else if (matchedGroupMember) {
       if (!enrolled) {
         enrolled = [matchedGroupMember.enrolledCourseSlug || matchedGroupCourse || 'bbm-tu'];
@@ -1969,14 +1982,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (!resolvedName) {
         resolvedName = matchedGroupMember.fullName;
       }
-      if (!resolvedId || resolvedId.includes('@')) {
-        resolvedId =
-          matchedGroupMember.studentId ||
-          matchedGroupMember.rollNumber ||
-          matchedGroupMember.referenceNumber ||
-          matchedGroupMember.id ||
-          studentId;
-      }
+      const memMobile = normalizeMobileNumber(matchedGroupMember.phone);
+      resolvedId =
+        memMobile ||
+        (!resolvedId || resolvedId.includes('@')
+          ? matchedGroupMember.studentId ||
+            matchedGroupMember.rollNumber ||
+            matchedGroupMember.referenceNumber ||
+            matchedGroupMember.id ||
+            studentId
+          : resolvedId);
     } else if (isDemoId) {
       const demoSlugMap: Record<string, string> = {
         'sss-demo-bbm': 'bbm-tu',
@@ -2009,7 +2024,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             : undefined);
 
     const resolvedPhone =
-      matchedInquiry?.phone || matchedMockReg?.phone || matchedGroupMember?.phone || undefined;
+      matchedInquiry?.phone ||
+      matchedMockReg?.phone ||
+      matchedGroupMember?.phone ||
+      (phoneClean.length >= 7 ? phoneClean : undefined);
 
     const user: UserProfile = {
       id: `student-${Date.now()}`,
@@ -2017,7 +2035,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       name: resolvedName || 'Enrolled Scholar',
       phone: resolvedPhone,
       role: 'student',
-      studentId: resolvedId || `SSS-STU-${firstSlug.toUpperCase().slice(0, 3)}-2026`,
+      studentId: normalizeMobileNumber(resolvedPhone) || resolvedId || `SSS-STU-${firstSlug.toUpperCase().slice(0, 3)}-2026`,
       enrolledCourseSlugs: enrolled,
       enrolledSubjects: resolvedEnrolledSubjects,
     };

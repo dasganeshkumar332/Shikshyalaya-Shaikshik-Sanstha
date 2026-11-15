@@ -23,6 +23,8 @@ import { useApp } from '../context/AppContext';
 import { StudyMaterial } from '../types';
 import { triggerFileDownload } from '../utils/fileStorage';
 import { DocumentViewerModal } from '../components/common/DocumentViewerModal';
+import { sortByDate } from '../utils/dateSort';
+import { mobileMatches, normalizeMobileNumber } from '../utils/phone';
 
 type DashboardTab = 'resources' | 'mocktests' | 'notices';
 
@@ -110,11 +112,12 @@ export const StudentDashboardPage: React.FC = () => {
     [courses, currentUser.enrolledCourseSlugs]
   );
 
-  // Strictly enrolled study materials ONLY (course + specific subject check)
+  // Strictly enrolled study materials ONLY (course + specific subject check), sorted by upload date
   const enrolledMaterials = useMemo(() => {
-    return studyMaterials.filter(
+    const filtered = studyMaterials.filter(
       (m) => m.published && isStudentEnrolledInSubject(m.courseSlug, m.subject)
     );
+    return sortByDate(filtered, (m) => m.uploadDate, 'desc', { getId: (m) => m.id });
   }, [studyMaterials, currentUser, isStudentEnrolledInSubject]);
 
   // Distinct enrolled subjects that actually have resources
@@ -164,11 +167,15 @@ export const StudentDashboardPage: React.FC = () => {
     return Array.from(new Set(base.map((m) => m.resourceType)));
   }, [enrolledMaterials, selectedResourceSubject]);
 
-  // Strictly enrolled mock tests ONLY (course + specific subject check)
+  // Strictly enrolled mock tests ONLY (course + specific subject check), sorted by date
   const myMockTests = useMemo(() => {
-    return (mockTests || []).filter(
+    const filtered = (mockTests || []).filter(
       (t) => t.published && isStudentEnrolledInSubject(t.courseSlug, t.subject)
     );
+    return sortByDate(filtered, (t) => t.scheduledStartTime || t.examDate || t.createdAt, 'desc', {
+      getFallbackDate: (t) => t.updatedAt,
+      getId: (t) => t.id,
+    });
   }, [mockTests, currentUser, isStudentEnrolledInSubject]);
 
   const mockTestSubjectGroups = useMemo(() => {
@@ -189,18 +196,20 @@ export const StudentDashboardPage: React.FC = () => {
     return myMockTests.filter((t) => t.subject === selectedMockSubject);
   }, [myMockTests, selectedMockSubject]);
 
-  // Private submissions & evaluated results strictly for this student and their enrolled subjects
+  // Private submissions & evaluated results strictly for this student and their enrolled subjects, sorted by submission date
   const mySubmissions = useMemo(() => {
     if (!mockTestSubmissions) return [];
     const roll = (currentUser.studentId || '').trim().toLowerCase();
-    const phone = (currentUser.phone || '').replace(/[^0-9]/g, '');
     const email = (currentUser.email || '').trim().toLowerCase();
     const enrolledTestIds = new Set(myMockTests.map((t) => t.id));
 
-    return mockTestSubmissions.filter((sub) => {
+    const filtered = mockTestSubmissions.filter((sub) => {
       const matchRoll = Boolean(roll) && sub.rollNumber?.toLowerCase() === roll;
       const matchId = sub.studentId === currentUser.id || (Boolean(roll) && sub.studentId?.toLowerCase() === roll);
-      const matchPhone = phone.length >= 7 && sub.studentPhone?.replace(/[^0-9]/g, '') === phone;
+      const matchPhone =
+        mobileMatches(sub.studentPhone, currentUser.phone || currentUser.studentId) ||
+        mobileMatches(sub.rollNumber, currentUser.phone || currentUser.studentId) ||
+        mobileMatches(sub.studentId, currentUser.phone || currentUser.studentId);
       const matchEmail = Boolean(email) && sub.studentEmail?.toLowerCase() === email;
       if (!(matchRoll || matchId || matchPhone || matchEmail)) return false;
 
@@ -213,6 +222,7 @@ export const StudentDashboardPage: React.FC = () => {
       }
       return true;
     });
+    return sortByDate(filtered, (sub) => sub.submittedAt, 'desc', { getId: (sub) => sub.id });
   }, [mockTestSubmissions, currentUser, myMockTests, isStudentEnrolledInSubject]);
 
   // Notices strictly relevant to the student's enrolled course(s) + general institutional notices
@@ -251,7 +261,9 @@ export const StudentDashboardPage: React.FC = () => {
         attachmentName: n.attachmentName,
       }));
 
-    return [...cohortBroadcasts, ...institutionalNotices];
+    return sortByDate([...cohortBroadcasts, ...institutionalNotices], (n) => n.date, 'desc', {
+      getId: (n) => n.id,
+    });
   }, [notices, studentGroups, currentUser.enrolledCourseSlugs]);
 
   const noticeCategories = useMemo(() => {
@@ -322,7 +334,10 @@ export const StudentDashboardPage: React.FC = () => {
               </span>
             </div>
             <p className="text-xs text-blue-200">
-              ID: <span className="font-mono text-white font-semibold">{currentUser.studentId || 'SSS-STU'}</span>
+              Login ID (Mobile):{' '}
+              <span className="font-mono text-white font-semibold">
+                {normalizeMobileNumber(currentUser.phone) || currentUser.studentId || 'SSS-STU'}
+              </span>
             </p>
             <div className="flex items-center gap-1.5 flex-wrap text-xs">
               {enrolledCourses.map((c) => (
@@ -580,32 +595,47 @@ export const StudentDashboardPage: React.FC = () => {
                           key={mat.id}
                           className="p-4 rounded-2xl border border-slate-200 bg-white hover:border-blue-300 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs"
                         >
-                          <div className="space-y-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span
-                                className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${
-                                  mat.resourceType === 'Recorded Videos'
-                                    ? 'bg-rose-100 text-rose-800'
-                                    : 'bg-blue-100 text-blue-800'
-                                }`}
-                              >
-                                {mat.resourceType}
-                              </span>
-                              <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
-                                {mat.semesterOrYear}
-                              </span>
-                              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                                {mat.subject}
-                              </span>
+                          <div className="flex items-start gap-3 min-w-0">
+                            <div
+                              className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${
+                                mat.resourceType === 'Recorded Videos'
+                                  ? 'bg-rose-50 text-rose-600 border-rose-200'
+                                  : 'bg-blue-50 text-[#12315A] border-blue-200'
+                              }`}
+                            >
+                              {mat.resourceType === 'Recorded Videos' ? (
+                                <Play className="w-4 h-4" />
+                              ) : (
+                                <FileText className="w-4 h-4" />
+                              )}
                             </div>
-                            <h3 className="font-bold text-sm text-slate-900">{mat.title}</h3>
-                            {mat.description && (
-                              <p className="text-slate-500 text-xs line-clamp-2">{mat.description}</p>
-                            )}
-                            <p className="text-[11px] text-slate-400">
-                              {mat.courseName} • {mat.fileSize} • {mat.uploadDate}
-                              {(mat.fileName || mat.attachmentName) ? ` • ${mat.fileName || mat.attachmentName}` : ''}
-                            </p>
+                            <div className="space-y-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span
+                                  className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${
+                                    mat.resourceType === 'Recorded Videos'
+                                      ? 'bg-rose-100 text-rose-800'
+                                      : 'bg-blue-100 text-blue-800'
+                                  }`}
+                                >
+                                  {mat.resourceType}
+                                </span>
+                                <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
+                                  {mat.semesterOrYear}
+                                </span>
+                                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                  {mat.subject}
+                                </span>
+                              </div>
+                              <h3 className="font-bold text-sm text-slate-900">{mat.title}</h3>
+                              {mat.description && (
+                                <p className="text-slate-500 text-xs line-clamp-2">{mat.description}</p>
+                              )}
+                              <p className="text-[11px] text-slate-400">
+                                {mat.courseName} • {mat.fileSize} • {mat.uploadDate}
+                                {(mat.fileName || mat.attachmentName) ? ` • ${mat.fileName || mat.attachmentName}` : ''}
+                              </p>
+                            </div>
                           </div>
 
                           <div className="flex items-center gap-2 shrink-0">

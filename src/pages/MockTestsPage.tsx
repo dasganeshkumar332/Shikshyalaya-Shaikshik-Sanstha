@@ -33,9 +33,12 @@ import {
   ShieldCheck,
   Square,
   Play,
+  ArrowUpDown,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { MockTest, MockTestSubmission, CourseType, MockTestRegistration } from '../types';
+import { sortByDate, DateSortOrder } from '../utils/dateSort';
+import { mobileMatches, normalizeMobileNumber } from '../utils/phone';
 
 export const MockTestsPage: React.FC = () => {
   const {
@@ -125,6 +128,7 @@ export const MockTestsPage: React.FC = () => {
   const [selectedSubject, setSelectedSubject] = useState<string>(searchParams.get('subject') || 'ALL');
   const [selectedCourseType, setSelectedCourseType] = useState<string>(searchParams.get('type') || 'ALL');
   const [searchQuery, setSearchQuery] = useState('');
+  const [dateSortOrder, setDateSortOrder] = useState<DateSortOrder>('desc');
 
   // Course, Year & Subject Quick Attender / Uploader Widget State
   const [quickCourseSlug, setQuickCourseSlug] = useState<string>(
@@ -308,9 +312,9 @@ export const MockTestsPage: React.FC = () => {
     );
   }, [mockTests, quickCourseSlug, quickYearOrSem, quickSubject, currentUser, isStudentEnrolledInSubject]);
 
-  // Filtered mock tests
+  // Filtered mock tests (sorted by date)
   const filteredTests = useMemo(() => {
-    return mockTests
+    const filtered = mockTests
       .filter((t) => t.published)
       .filter((t) => {
         if (currentUser?.role === 'student') {
@@ -356,23 +360,34 @@ export const MockTestsPage: React.FC = () => {
               : t.instructions.toLowerCase().includes(q)))
         );
       });
-  }, [mockTests, selectedCourseSlug, selectedCourseType, selectedYearOrSem, selectedSubject, searchQuery, currentUser, isStudentEnrolledInSubject]);
+
+    return sortByDate(
+      filtered,
+      (t) => t.scheduledStartTime || t.examDate || t.createdAt,
+      dateSortOrder,
+      { getFallbackDate: (t) => t.updatedAt, getId: (t) => t.id }
+    );
+  }, [mockTests, selectedCourseSlug, selectedCourseType, selectedYearOrSem, selectedSubject, searchQuery, currentUser, isStudentEnrolledInSubject, dateSortOrder]);
 
   // Private evaluated results visible to the logged-in student ONLY
   const myEvaluatedSubmissions = useMemo(() => {
     if (!currentUser) return [];
     const roll = (currentUser.studentId || '').trim().toLowerCase();
-    const phone = (currentUser.phone || '').replace(/[^0-9]/g, '');
     const email = (currentUser.email || '').trim().toLowerCase();
 
-    return mockTestSubmissions.filter((sub) => {
+    const matched = mockTestSubmissions.filter((sub) => {
       const matchRoll = roll && sub.rollNumber?.toLowerCase() === roll;
       const matchId = sub.studentId === currentUser.id || (roll && sub.studentId?.toLowerCase() === roll);
-      const matchPhone = phone && sub.studentPhone?.replace(/[^0-9]/g, '') === phone;
+      const matchPhone =
+        mobileMatches(sub.studentPhone, currentUser.phone || currentUser.studentId) ||
+        mobileMatches(sub.rollNumber, currentUser.phone || currentUser.studentId) ||
+        mobileMatches(sub.studentId, currentUser.phone || currentUser.studentId);
       const matchEmail = email && sub.studentEmail?.toLowerCase() === email;
       return matchRoll || matchId || matchPhone || matchEmail;
     });
-  }, [mockTestSubmissions, currentUser]);
+
+    return sortByDate(matched, (sub) => sub.submittedAt, dateSortOrder, { getId: (sub) => sub.id });
+  }, [mockTestSubmissions, currentUser, dateSortOrder]);
 
   // Helper to mask PII in public lookup cards
   const maskStudentName = (name: string) => {
@@ -383,23 +398,26 @@ export const MockTestsPage: React.FC = () => {
       .join(' ');
   };
 
-  // Private search results: Dual-verification required (Roll Number + Registered Phone Number)
+  // Private search results: Dual-verification required (Roll Number / Login ID + Registered Phone Number)
   const searchedSubmissions = useMemo(() => {
     if (!hasSearchedResult || !lookupRollNumber.trim() || !lookupPhone.trim()) return [];
     const roll = lookupRollNumber.trim().toLowerCase();
     const phoneClean = lookupPhone.trim().replace(/[^0-9]/g, '');
     if (phoneClean.length < 7) return [];
 
-    return mockTestSubmissions.filter((sub) => {
-      const matchRoll = sub.rollNumber?.toLowerCase() === roll || sub.studentId?.toLowerCase() === roll;
+    const matched = mockTestSubmissions.filter((sub) => {
+      const matchRoll =
+        sub.rollNumber?.toLowerCase() === roll ||
+        sub.studentId?.toLowerCase() === roll ||
+        mobileMatches(sub.rollNumber, lookupRollNumber) ||
+        mobileMatches(sub.studentId, lookupRollNumber) ||
+        mobileMatches(sub.studentPhone, lookupRollNumber);
       if (!matchRoll) return false;
-      const subPhoneClean = (sub.studentPhone || '').replace(/[^0-9]/g, '');
-      return (
-        subPhoneClean &&
-        (subPhoneClean === phoneClean || subPhoneClean.endsWith(phoneClean) || phoneClean.endsWith(subPhoneClean))
-      );
+      return mobileMatches(sub.studentPhone, lookupPhone);
     });
-  }, [mockTestSubmissions, hasSearchedResult, lookupRollNumber, lookupPhone]);
+
+    return sortByDate(matched, (sub) => sub.submittedAt, dateSortOrder, { getId: (sub) => sub.id });
+  }, [mockTestSubmissions, hasSearchedResult, lookupRollNumber, lookupPhone, dateSortOrder]);
 
   // Keep activeExamTest in sync with live admin updates in context
   useEffect(() => {
@@ -443,7 +461,7 @@ export const MockTestsPage: React.FC = () => {
     // Pre-fill student info if logged in
     if (currentUser) {
       setExamStudentName(currentUser.name || '');
-      setExamRollNumber(currentUser.studentId || 'SSS-STU-2026-08');
+      setExamRollNumber(normalizeMobileNumber(currentUser.phone) || currentUser.studentId || '');
       setExamStudentPhone(currentUser.phone || '');
     }
   };
@@ -1100,6 +1118,15 @@ export const MockTestsPage: React.FC = () => {
                     {selectedSubject !== 'ALL' ? ` for ${selectedSubject}` : ''}
                   </p>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => setDateSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'))}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-[#12315A] bg-white border border-slate-200 hover:bg-slate-50 shadow-2xs transition-colors cursor-pointer"
+                >
+                  <ArrowUpDown className="w-3.5 h-3.5 text-blue-700" />
+                  <span>Date: {dateSortOrder === 'desc' ? 'Newest First' : 'Oldest First'}</span>
+                </button>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredTests.length === 0 ? (
@@ -1117,7 +1144,9 @@ export const MockTestsPage: React.FC = () => {
                   ? mockTestSubmissions.find(
                       (s) =>
                         (s.testId || s.mockTestId) === test.id &&
-                        (s.studentId === currentUser.id || s.rollNumber === currentUser.studentId)
+                        (s.studentId === currentUser.id ||
+                          s.rollNumber === currentUser.studentId ||
+                          mobileMatches(s.studentPhone, currentUser.phone || currentUser.studentId))
                     )
                   : null;
 
@@ -1579,7 +1608,9 @@ export const MockTestsPage: React.FC = () => {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {mockTestRegistrations.slice(0, 4).map((r) => (
+                {sortByDate(mockTestRegistrations, (r) => r.createdAt, 'desc', { getId: (r) => r.id })
+                  .slice(0, 4)
+                  .map((r) => (
                   <div
                     key={r.id}
                     className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-1.5 flex flex-col justify-between"
@@ -1643,17 +1674,17 @@ export const MockTestsPage: React.FC = () => {
               </h3>
             </div>
             <p className="text-xs text-slate-600">
-              Enter your official Student Roll Number / ID and registered Contact Number to view your checked answer sheets and remarks.
+              Enter your Student Login ID (registered mobile number) or Roll Number along with your registered Contact Number to view your checked answer sheets and remarks.
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                  Roll No / Student ID *
+                  Mobile Login ID / Roll No *
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. SSS-STU-2026-08 or 708912"
+                  placeholder="e.g. 9849876543 or SSS-STU-2026-08"
                   value={lookupRollNumber}
                   onChange={(e) => setLookupRollNumber(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50/50"
@@ -1689,11 +1720,19 @@ export const MockTestsPage: React.FC = () => {
           {/* Logged in student's automatic results list */}
           {currentUser && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
                 <h3 className="text-sm font-bold uppercase tracking-wider text-slate-600 flex items-center gap-2">
                   <User className="w-4 h-4 text-blue-700" />
                   <span>My Submissions & Evaluated Papers ({myEvaluatedSubmissions.length})</span>
                 </h3>
+                <button
+                  type="button"
+                  onClick={() => setDateSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'))}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-[#12315A] bg-white border border-slate-200 hover:bg-slate-50 shadow-2xs transition-colors cursor-pointer"
+                >
+                  <ArrowUpDown className="w-3.5 h-3.5 text-blue-700" />
+                  <span>Date: {dateSortOrder === 'desc' ? 'Newest First' : 'Oldest First'}</span>
+                </button>
               </div>
 
               {myEvaluatedSubmissions.length === 0 ? (

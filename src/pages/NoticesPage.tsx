@@ -10,9 +10,11 @@ import {
   X,
   Share2,
   CheckCircle2,
+  ArrowUpDown,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Notice } from '../types';
+import { sortByDate, DateSortOrder } from '../utils/dateSort';
 
 export const NoticesPage: React.FC = () => {
   const { notices, language } = useApp();
@@ -20,6 +22,7 @@ export const NoticesPage: React.FC = () => {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('ALL');
+  const [dateSortOrder, setDateSortOrder] = useState<DateSortOrder>('desc');
   const [selectedNoticeModal, setSelectedNoticeModal] = useState<Notice | null>(null);
 
   // Check URL query param ?id=notice-1
@@ -41,17 +44,22 @@ export const NoticesPage: React.FC = () => {
     'General',
   ];
 
-  const filteredNotices = notices
-    .filter((n) => n.published)
-    .filter((n) => {
-      if (!searchQuery.trim()) return true;
-      const q = searchQuery.toLowerCase();
-      return n.title.toLowerCase().includes(q) || n.content.toLowerCase().includes(q);
-    })
-    .filter((n) => {
-      if (selectedCategory === 'ALL') return true;
-      return n.category === selectedCategory;
-    });
+  const filteredNotices = sortByDate(
+    notices
+      .filter((n) => n.published)
+      .filter((n) => {
+        if (!searchQuery.trim()) return true;
+        const q = searchQuery.toLowerCase();
+        return n.title.toLowerCase().includes(q) || n.content.toLowerCase().includes(q);
+      })
+      .filter((n) => {
+        if (selectedCategory === 'ALL') return true;
+        return n.category === selectedCategory;
+      }),
+    (n) => n.publishDate,
+    dateSortOrder,
+    { getId: (n) => n.id }
+  );
 
   return (
     <div className="py-12 sm:py-16 space-y-12">
@@ -110,6 +118,14 @@ export const NoticesPage: React.FC = () => {
                 {cat}
               </button>
             ))}
+            <button
+              type="button"
+              onClick={() => setDateSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'))}
+              className="px-3 py-1.5 rounded-lg text-xs font-bold shrink-0 bg-blue-50 text-[#12315A] border border-blue-200 hover:bg-blue-100 transition-colors flex items-center gap-1 cursor-pointer"
+            >
+              <ArrowUpDown className="w-3.5 h-3.5 text-blue-700" />
+              <span>{dateSortOrder === 'desc' ? 'Newest' : 'Oldest'}</span>
+            </button>
           </div>
         </div>
       </div>

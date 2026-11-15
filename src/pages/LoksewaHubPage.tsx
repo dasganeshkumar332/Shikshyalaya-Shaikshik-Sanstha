@@ -30,9 +30,11 @@ import {
   Send,
   AlertCircle,
   Phone,
+  ArrowUpDown,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Course } from '../types';
+import { sortByDate, DateSortOrder } from '../utils/dateSort';
 
 export const LoksewaHubPage: React.FC = () => {
   const { courses, studyMaterials, mockTests, submitMockTestAnswer, language } = useApp();
@@ -47,6 +49,7 @@ export const LoksewaHubPage: React.FC = () => {
 
   // Top Segmented Filter Tabs (matching the requested pattern)
   const [selectedQuickTab, setSelectedQuickTab] = useState<string>('ALL');
+  const [dateSortOrder, setDateSortOrder] = useState<DateSortOrder>('desc');
 
   // Structured Dropdown Filters (matching the 4-column filter in the user's screenshot)
   const [selectedLevelRank, setSelectedLevelRank] = useState<string>('ALL');
@@ -182,9 +185,9 @@ export const LoksewaHubPage: React.FC = () => {
       });
   }, [loksewaCourses, searchQuery, selectedLevelRank, selectedServiceSector, selectedPaperStage, selectedClassMode, sortBy]);
 
-  // Filtered Study Materials for Loksewa
+  // Filtered Study Materials for Loksewa (sorted by uploadDate)
   const filteredMaterials = useMemo(() => {
-    return studyMaterials.filter((m) => {
+    const filtered = studyMaterials.filter((m) => {
       const isLoksewa = loksewaCourses.some((c) => c.slug === m.courseSlug);
       if (!isLoksewa) return false;
 
@@ -228,11 +231,13 @@ export const LoksewaHubPage: React.FC = () => {
 
       return true;
     });
-  }, [studyMaterials, loksewaCourses, searchQuery, selectedLevelRank, selectedPaperStage]);
 
-  // Filtered Mock Tests for Loksewa
+    return sortByDate(filtered, (m) => m.uploadDate, dateSortOrder, { getId: (m) => m.id });
+  }, [studyMaterials, loksewaCourses, searchQuery, selectedLevelRank, selectedPaperStage, dateSortOrder]);
+
+  // Filtered Mock Tests for Loksewa (sorted by date)
   const filteredMockTests = useMemo(() => {
-    return mockTests.filter((t) => {
+    const filtered = mockTests.filter((t) => {
       const isLoksewa = loksewaCourses.some((c) => c.slug === t.courseSlug);
       if (!isLoksewa) return false;
 
@@ -277,7 +282,14 @@ export const LoksewaHubPage: React.FC = () => {
 
       return true;
     });
-  }, [mockTests, loksewaCourses, searchQuery, selectedLevelRank, selectedPaperStage]);
+
+    return sortByDate(
+      filtered,
+      (t) => t.scheduledStartTime || t.examDate || t.createdAt,
+      dateSortOrder,
+      { getFallbackDate: (t) => t.updatedAt, getId: (t) => t.id }
+    );
+  }, [mockTests, loksewaCourses, searchQuery, selectedLevelRank, selectedPaperStage, dateSortOrder]);
 
   const handleDownloadResource = (title: string) => {
     setDownloadNotice(`Downloading: ${title} (Official Loksewa Document)`);
@@ -793,53 +805,94 @@ export const LoksewaHubPage: React.FC = () => {
             FEATURE VIEW 2: SYLLABUS & PDF RESOURCES
            ========================================================================= */}
         {activeFeatureTab === 'resources' && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredMaterials.map((material) => (
-                <div
-                  key={material.id}
-                  className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-4"
-                >
-                  <div className="space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-blue-100 text-blue-900">
-                        {material.resourceType}
-                      </span>
-                      <span className="text-xs text-slate-500 font-medium">
-                        {material.fileSize}
-                      </span>
-                    </div>
-
-                    <h3 className="text-sm font-bold text-[#12315A] line-clamp-2">
-                      {material.title}
-                    </h3>
-
-                    <div className="space-y-1 text-xs text-slate-600">
-                      <p className="font-semibold text-amber-800">{material.courseName}</p>
-                      <p className="text-[11px] text-slate-500">{material.subject} · {material.semesterOrYear}</p>
-                    </div>
-
-                    <p className="text-xs text-slate-600 line-clamp-2">
-                      {material.description}
-                    </p>
-                  </div>
-
-                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-                    <span className="text-[11px] text-slate-400">
-                      Uploaded {material.uploadDate}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => handleDownloadResource(material.title)}
-                      className="px-3.5 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      <span>Download PDF</span>
-                    </button>
-                  </div>
-                </div>
-              ))}
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-xs sm:text-sm font-semibold text-slate-600">
+                Showing <strong>{filteredMaterials.length}</strong> PDF resource{filteredMaterials.length !== 1 ? 's' : ''}
+              </p>
+              <button
+                type="button"
+                onClick={() => setDateSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'))}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-[#12315A] bg-white border border-slate-200 hover:bg-slate-50 shadow-2xs transition-colors cursor-pointer"
+              >
+                <ArrowUpDown className="w-3.5 h-3.5 text-blue-700" />
+                <span>Date: {dateSortOrder === 'desc' ? 'Newest First' : 'Oldest First'}</span>
+              </button>
             </div>
+
+            {filteredMaterials.length === 0 ? (
+              <div className="bg-white rounded-3xl border border-slate-200 p-12 text-center space-y-2">
+                <FileText className="w-10 h-10 text-slate-300 mx-auto" />
+                <p className="text-sm font-bold text-[#12315A]">No Loksewa PDF resources match your filters</p>
+                <p className="text-xs text-slate-500">Try clearing your search or switching rank/paper filters.</p>
+              </div>
+            ) : (
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-xs divide-y divide-slate-100 overflow-hidden">
+                {filteredMaterials.map((material) => {
+                  const fileLabel = material.fileName || material.attachmentName || '';
+                  const isPdfFile =
+                    fileLabel.toLowerCase().endsWith('.pdf') ||
+                    material.resourceType === 'PDF Notes' ||
+                    material.resourceType === 'Past Papers' ||
+                    material.resourceType === 'Model Question Papers' ||
+                    material.resourceType === 'Assignments';
+                  return (
+                    <div
+                      key={material.id}
+                      className="p-4 sm:p-5 hover:bg-slate-50/80 transition-colors flex flex-col lg:flex-row lg:items-center justify-between gap-4"
+                    >
+                      <div className="flex items-start gap-3.5 min-w-0 flex-1">
+                        <div
+                          className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${
+                            isPdfFile
+                              ? 'bg-rose-50 text-rose-600 border-rose-200'
+                              : 'bg-blue-50 text-blue-700 border-blue-200'
+                          }`}
+                        >
+                          <FileText className="w-5 h-5" />
+                        </div>
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-blue-100 text-blue-900">
+                              {material.resourceType}
+                            </span>
+                            <span className="text-xs text-amber-800 font-semibold">
+                              {material.courseName}
+                            </span>
+                            <span className="text-xs text-slate-500">
+                              {material.subject} · {material.semesterOrYear}
+                            </span>
+                          </div>
+                          <h3 className="text-sm sm:text-base font-bold text-[#12315A] truncate">
+                            {material.title}
+                          </h3>
+                          {material.description && (
+                            <p className="text-xs text-slate-600 line-clamp-1">
+                              {material.description}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-between lg:justify-end gap-3 shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-100">
+                        <div className="text-xs text-slate-500 flex items-center gap-3">
+                          <span className="font-medium text-slate-600">{material.fileSize}</span>
+                          <span>Uploaded {material.uploadDate}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadResource(material.title)}
+                          className="px-3.5 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          <span>Download PDF</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
