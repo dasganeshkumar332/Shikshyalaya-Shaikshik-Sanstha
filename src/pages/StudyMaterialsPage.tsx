@@ -202,10 +202,33 @@ export const StudyMaterialsPage: React.FC = () => {
     return false;
   };
 
-  // Dynamic Subjects strictly derived from admin-uploaded published materials matching active course, syllabus & term
+  // Dynamic Subjects as per selected Course, Syllabus Type, and Year/Semester (plus any uploaded materials' subjects)
   const availableSubjects = useMemo(() => {
     const set = new Set<string>();
 
+    const targetCourses =
+      selectedCourse === 'ALL'
+        ? currentUser?.role === 'student'
+          ? courses.filter((c) => currentUser.enrolledCourseSlugs?.includes(c.slug))
+          : courses
+        : courses.filter((c) => c.slug === selectedCourse);
+
+    targetCourses.forEach((c) => {
+      c.subjectsOffered.forEach((s) => {
+        const typeMatch =
+          selectedCourseType === 'ALL' || !s.courseType || s.courseType === selectedCourseType;
+        const yearMatch =
+          selectedYearOrSemester === 'ALL' ||
+          matchesYearOrSemester(s.semesterOrYear, selectedYearOrSemester);
+        if (typeMatch && yearMatch) {
+          if (currentUser?.role !== 'student' || isStudentEnrolledInSubject(c.slug, s.name)) {
+            set.add(s.name);
+          }
+        }
+      });
+    });
+
+    // Also include published admin-uploaded materials' subject names matching active filters
     studyMaterials.forEach((m) => {
       if (!m.published) return;
       const courseMatch = selectedCourse === 'ALL' || m.courseSlug === selectedCourse;
@@ -214,8 +237,7 @@ export const StudyMaterialsPage: React.FC = () => {
       const yearMatch =
         selectedYearOrSemester === 'ALL' ||
         matchesYearOrSemester(m.semesterOrYear, selectedYearOrSemester);
-      const accessMatch = selectedAccess === 'ALL' || m.accessLevel === selectedAccess;
-      if (courseMatch && typeMatch && yearMatch && accessMatch && m.subject) {
+      if (courseMatch && typeMatch && yearMatch && m.subject) {
         if (currentUser?.role !== 'student' || isStudentEnrolledInSubject(m.courseSlug, m.subject)) {
           set.add(m.subject);
         }
@@ -224,11 +246,11 @@ export const StudyMaterialsPage: React.FC = () => {
 
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [
+    courses,
     studyMaterials,
     selectedCourse,
     selectedCourseType,
     selectedYearOrSemester,
-    selectedAccess,
     currentUser,
     isStudentEnrolledInSubject,
   ]);
