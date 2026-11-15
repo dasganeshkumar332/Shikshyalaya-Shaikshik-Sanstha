@@ -80,7 +80,7 @@ export const TeachersPage: React.FC = () => {
                   <img
                     src={teacher.avatarUrl}
                     alt={teacher.name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-300"
                   />
                   <div className="absolute top-3 right-3 bg-slate-900/80 backdrop-blur-sm text-white text-[11px] font-bold px-2.5 py-1 rounded-lg">
                     {teacher.experience}

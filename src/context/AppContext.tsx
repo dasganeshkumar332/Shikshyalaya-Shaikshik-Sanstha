@@ -292,38 +292,82 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Teachers
   const [teachers, setTeachers] = useState<Teacher[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.TEACHERS);
-    if (!saved) return INITIAL_TEACHERS;
-    let parsed: Teacher[] = JSON.parse(saved);
-    // Filter out old placeholder/sample teachers
-    parsed = parsed.filter((t) => t.id !== 'teacher-3' && t.id !== 'teacher-4' && t.id !== 'teacher-5');
-    parsed = parsed.map((t) => {
-      if (t.assignedCourseSlugs?.includes('bba-bbm-tu')) {
-        t.assignedCourseSlugs = t.assignedCourseSlugs.filter((s) => s !== 'bba-bbm-tu');
-        if (!t.assignedCourseSlugs.includes('bba-tu')) t.assignedCourseSlugs.push('bba-tu');
-        if (!t.assignedCourseSlugs.includes('bbm-tu')) t.assignedCourseSlugs.push('bbm-tu');
-      }
-      const initial = INITIAL_TEACHERS.find((it) => it.id === t.id);
-      if (initial) {
-        return {
-          ...t,
-          name: initial.name,
-          devanagariName: initial.devanagariName,
-          designation: initial.designation,
-          qualification: initial.qualification,
-          experience: initial.experience,
-          specialization: initial.specialization,
-          bio: initial.bio,
-          avatarUrl: initial.avatarUrl,
-          assignedCourseSlugs: initial.assignedCourseSlugs,
-        };
-      }
-      return t;
-    });
-    // Add any newly defined teachers (Anish Karn, Nischal Rayamajhi, etc.)
-    const existingIds = new Set(parsed.map((t) => t.id));
-    const toAdd = INITIAL_TEACHERS.filter((it) => !existingIds.has(it.id));
-    return [...parsed, ...toAdd];
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.TEACHERS);
+      if (!saved) return INITIAL_TEACHERS;
+      let parsed: Teacher[] = JSON.parse(saved);
+      // Filter out old placeholder/sample teachers
+      parsed = parsed.filter((t) => t.id !== 'teacher-3' && t.id !== 'teacher-4' && t.id !== 'teacher-5');
+      parsed = parsed.map((t) => {
+        let updated = { ...t };
+        if (updated.assignedCourseSlugs?.includes('bba-bbm-tu')) {
+          const migrated = updated.assignedCourseSlugs.filter((s) => s !== 'bba-bbm-tu');
+          if (!migrated.includes('bba-tu')) migrated.push('bba-tu');
+          if (!migrated.includes('bbm-tu')) migrated.push('bbm-tu');
+          updated.assignedCourseSlugs = migrated;
+        }
+        const initial = INITIAL_TEACHERS.find((it) => it.id === updated.id);
+        if (initial) {
+          if (
+            updated.id === 'teacher-1' &&
+            (updated.name === 'Biswonath Karn' || updated.name === 'Bishwonath Karn' || updated.name === 'Bishwonath karn')
+          ) {
+            updated.name = initial.name;
+          }
+          if (updated.id === 'teacher-1' && updated.avatarUrl === '/biswonath_karn.jpg') {
+            updated.avatarUrl = initial.avatarUrl;
+          }
+          if (updated.id === 'teacher-2' && updated.avatarUrl === '/ganesh_das.jpg') {
+            updated.avatarUrl = initial.avatarUrl;
+          }
+          if (updated.id === 'teacher-6') {
+            if (updated.name === 'Anish Karn') {
+              updated.name = initial.name;
+            }
+            if (updated.qualification === 'Engineering') {
+              updated.qualification = initial.qualification;
+            }
+            if (updated.experience === 'Experienced Faculty in Mathematics & Statistical Analysis') {
+              updated.experience = initial.experience;
+            }
+            if (
+              updated.avatarUrl ===
+              'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80'
+            ) {
+              updated.avatarUrl = initial.avatarUrl;
+            }
+          }
+          if (
+            updated.id === 'teacher-7' &&
+            updated.avatarUrl ===
+              'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=400&q=80'
+          ) {
+            updated.avatarUrl = initial.avatarUrl;
+          }
+          // Keep all admin-saved changes (including uploaded avatarUrl, qualification, experience, etc.)
+          return {
+            ...initial,
+            ...updated,
+            avatarUrl: updated.avatarUrl || initial.avatarUrl,
+            specialization:
+              updated.specialization && updated.specialization.length > 0
+                ? updated.specialization
+                : initial.specialization,
+            assignedCourseSlugs:
+              updated.assignedCourseSlugs && updated.assignedCourseSlugs.length > 0
+                ? updated.assignedCourseSlugs
+                : initial.assignedCourseSlugs,
+          };
+        }
+        return updated;
+      });
+      // Add any newly defined initial teachers not yet present in storage
+      const existingIds = new Set(parsed.map((t) => t.id));
+      const toAdd = INITIAL_TEACHERS.filter((it) => !existingIds.has(it.id));
+      return [...parsed, ...toAdd];
+    } catch {
+      return INITIAL_TEACHERS;
+    }
   });
 
   // Notices
@@ -480,7 +524,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [courses]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.TEACHERS, JSON.stringify(teachers));
+    try {
+      localStorage.setItem(STORAGE_KEYS.TEACHERS, JSON.stringify(teachers));
+    } catch (err) {
+      console.warn('Error saving teachers to localStorage:', err);
+    }
   }, [teachers]);
 
   useEffect(() => {
@@ -695,17 +743,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...teacherData,
       id: `teacher-${Date.now()}`,
     };
-    setTeachers((prev) => [...prev, newTeacher]);
+    setTeachers((prev) => {
+      const next = [...prev, newTeacher];
+      try {
+        localStorage.setItem(STORAGE_KEYS.TEACHERS, JSON.stringify(next));
+      } catch (err) {
+        console.warn('Error saving new teacher to localStorage:', err);
+      }
+      return next;
+    });
   };
 
   const updateTeacher = (id: string, updates: Partial<Teacher>) => {
-    setTeachers((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, ...updates } : t))
-    );
+    setTeachers((prev) => {
+      const next = prev.map((t) => (t.id === id ? { ...t, ...updates } : t));
+      try {
+        localStorage.setItem(STORAGE_KEYS.TEACHERS, JSON.stringify(next));
+      } catch (err) {
+        console.warn('Error updating teacher in localStorage:', err);
+      }
+      return next;
+    });
   };
 
   const deleteTeacher = (id: string) => {
-    setTeachers((prev) => prev.filter((t) => t.id !== id));
+    setTeachers((prev) => {
+      const next = prev.filter((t) => t.id !== id);
+      try {
+        localStorage.setItem(STORAGE_KEYS.TEACHERS, JSON.stringify(next));
+      } catch (err) {
+        console.warn('Error deleting teacher from localStorage:', err);
+      }
+      return next;
+    });
   };
 
   const addNotice = (noticeData: Omit<Notice, 'id'>) => {

@@ -2869,16 +2869,13 @@ export const AdminDashboardPage: React.FC = () => {
                       type="file"
                       accept="image/*"
                       className="hidden"
-                      onChange={(e) => {
+                      onChange={async (e) => {
                         const file = e.target.files?.[0];
                         if (file) {
-                          const reader = new FileReader();
-                          reader.onload = () => {
-                            if (reader.result) {
-                              updateTeacher(t.id, { avatarUrl: reader.result as string });
-                            }
-                          };
-                          reader.readAsDataURL(file);
+                          const dataUrl = await compressFacultyPhoto(file);
+                          if (dataUrl) {
+                            updateTeacher(t.id, { avatarUrl: dataUrl });
+                          }
                         }
                       }}
                     />
@@ -5892,6 +5889,47 @@ const CourseEditModal: React.FC<{
 };
 
 // Teacher Modal Subcomponent
+const compressFacultyPhoto = (file: File): Promise<string> => {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const rawResult = typeof reader.result === 'string' ? reader.result : '';
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const maxDim = 600;
+          let { width, height } = img;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(rawResult);
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', 0.85));
+        } catch {
+          resolve(rawResult);
+        }
+      };
+      img.onerror = () => resolve(rawResult);
+      img.src = rawResult;
+    };
+    reader.onerror = () => resolve('');
+    reader.readAsDataURL(file);
+  });
+};
+
 const TeacherEditModal: React.FC<{
   teacher: Teacher | null;
   onClose: () => void;
@@ -5981,16 +6019,13 @@ const TeacherEditModal: React.FC<{
                     type="file"
                     accept="image/*"
                     className="hidden"
-                    onChange={(e) => {
+                    onChange={async (e) => {
                       const file = e.target.files?.[0];
                       if (file) {
-                        const reader = new FileReader();
-                        reader.onload = () => {
-                          if (reader.result) {
-                            setAvatarUrl(reader.result as string);
-                          }
-                        };
-                        reader.readAsDataURL(file);
+                        const dataUrl = await compressFacultyPhoto(file);
+                        if (dataUrl) {
+                          setAvatarUrl(dataUrl);
+                        }
                       }
                     }}
                   />
@@ -6039,9 +6074,15 @@ const TeacherEditModal: React.FC<{
                 experience,
                 bio,
                 avatarUrl,
-                specialization: ['Academic Subject Expert'],
-                assignedCourseSlugs: ['mbs-tu'],
-                published: true,
+                specialization:
+                  teacher?.specialization && teacher.specialization.length > 0
+                    ? teacher.specialization
+                    : ['Academic Subject Expert'],
+                assignedCourseSlugs:
+                  teacher?.assignedCourseSlugs && teacher.assignedCourseSlugs.length > 0
+                    ? teacher.assignedCourseSlugs
+                    : ['mbs-tu'],
+                published: teacher?.published ?? true,
               })
             }
             className="px-5 py-2 rounded-xl font-bold text-white bg-[#12315A]"

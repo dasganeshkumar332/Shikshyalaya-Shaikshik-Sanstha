@@ -1576,7 +1576,7 @@ export const INITIAL_COURSES: Course[] = [
 export const INITIAL_TEACHERS: Teacher[] = [
   {
     id: 'teacher-1',
-    name: 'Biswonath Karn',
+    name: 'Vishwanath Karna',
     devanagariName: 'विश्वनाथ कर्ण',
     designation: 'Faculty of Account and Taxation',
     qualification: 'MPhil',
@@ -1585,7 +1585,7 @@ export const INITIAL_TEACHERS: Teacher[] = [
     assignedCourseSlugs: ['mbs-tu', 'bbs-tu', 'plus-two-management', 'bba-tu', 'bbm-tu', 'bba-pokhara-university'],
     bio: 'Faculty of Account and Taxation with an MPhil qualification and more than 15 years of distinguished academic teaching experience guiding BBS, MBS, and university business scholars.',
     email: 'biswonath.karn@shikshyalaya.edu.np',
-    avatarUrl: '/biswonath_karn.jpg',
+    avatarUrl: '/assets/aistudio/viswanath_sir_2fd59abb.jpg',
     published: true,
   },
   {
@@ -1599,21 +1599,21 @@ export const INITIAL_TEACHERS: Teacher[] = [
     assignedCourseSlugs: ['mbs-tu', 'bbs-tu', 'bba-tu', 'bbm-tu', 'bba-pokhara-university'],
     bio: 'Faculty of Banking and Finance holding an MBA-Finance qualification with proven teaching experience guiding TU and PU students in commercial banking operations, financial markets, and corporate finance.',
     email: 'ganesh.das@shikshyalaya.edu.np',
-    avatarUrl: '/ganesh_das.jpg',
+    avatarUrl: '/assets/aistudio/ganesh_sir_20bcf84a.jpg',
     published: true,
   },
   {
     id: 'teacher-6',
-    name: 'Anish Karn',
+    name: 'Anish Karna',
     devanagariName: 'अनिश कर्ण',
     designation: 'Faculty of Mathematics and Statistics',
-    qualification: 'Engineering',
-    experience: 'Experienced Faculty in Mathematics & Statistical Analysis',
+    qualification: 'BE. Mechanical Engineer',
+    experience: 'More than 5 Years of Experience',
     specialization: ['Mathematics and statistics', 'Business Mathematics', 'Statistical Methods', 'Quantitative Analysis', 'Differential & Integral Calculus'],
     assignedCourseSlugs: ['mbs-tu', 'bbs-tu', 'bba-tu', 'bbm-tu', 'plus-two-science', 'plus-two-management', 'bba-pokhara-university'],
-    bio: 'Faculty of Mathematics and Statistics with an Engineering background, specializing in making mathematical concepts, business calculus, and statistics methods intuitive and examination-ready.',
+    bio: 'Faculty of Mathematics and Statistics holding a BE. Mechanical Engineering qualification with more than 5 years of teaching experience, specializing in making mathematical concepts, business calculus, and statistical methods intuitive and examination-ready.',
     email: 'anish.karn@shikshyalaya.edu.np',
-    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+    avatarUrl: '/assets/aistudio/anish_sir_3dc3a41c.jpg',
     published: true,
   },
   {
@@ -1627,7 +1627,7 @@ export const INITIAL_TEACHERS: Teacher[] = [
     assignedCourseSlugs: ['mbs-tu', 'bbs-tu', 'bba-tu', 'bbm-tu', 'plus-two-management', 'bba-pokhara-university'],
     bio: 'Faculty of Economics and Law holding an MBA-Finance qualification, providing in-depth conceptual clarity across managerial economics, national income accounts, business law, and commercial legal frameworks.',
     email: 'nischal.rayamajhi@shikshyalaya.edu.np',
-    avatarUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=400&q=80',
+    avatarUrl: '/assets/aistudio/nischal_sir_d22cb1ae.jpg',
     published: true,
   },
 ];
@@ -4132,7 +4132,7 @@ export const INITIAL_MOCK_TEST_SUBMISSIONS: MockTestSubmission[] = [
     typedAnswers: 'Attached handwritten sheets in 6 pages. Included working notes for NPV discounting table at 12% and 14% interpolation for IRR.',
     marksObtained: 52,
     evaluationStatus: 'Evaluated',
-    evaluatedBy: 'Biswonath Karn (Faculty of Account & Taxation)',
+    evaluatedBy: 'Vishwanath Karna (Faculty of Account & Taxation)',
     evaluatedAt: '2026-10-17T11:00:00Z',
     feedbackRemarks: 'Superb numerical presentation. Cash flow discounting is 100% accurate. Minor deduction in Q2 regarding inventory holding cost assumption. Final Grade: A+.'
   },
@@ -4155,7 +4155,7 @@ export const INITIAL_MOCK_TEST_SUBMISSIONS: MockTestSubmission[] = [
     typedAnswers: 'Submitted full 12 handwritten pages covering Group A brief answers, Group B Trial Balance adjustment, and Group C comprehensive cash flow statement.',
     marksObtained: 84,
     evaluationStatus: 'Evaluated',
-    evaluatedBy: 'Biswonath Karn',
+    evaluatedBy: 'Vishwanath Karna',
     evaluatedAt: '2026-10-23T15:00:00Z',
     feedbackRemarks: 'Excellent ledger accounts and cash flow direct method. Very neat working notes. Keep practicing company share forfeiture entries.'
   },
