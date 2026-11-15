@@ -32,6 +32,12 @@ import {
 } from '../data/initialData';
 import { checkSupabaseConnection, SupabaseConnectionStatus } from '../lib/supabase';
 import {
+  putStoredFile,
+  getStoredFile,
+  deleteStoredFile,
+  IDB_MARKER,
+} from '../utils/fileStorage';
+import {
   saveInquiryToSupabase,
   saveMockSubmissionToSupabase,
   saveMockRegistrationToSupabase,
@@ -73,6 +79,7 @@ interface AppContextType {
   addStudyMaterial: (mat: Omit<StudyMaterial, 'id'>) => void;
   updateStudyMaterial: (id: string, updates: Partial<StudyMaterial>) => void;
   deleteStudyMaterial: (id: string) => void;
+  resolveMaterialUrl: (mat: StudyMaterial) => Promise<string | undefined>;
 
   gallery: GalleryItem[];
   addGalleryItem: (item: Omit<GalleryItem, 'id'>) => void;
@@ -391,29 +398,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Study Materials
   const [studyMaterials, setStudyMaterials] = useState<StudyMaterial[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.MATERIALS);
-    if (!saved) return INITIAL_STUDY_MATERIALS;
-    let parsed: StudyMaterial[] = JSON.parse(saved);
-    // Update any older materials with updated subjects/titles or courseSlug
-    parsed = parsed.map((m) => {
-      const initial = INITIAL_STUDY_MATERIALS.find((im) => im.id === m.id);
-      if (initial && (m.courseSlug === 'bba-bbm-tu' || m.id.startsWith('mat-6') || m.courseSlug === 'bbm-tu')) {
-        return {
-          ...m,
-          title: initial.title,
-          courseSlug: initial.courseSlug,
-          courseName: initial.courseName,
-          subject: initial.subject,
-          semesterOrYear: initial.semesterOrYear,
-          description: initial.description,
-        };
-      }
-      return m;
-    });
-    // Ensure any new initial materials (such as BBM additions) are available
-    const existingIds = new Set(parsed.map((m) => m.id));
-    const toAdd = INITIAL_STUDY_MATERIALS.filter((m) => !existingIds.has(m.id));
-    return [...parsed, ...toAdd];
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.MATERIALS);
+      if (!saved) return INITIAL_STUDY_MATERIALS;
+      let parsed: StudyMaterial[] = JSON.parse(saved);
+      // Update any older materials with updated subjects/titles or courseSlug
+      parsed = parsed.map((m) => {
+        const initial = INITIAL_STUDY_MATERIALS.find((im) => im.id === m.id);
+        if (initial && (m.courseSlug === 'bba-bbm-tu' || m.id.startsWith('mat-6') || m.courseSlug === 'bbm-tu')) {
+          return {
+            ...m,
+            title: initial.title,
+            courseSlug: initial.courseSlug,
+            courseName: initial.courseName,
+            subject: initial.subject,
+            semesterOrYear: initial.semesterOrYear,
+            description: initial.description,
+          };
+        }
+        return m;
+      });
+      // Ensure any new initial materials (such as BBM additions) are available
+      const existingIds = new Set(parsed.map((m) => m.id));
+      const toAdd = INITIAL_STUDY_MATERIALS.filter((m) => !existingIds.has(m.id));
+      return [...parsed, ...toAdd];
+    } catch {
+      return INITIAL_STUDY_MATERIALS;
+    }
   });
 
   // Gallery
@@ -539,8 +550,62 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(STORAGE_KEYS.NOTICES, JSON.stringify(notices));
   }, [notices]);
 
+  // Hydrate large uploaded study material files from IndexedDB on initial mount
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.MATERIALS, JSON.stringify(studyMaterials));
+    let active = true;
+    const hydrateMaterialsFromIdb = async () => {
+      const markers = studyMaterials.filter((m) => m.downloadUrl === IDB_MARKER);
+      if (markers.length === 0) return;
+      const entries = await Promise.all(
+        markers.map(async (m) => ({
+          id: m.id,
+          url: await getStoredFile(`material:${m.id}`),
+        }))
+      );
+      if (!active) return;
+      const resolvedMap = new Map<string, string>();
+      entries.forEach((entry) => {
+        if (entry.url) resolvedMap.set(entry.id, entry.url);
+      });
+      if (resolvedMap.size > 0) {
+        setStudyMaterials((prev) =>
+          prev.map((m) => (resolvedMap.has(m.id) ? { ...m, downloadUrl: resolvedMap.get(m.id)! } : m))
+        );
+      }
+    };
+    hydrateMaterialsFromIdb();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const persistMaterialsSafely = (mats: StudyMaterial[]) => {
+    const compactForLocalStorage = mats.map((m) => {
+      if (m.downloadUrl && m.downloadUrl.startsWith('data:')) {
+        putStoredFile(`material:${m.id}`, m.downloadUrl).catch(console.warn);
+        if (m.downloadUrl.length > 50_000) {
+          return { ...m, downloadUrl: IDB_MARKER };
+        }
+      }
+      return m;
+    });
+    try {
+      localStorage.setItem(STORAGE_KEYS.MATERIALS, JSON.stringify(compactForLocalStorage));
+    } catch {
+      // Fallback: strip all inline data: URLs to guarantee localStorage save succeeds
+      const minimal = compactForLocalStorage.map((m) =>
+        m.downloadUrl && m.downloadUrl.startsWith('data:') ? { ...m, downloadUrl: IDB_MARKER } : m
+      );
+      try {
+        localStorage.setItem(STORAGE_KEYS.MATERIALS, JSON.stringify(minimal));
+      } catch (err) {
+        console.warn('Error saving studyMaterials to localStorage:', err);
+      }
+    }
+  };
+
+  useEffect(() => {
+    persistMaterialsSafely(studyMaterials);
   }, [studyMaterials]);
 
   useEffect(() => {
@@ -803,19 +868,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const addStudyMaterial = (matData: Omit<StudyMaterial, 'id'>) => {
     const newMat: StudyMaterial = {
       ...matData,
+      published: matData.published !== undefined ? matData.published : true,
       id: `mat-${Date.now()}`,
     };
-    setStudyMaterials((prev) => [newMat, ...prev]);
+    setStudyMaterials((prev) => {
+      const next = [newMat, ...prev];
+      persistMaterialsSafely(next);
+      return next;
+    });
   };
 
   const updateStudyMaterial = (id: string, updates: Partial<StudyMaterial>) => {
-    setStudyMaterials((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, ...updates } : m))
-    );
+    setStudyMaterials((prev) => {
+      const next = prev.map((m) => (m.id === id ? { ...m, ...updates } : m));
+      persistMaterialsSafely(next);
+      return next;
+    });
   };
 
   const deleteStudyMaterial = (id: string) => {
-    setStudyMaterials((prev) => prev.filter((m) => m.id !== id));
+    deleteStoredFile(`material:${id}`).catch(console.warn);
+    setStudyMaterials((prev) => {
+      const next = prev.filter((m) => m.id !== id);
+      persistMaterialsSafely(next);
+      return next;
+    });
+  };
+
+  const resolveMaterialUrl = async (mat: StudyMaterial): Promise<string | undefined> => {
+    if (mat.downloadUrl && mat.downloadUrl !== IDB_MARKER) {
+      return mat.downloadUrl;
+    }
+    const stored = await getStoredFile(`material:${mat.id}`);
+    return stored || undefined;
   };
 
   const addGalleryItem = (itemData: Omit<GalleryItem, 'id'>) => {
@@ -2333,6 +2418,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addStudyMaterial,
         updateStudyMaterial,
         deleteStudyMaterial,
+        resolveMaterialUrl,
         gallery,
         addGalleryItem,
         deleteGalleryItem,

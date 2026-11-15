@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { StudyMaterial, Course } from '../types';
+import { triggerFileDownload } from '../utils/fileStorage';
 
 export const StudyMaterialsPage: React.FC = () => {
   const {
@@ -32,6 +33,7 @@ export const StudyMaterialsPage: React.FC = () => {
     currentUser,
     language,
     isStudentEnrolledInSubject,
+    resolveMaterialUrl,
   } = useApp();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -1402,20 +1404,14 @@ export const StudyMaterialsPage: React.FC = () => {
 
             <div className="flex items-center gap-3 pt-1">
               <button
-                onClick={() => {
-                  if (downloadSuccessModal.downloadUrl) {
-                    const a = document.createElement('a');
-                    a.href = downloadSuccessModal.downloadUrl;
+                onClick={async () => {
+                  const resolvedUrl = await resolveMaterialUrl(downloadSuccessModal);
+                  if (resolvedUrl) {
                     const fileName =
                       downloadSuccessModal.fileName ||
                       downloadSuccessModal.attachmentName ||
-                      `${downloadSuccessModal.subject.replace(/\s+/g, '_')}_${downloadSuccessModal.title.replace(/\s+/g, '_')}`;
-                    a.download = fileName;
-                    a.target = '_blank';
-                    a.rel = 'noreferrer';
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
+                      `${downloadSuccessModal.subject.replace(/\s+/g, '_')}_${downloadSuccessModal.title.replace(/\s+/g, '_')}.pdf`;
+                    triggerFileDownload(resolvedUrl, fileName);
                   } else {
                     const blob = new Blob([
                       `SHIKSHYALAYA SHAIKSHIK SANSTHA\nDocument: ${downloadSuccessModal.title}\nCourse: ${downloadSuccessModal.courseName}\nSubject: ${downloadSuccessModal.subject} (${downloadSuccessModal.semesterOrYear})\nAccess Level: Authorized Enrolled Student\n`
