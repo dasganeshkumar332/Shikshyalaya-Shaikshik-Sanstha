@@ -337,12 +337,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               updated.avatarUrl = initial.avatarUrl;
             }
           }
-          if (
-            updated.id === 'teacher-7' &&
-            updated.avatarUrl ===
+          if (updated.id === 'teacher-7') {
+            if (
+              updated.avatarUrl ===
               'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=400&q=80'
-          ) {
-            updated.avatarUrl = initial.avatarUrl;
+            ) {
+              updated.avatarUrl = initial.avatarUrl;
+            }
+            if (updated.experience === 'Experienced Faculty in Economics & Business Law') {
+              updated.experience = initial.experience;
+            }
           }
           // Keep all admin-saved changes (including uploaded avatarUrl, qualification, experience, etc.)
           return {
