@@ -56,7 +56,8 @@ import {
   Square,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { dataUrlToBlobUrl, triggerFileDownload, IDB_MARKER } from '../utils/fileStorage';
+import { triggerFileDownload, IDB_MARKER } from '../utils/fileStorage';
+import { DocumentViewerModal } from '../components/common/DocumentViewerModal';
 import {
   SUPABASE_PROJECT_ID,
   SUPABASE_URL,
@@ -91,18 +92,22 @@ export const AdminDashboardPage: React.FC = () => {
     updateCourse,
     togglePublishCourse,
     deleteCourse,
+    clearAllCourses,
     teachers,
     addTeacher,
     updateTeacher,
     deleteTeacher,
+    clearAllTeachers,
     notices,
     addNotice,
     updateNotice,
     deleteNotice,
+    clearAllNotices,
     studyMaterials,
     addStudyMaterial,
     updateStudyMaterial,
     deleteStudyMaterial,
+    clearAllStudyMaterials,
     resolveMaterialUrl,
     inquiries,
     updateInquiryStatus,
@@ -117,6 +122,7 @@ export const AdminDashboardPage: React.FC = () => {
     addStudentGroup,
     updateStudentGroup,
     deleteStudentGroup,
+    clearAllStudentGroups,
     addMemberToGroup,
     bulkAddMembersToGroup,
     importVerifiedInquiriesToGroup,
@@ -127,17 +133,21 @@ export const AdminDashboardPage: React.FC = () => {
     addMockTest,
     updateMockTest,
     deleteMockTest,
+    clearAllMockTests,
     togglePublishMockTest,
     startMockExamTimer,
     extendMockExamTimer,
     concludeMockExamTimer,
     resetMockExamTimer,
     mockTestSubmissions,
+    deleteMockTestSubmission,
+    clearAllMockTestSubmissions,
     gradeMockTestSubmission,
     uploadMockTestResult,
     mockTestRegistrations,
     updateMockTestRegistrationStatus,
     deleteMockTestRegistration,
+    clearAllMockTestRegistrations,
     refreshMockRegistrations,
     supabaseStatus,
     checkSupabaseStatus,
@@ -154,31 +164,26 @@ export const AdminDashboardPage: React.FC = () => {
     'overview' | 'inquiries' | 'registered-students' | 'courses' | 'groups' | 'mock-tests' | 'teachers' | 'notices' | 'materials' | 'settings' | 'database'
   >('overview');
 
+  const [confirmAction, setConfirmAction] = useState<{
+    title: string;
+    message: string;
+    confirmLabel?: string;
+    onConfirm: () => Promise<void> | void;
+  } | null>(null);
+
   const [previewMaterial, setPreviewMaterial] = useState<{
     mat: StudyMaterial;
-    blobUrl: string;
-    revoke: boolean;
-    isImage: boolean;
-    isPdf: boolean;
+    sourceUrl: string;
   } | null>(null);
 
   const closePreviewMaterial = () => {
-    if (previewMaterial?.revoke) {
-      URL.revokeObjectURL(previewMaterial.blobUrl);
-    }
     setPreviewMaterial(null);
   };
 
   const handleOpenMaterialPreview = async (mat: StudyMaterial) => {
     const resolved = await resolveMaterialUrl(mat);
     if (!resolved) return;
-    const fileName = (mat.fileName || mat.attachmentName || '').toLowerCase();
-    const isImage =
-      resolved.startsWith('data:image/') || /\.(png|jpe?g|webp|gif)$/i.test(fileName);
-    const isPdf =
-      resolved.startsWith('data:application/pdf') || fileName.endsWith('.pdf');
-    const { url, revoke } = dataUrlToBlobUrl(resolved);
-    setPreviewMaterial({ mat, blobUrl: url, revoke, isImage, isPdf });
+    setPreviewMaterial({ mat, sourceUrl: resolved });
   };
 
   const handleAdminDownloadMaterial = async (mat: StudyMaterial) => {
@@ -936,18 +941,19 @@ export const AdminDashboardPage: React.FC = () => {
                             </button>
                             <button
                               type="button"
-                              onClick={async () => {
-                                if (
-                                  confirm(
-                                    `Are you sure you want to permanently delete inquiry ${inq.referenceNumber} for ${inq.fullName}?`
-                                  )
-                                ) {
-                                  await deleteInquiry(inq.id);
-                                  setInquiryToastMessage(
-                                    `Inquiry ${inq.referenceNumber} (${inq.fullName}) deleted successfully.`
-                                  );
-                                  setTimeout(() => setInquiryToastMessage(null), 3500);
-                                }
+                              onClick={() => {
+                                setConfirmAction({
+                                  title: 'Delete Admission Inquiry',
+                                  message: `Permanently delete inquiry ${inq.referenceNumber} for ${inq.fullName}?`,
+                                  confirmLabel: 'Delete Inquiry',
+                                  onConfirm: async () => {
+                                    await deleteInquiry(inq.id);
+                                    setInquiryToastMessage(
+                                      `Inquiry ${inq.referenceNumber} (${inq.fullName}) deleted successfully.`
+                                    );
+                                    setTimeout(() => setInquiryToastMessage(null), 3500);
+                                  },
+                                });
                               }}
                               className="px-2 py-1 rounded text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-colors"
                               title={`Delete ${inq.referenceNumber}`}
@@ -1086,26 +1092,28 @@ export const AdminDashboardPage: React.FC = () => {
                 );
               })()}
 
-              {/* Clear All Inquiries Button */}
+              {/* Delete All Inquiries Button */}
               {inquiries.length > 0 && (
                 <button
                   type="button"
-                  onClick={async () => {
-                    if (
-                      confirm(
-                        `Are you sure you want to permanently delete ALL ${inquiries.length} inquiries?\n\nThis cannot be undone.`
-                      )
-                    ) {
-                      await clearAllInquiries();
-                      setInquiryToastMessage('All admission inquiries cleared.');
-                      setTimeout(() => setInquiryToastMessage(null), 3500);
-                    }
+                  onClick={() => {
+                    setConfirmAction({
+                      title: 'Delete All Admission Inquiries',
+                      message: `Are you sure you want to permanently delete ALL ${inquiries.length} inquiries? This action cannot be undone.`,
+                      confirmLabel: `Delete All (${inquiries.length})`,
+                      onConfirm: async () => {
+                        await clearAllInquiries();
+                        setSelectedInquiryIds([]);
+                        setInquiryToastMessage('All admission inquiries permanently deleted.');
+                        setTimeout(() => setInquiryToastMessage(null), 3500);
+                      },
+                    });
                   }}
-                  className="px-3 py-2.5 rounded-xl text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-colors flex items-center gap-1.5 cursor-pointer"
-                  title="Wipe all inquiries"
+                  className="px-3.5 py-2.5 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-colors flex items-center gap-1.5 cursor-pointer"
+                  title="Delete all inquiries"
                 >
-                  <Trash2 className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Clear All</span>
+                  <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                  <span>Delete All ({inquiries.length})</span>
                 </button>
               )}
 
@@ -1397,19 +1405,20 @@ export const AdminDashboardPage: React.FC = () => {
                           </button>
                           <button
                             type="button"
-                            onClick={async () => {
-                              if (
-                                confirm(
-                                  `Are you sure you want to permanently delete inquiry ${inq.referenceNumber} for ${inq.fullName}?`
-                                )
-                              ) {
-                                await deleteInquiry(inq.id);
-                                setSelectedInquiryIds((prev) => prev.filter((id) => id !== inq.id));
-                                setInquiryToastMessage(
-                                  `Inquiry ${inq.referenceNumber} (${inq.fullName}) deleted successfully.`
-                                );
-                                setTimeout(() => setInquiryToastMessage(null), 3500);
-                              }
+                            onClick={() => {
+                              setConfirmAction({
+                                title: 'Delete Admission Inquiry',
+                                message: `Permanently delete inquiry ${inq.referenceNumber} for ${inq.fullName}?`,
+                                confirmLabel: 'Delete Inquiry',
+                                onConfirm: async () => {
+                                  await deleteInquiry(inq.id);
+                                  setSelectedInquiryIds((prev) => prev.filter((id) => id !== inq.id));
+                                  setInquiryToastMessage(
+                                    `Inquiry ${inq.referenceNumber} (${inq.fullName}) deleted successfully.`
+                                  );
+                                  setTimeout(() => setInquiryToastMessage(null), 3500);
+                                },
+                              });
                             }}
                             className="px-2.5 py-1 rounded-lg text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-colors flex items-center gap-1 cursor-pointer shadow-2xs"
                             title={`Delete inquiry ${inq.referenceNumber}`}
@@ -1813,19 +1822,21 @@ export const AdminDashboardPage: React.FC = () => {
             <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
               <button
                 type="button"
-                onClick={async () => {
-                  if (
-                    confirm(
-                      `Permanently delete inquiry ${selectedInquiryDetail.referenceNumber} for ${selectedInquiryDetail.fullName}?`
-                    )
-                  ) {
-                    await deleteInquiry(selectedInquiryDetail.id);
-                    setSelectedInquiryDetail(null);
-                    setInquiryToastMessage(
-                      `Inquiry ${selectedInquiryDetail.referenceNumber} has been permanently deleted.`
-                    );
-                    setTimeout(() => setInquiryToastMessage(null), 3500);
-                  }
+                onClick={() => {
+                  const target = selectedInquiryDetail;
+                  setConfirmAction({
+                    title: 'Delete Admission Inquiry',
+                    message: `Permanently delete inquiry ${target.referenceNumber} for ${target.fullName}?`,
+                    confirmLabel: 'Delete Inquiry',
+                    onConfirm: async () => {
+                      await deleteInquiry(target.id);
+                      setSelectedInquiryDetail(null);
+                      setInquiryToastMessage(
+                        `Inquiry ${target.referenceNumber} has been permanently deleted.`
+                      );
+                      setTimeout(() => setInquiryToastMessage(null), 3500);
+                    },
+                  });
                 }}
                 className="px-3.5 py-2 rounded-xl font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 text-xs flex items-center gap-1.5 cursor-pointer border border-rose-200 transition-colors"
               >
@@ -1965,6 +1976,28 @@ export const AdminDashboardPage: React.FC = () => {
                 <Download className="w-3.5 h-3.5" />
                 <span>Export CSV</span>
               </button>
+
+              {mockTestRegistrations.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConfirmAction({
+                      title: 'Delete All Registered Students',
+                      message: `Permanently delete ALL ${mockTestRegistrations.length} mock test student registrations? This cannot be undone.`,
+                      confirmLabel: `Delete All (${mockTestRegistrations.length})`,
+                      onConfirm: () => {
+                        clearAllMockTestRegistrations();
+                        setRegStudentToast('All registered students deleted permanently.');
+                        setTimeout(() => setRegStudentToast(null), 3000);
+                      },
+                    });
+                  }}
+                  className="px-3.5 py-2.5 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-colors flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                  <span>Delete All ({mockTestRegistrations.length})</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -2305,11 +2338,16 @@ export const AdminDashboardPage: React.FC = () => {
                               <button
                                 type="button"
                                 onClick={() => {
-                                  if (confirm(`Delete mock test registration for ${reg.fullName} (${reg.referenceNumber})?`)) {
-                                    deleteMockTestRegistration(reg.id);
-                                    setRegStudentToast(`Deleted registration for ${reg.fullName}.`);
-                                    setTimeout(() => setRegStudentToast(null), 3000);
-                                  }
+                                  setConfirmAction({
+                                    title: 'Delete Student Registration',
+                                    message: `Permanently delete registration for ${reg.fullName} (${reg.referenceNumber})?`,
+                                    confirmLabel: 'Delete',
+                                    onConfirm: () => {
+                                      deleteMockTestRegistration(reg.id);
+                                      setRegStudentToast(`Deleted registration for ${reg.fullName}.`);
+                                      setTimeout(() => setRegStudentToast(null), 3000);
+                                    },
+                                  });
                                 }}
                                 className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                                 title="Delete Registration"
@@ -2332,23 +2370,49 @@ export const AdminDashboardPage: React.FC = () => {
       {/* TAB 3: COURSE MANAGEMENT */}
       {activeTab === 'courses' && (
         <div className="space-y-6 animate-fadeIn">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h3 className="text-base font-bold text-[#12315A]">Academic Courses Directory</h3>
               <p className="text-xs text-slate-400">Manage academic programs, subjects, and schedules</p>
             </div>
-            <button
-              onClick={() => {
-                setEditingCourse(null);
-                setIsCourseModalOpen(true);
-              }}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#12315A] hover:bg-blue-900 shadow"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Add New Course</span>
-            </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              {courses.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConfirmAction({
+                      title: 'Delete All Courses',
+                      message: `Are you sure you want to permanently delete ALL ${courses.length} courses? This cannot be undone.`,
+                      confirmLabel: `Delete All (${courses.length})`,
+                      onConfirm: () => clearAllCourses(),
+                    });
+                  }}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                  <span>Delete All ({courses.length})</span>
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  setEditingCourse(null);
+                  setIsCourseModalOpen(true);
+                }}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#12315A] hover:bg-blue-900 shadow cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add New Course</span>
+              </button>
+            </div>
           </div>
 
+          {courses.length === 0 ? (
+            <div className="bg-white p-10 rounded-3xl border border-dashed border-slate-300 text-center space-y-2">
+              <BookOpen className="w-10 h-10 text-slate-400 mx-auto" />
+              <h4 className="text-sm font-bold text-[#12315A]">No Academic Courses Listed</h4>
+              <p className="text-xs text-slate-500">Click Add New Course above to create a program.</p>
+            </div>
+          ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {courses.map((c) => (
               <div
@@ -2409,11 +2473,14 @@ export const AdminDashboardPage: React.FC = () => {
                     </button>
                     <button
                       onClick={() => {
-                        if (confirm(`Are you sure you want to delete ${c.title}?`)) {
-                          deleteCourse(c.id);
-                        }
+                        setConfirmAction({
+                          title: 'Delete Course',
+                          message: `Are you sure you want to permanently delete "${c.title}"?`,
+                          confirmLabel: 'Delete Course',
+                          onConfirm: () => deleteCourse(c.id),
+                        });
                       }}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
                       title="Delete Course"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -2423,6 +2490,7 @@ export const AdminDashboardPage: React.FC = () => {
               </div>
             ))}
           </div>
+          )}
         </div>
       )}
 
@@ -2476,16 +2544,39 @@ export const AdminDashboardPage: React.FC = () => {
               </p>
             </div>
 
-            <button
-              onClick={() => {
-                setEditingGroup(null);
-                setIsGroupModalOpen(true);
-              }}
-              className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-[#12315A] hover:bg-blue-900 shadow transition-colors shrink-0 cursor-pointer"
-            >
-              <Plus className="w-4 h-4 text-amber-400" />
-              <span>Create New Student Group</span>
-            </button>
+            <div className="flex items-center gap-2 flex-wrap shrink-0">
+              {studentGroups.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConfirmAction({
+                      title: 'Delete All Student Groups',
+                      message: `Permanently delete ALL ${studentGroups.length} student groups and their rosters? This cannot be undone.`,
+                      confirmLabel: `Delete All (${studentGroups.length})`,
+                      onConfirm: () => {
+                        clearAllStudentGroups();
+                        setGroupToastMessage('All student groups permanently deleted.');
+                        setTimeout(() => setGroupToastMessage(null), 3000);
+                      },
+                    });
+                  }}
+                  className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-colors cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                  <span>Delete All ({studentGroups.length})</span>
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  setEditingGroup(null);
+                  setIsGroupModalOpen(true);
+                }}
+                className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-[#12315A] hover:bg-blue-900 shadow transition-colors shrink-0 cursor-pointer"
+              >
+                <Plus className="w-4 h-4 text-amber-400" />
+                <span>Create New Student Group</span>
+              </button>
+            </div>
           </div>
 
           {/* Quick Stats Banner */}
@@ -2775,13 +2866,18 @@ export const AdminDashboardPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => {
-                              if (confirm(`Are you sure you want to delete group "${g.name}"?`)) {
-                                deleteStudentGroup(g.id);
-                                setGroupToastMessage(`Group "${g.name}" deleted.`);
-                                setTimeout(() => setGroupToastMessage(null), 3000);
-                              }
+                              setConfirmAction({
+                                title: 'Delete Student Group',
+                                message: `Are you sure you want to permanently delete group "${g.title || g.name}"?`,
+                                confirmLabel: 'Delete Group',
+                                onConfirm: () => {
+                                  deleteStudentGroup(g.id);
+                                  setGroupToastMessage(`Group "${g.title || g.name}" deleted.`);
+                                  setTimeout(() => setGroupToastMessage(null), 3000);
+                                },
+                              });
                             }}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
                             title="Delete Group"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -2868,23 +2964,49 @@ export const AdminDashboardPage: React.FC = () => {
       {/* TAB 4: TEACHER MANAGEMENT */}
       {activeTab === 'teachers' && (
         <div className="space-y-6 animate-fadeIn">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h3 className="text-base font-bold text-[#12315A]">Faculty & Instructor Directory</h3>
               <p className="text-xs text-slate-400">Add, edit, or customize teacher profiles</p>
             </div>
-            <button
-              onClick={() => {
-                setEditingTeacher(null);
-                setIsTeacherModalOpen(true);
-              }}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#12315A] hover:bg-blue-900 shadow"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Add Faculty Member</span>
-            </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              {teachers.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConfirmAction({
+                      title: 'Delete All Faculty Profiles',
+                      message: `Permanently delete ALL ${teachers.length} faculty members? This cannot be undone.`,
+                      confirmLabel: `Delete All (${teachers.length})`,
+                      onConfirm: () => clearAllTeachers(),
+                    });
+                  }}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                  <span>Delete All ({teachers.length})</span>
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  setEditingTeacher(null);
+                  setIsTeacherModalOpen(true);
+                }}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#12315A] hover:bg-blue-900 shadow cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Faculty Member</span>
+              </button>
+            </div>
           </div>
 
+          {teachers.length === 0 ? (
+            <div className="bg-white p-10 rounded-3xl border border-dashed border-slate-300 text-center space-y-2">
+              <Users className="w-10 h-10 text-slate-400 mx-auto" />
+              <h4 className="text-sm font-bold text-[#12315A]">No Faculty Profiles Listed</h4>
+              <p className="text-xs text-slate-500">Click Add Faculty Member above to add instructors.</p>
+            </div>
+          ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {teachers.map((t) => (
               <div
@@ -2947,11 +3069,14 @@ export const AdminDashboardPage: React.FC = () => {
                     </button>
                     <button
                       onClick={() => {
-                        if (confirm(`Remove teacher profile for ${t.name}?`)) {
-                          deleteTeacher(t.id);
-                        }
+                        setConfirmAction({
+                          title: 'Delete Faculty Profile',
+                          message: `Remove teacher profile for ${t.name}?`,
+                          confirmLabel: 'Remove',
+                          onConfirm: () => deleteTeacher(t.id),
+                        });
                       }}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -2960,6 +3085,7 @@ export const AdminDashboardPage: React.FC = () => {
               </div>
             ))}
           </div>
+          )}
         </div>
       )}
 
@@ -2982,23 +3108,49 @@ export const AdminDashboardPage: React.FC = () => {
       {/* TAB 5: NOTICE MANAGEMENT */}
       {activeTab === 'notices' && (
         <div className="space-y-6 animate-fadeIn">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h3 className="text-base font-bold text-[#12315A]">Public Notice Board Announcements</h3>
               <p className="text-xs text-slate-400">Publish batch schedules, holiday alerts, and admissions</p>
             </div>
-            <button
-              onClick={() => {
-                setEditingNotice(null);
-                setIsNoticeModalOpen(true);
-              }}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#12315A] hover:bg-blue-900 shadow"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Create Announcement</span>
-            </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              {notices.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConfirmAction({
+                      title: 'Delete All Notices',
+                      message: `Permanently delete ALL ${notices.length} announcements? This cannot be undone.`,
+                      confirmLabel: `Delete All (${notices.length})`,
+                      onConfirm: () => clearAllNotices(),
+                    });
+                  }}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                  <span>Delete All ({notices.length})</span>
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  setEditingNotice(null);
+                  setIsNoticeModalOpen(true);
+                }}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#12315A] hover:bg-blue-900 shadow cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Create Announcement</span>
+              </button>
+            </div>
           </div>
 
+          {notices.length === 0 ? (
+            <div className="bg-white p-10 rounded-3xl border border-dashed border-slate-300 text-center space-y-2">
+              <Bell className="w-10 h-10 text-slate-400 mx-auto" />
+              <h4 className="text-sm font-bold text-[#12315A]">No Announcements Published</h4>
+              <p className="text-xs text-slate-500">Click Create Announcement above to post a notice.</p>
+            </div>
+          ) : (
           <div className="space-y-3">
             {notices.map((n) => (
               <div
@@ -3033,11 +3185,14 @@ export const AdminDashboardPage: React.FC = () => {
                   </button>
                   <button
                     onClick={() => {
-                      if (confirm(`Delete announcement: ${n.title}?`)) {
-                        deleteNotice(n.id);
-                      }
+                      setConfirmAction({
+                        title: 'Delete Announcement',
+                        message: `Delete announcement: "${n.title}"?`,
+                        confirmLabel: 'Delete',
+                        onConfirm: () => deleteNotice(n.id),
+                      });
                     }}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -3045,6 +3200,7 @@ export const AdminDashboardPage: React.FC = () => {
               </div>
             ))}
           </div>
+          )}
         </div>
       )}
 
@@ -3067,21 +3223,40 @@ export const AdminDashboardPage: React.FC = () => {
       {/* TAB 6: STUDY MATERIAL MANAGEMENT */}
       {activeTab === 'materials' && (
         <div className="space-y-6 animate-fadeIn">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h3 className="text-base font-bold text-[#12315A]">Study Materials & Resource Repository</h3>
               <p className="text-xs text-slate-400">Publish notes, past papers, and access permission levels</p>
             </div>
-            <button
-              onClick={() => {
-                setEditingMaterial(null);
-                setIsMaterialModalOpen(true);
-              }}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#12315A] hover:bg-blue-900 shadow"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Add Resource</span>
-            </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              {studyMaterials.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConfirmAction({
+                      title: 'Delete All Study Materials',
+                      message: `Permanently delete ALL ${studyMaterials.length} uploaded study resources? This cannot be undone.`,
+                      confirmLabel: `Delete All (${studyMaterials.length})`,
+                      onConfirm: () => clearAllStudyMaterials(),
+                    });
+                  }}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                  <span>Delete All ({studyMaterials.length})</span>
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  setEditingMaterial(null);
+                  setIsMaterialModalOpen(true);
+                }}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#12315A] hover:bg-blue-900 shadow cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Resource</span>
+              </button>
+            </div>
           </div>
 
           {studyMaterials.length === 0 ? (
@@ -3186,9 +3361,12 @@ export const AdminDashboardPage: React.FC = () => {
                       </button>
                       <button
                         onClick={() => {
-                          if (confirm(`Delete material ${m.title}?`)) {
-                            deleteStudyMaterial(m.id);
-                          }
+                          setConfirmAction({
+                            title: 'Delete Study Material',
+                            message: `Permanently delete study material "${m.title}"?`,
+                            confirmLabel: 'Delete',
+                            onConfirm: () => deleteStudyMaterial(m.id),
+                          });
                         }}
                         className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
                         title="Delete Resource"
@@ -3224,53 +3402,12 @@ export const AdminDashboardPage: React.FC = () => {
 
       {/* Admin Uploaded Resource Preview Modal */}
       {previewMaterial && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl max-w-4xl w-full overflow-hidden shadow-2xl border border-slate-200 flex flex-col max-h-[90vh]">
-            <div className="p-4 sm:p-5 border-b border-slate-200 flex items-center justify-between gap-3 bg-slate-50">
-              <div className="min-w-0">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700">
-                  {previewMaterial.mat.subject} • {previewMaterial.mat.semesterOrYear}
-                </span>
-                <h4 className="text-sm sm:text-base font-bold text-[#12315A] truncate">
-                  {previewMaterial.mat.title}
-                </h4>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => handleAdminDownloadMaterial(previewMaterial.mat)}
-                  className="px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-[#12315A] hover:bg-blue-900 flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Download className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Download</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={closePreviewMaterial}
-                  className="p-2 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200/70 cursor-pointer"
-                  aria-label="Close preview"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-            <div className="flex-1 bg-slate-100 overflow-auto p-3 sm:p-4 flex items-center justify-center min-h-[60vh]">
-              {previewMaterial.isImage ? (
-                <img
-                  src={previewMaterial.blobUrl}
-                  alt={previewMaterial.mat.title}
-                  className="max-w-full max-h-[75vh] object-contain rounded-xl shadow"
-                />
-              ) : (
-                <iframe
-                  src={previewMaterial.blobUrl}
-                  title={previewMaterial.mat.title}
-                  className="w-full h-[72vh] rounded-xl bg-white border border-slate-200"
-                />
-              )}
-            </div>
-          </div>
-        </div>
+        <DocumentViewerModal
+          material={previewMaterial.mat}
+          sourceUrl={previewMaterial.sourceUrl}
+          onClose={closePreviewMaterial}
+          onDownload={() => handleAdminDownloadMaterial(previewMaterial.mat)}
+        />
       )}
 
       {/* TAB 7: WEBSITE SETTINGS */}
@@ -4002,6 +4139,57 @@ export const AdminDashboardPage: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
+              {mockTestSubView === 'tests' && mockTests.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConfirmAction({
+                      title: 'Delete All Mock Tests',
+                      message: `Permanently delete ALL ${mockTests.length} mock tests? This cannot be undone.`,
+                      confirmLabel: `Delete All (${mockTests.length})`,
+                      onConfirm: () => clearAllMockTests(),
+                    });
+                  }}
+                  className="px-3.5 py-2.5 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-colors flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                  <span>Delete All Tests ({mockTests.length})</span>
+                </button>
+              )}
+              {mockTestSubView === 'answer-sheets' && mockTestSubmissions.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConfirmAction({
+                      title: 'Delete All Answer Sheets',
+                      message: `Permanently delete ALL ${mockTestSubmissions.length} student answer submissions? This cannot be undone.`,
+                      confirmLabel: `Delete All (${mockTestSubmissions.length})`,
+                      onConfirm: () => clearAllMockTestSubmissions(),
+                    });
+                  }}
+                  className="px-3.5 py-2.5 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-colors flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                  <span>Delete All Sheets ({mockTestSubmissions.length})</span>
+                </button>
+              )}
+              {mockTestSubView === 'registrations' && mockTestRegistrations.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConfirmAction({
+                      title: 'Delete All Mock Registrations',
+                      message: `Permanently delete ALL ${mockTestRegistrations.length} mock test registrations? This cannot be undone.`,
+                      confirmLabel: `Delete All (${mockTestRegistrations.length})`,
+                      onConfirm: () => clearAllMockTestRegistrations(),
+                    });
+                  }}
+                  className="px-3.5 py-2.5 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-colors flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                  <span>Delete All ({mockTestRegistrations.length})</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setIsDirectResultModalOpen(true)}
@@ -4614,15 +4802,18 @@ export const AdminDashboardPage: React.FC = () => {
                                   <button
                                     type="button"
                                     onClick={() => {
-                                      if (confirm(`Delete mock test "${test.title}"?`)) {
-                                      deleteMockTest(test.id);
-                                    }
-                                  }}
-                                  className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg cursor-pointer"
-                                  title="Delete Test"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
+                                      setConfirmAction({
+                                        title: 'Delete Mock Test',
+                                        message: `Permanently delete mock test "${test.title}"?`,
+                                        confirmLabel: 'Delete Test',
+                                        onConfirm: () => deleteMockTest(test.id),
+                                      });
+                                    }}
+                                    className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg cursor-pointer"
+                                    title="Delete Test"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
                               </div>
                             </td>
                           </tr>
@@ -4844,14 +5035,31 @@ export const AdminDashboardPage: React.FC = () => {
                             </td>
 
                             <td className="py-3 px-4 text-right">
-                              <button
-                                type="button"
-                                onClick={() => setGradingSubmission(sub)}
-                                className="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-950 bg-amber-400 hover:bg-amber-500 transition-colors flex items-center gap-1 cursor-pointer shadow-2xs ml-auto"
-                              >
-                                <Award className="w-3.5 h-3.5" />
-                                <span>{sub.evaluationStatus === 'Evaluated' ? 'Update Grade' : 'Grade & Feedback'}</span>
-                              </button>
+                              <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setGradingSubmission(sub)}
+                                  className="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-950 bg-amber-400 hover:bg-amber-500 transition-colors flex items-center gap-1 cursor-pointer shadow-2xs"
+                                >
+                                  <Award className="w-3.5 h-3.5" />
+                                  <span>{sub.evaluationStatus === 'Evaluated' ? 'Update Grade' : 'Grade & Feedback'}</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setConfirmAction({
+                                      title: 'Delete Submission',
+                                      message: `Permanently delete answer submission by ${sub.studentName}?`,
+                                      confirmLabel: 'Delete',
+                                      onConfirm: () => deleteMockTestSubmission(sub.id),
+                                    });
+                                  }}
+                                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                                  title="Delete Submission"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -4990,9 +5198,12 @@ export const AdminDashboardPage: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => {
-                                if (confirm(`Delete mock test registration for ${reg.fullName} (${reg.referenceNumber})?`)) {
-                                  deleteMockTestRegistration(reg.id);
-                                }
+                                setConfirmAction({
+                                  title: 'Delete Mock Registration',
+                                  message: `Delete mock test registration for ${reg.fullName} (${reg.referenceNumber})?`,
+                                  confirmLabel: 'Delete',
+                                  onConfirm: () => deleteMockTestRegistration(reg.id),
+                                });
                               }}
                               className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                               title="Delete Registration"
@@ -5860,6 +6071,47 @@ export const AdminDashboardPage: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* In-UI Confirmation Modal for Single & Delete All Admin Actions */}
+      {confirmAction && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setConfirmAction(null);
+          }}
+        >
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2.5 rounded-2xl bg-rose-50 text-rose-600 shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <h4 className="text-base font-bold text-[#12315A]">{confirmAction.title}</h4>
+                <p className="text-xs text-slate-600 leading-relaxed">{confirmAction.message}</p>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setConfirmAction(null)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const action = confirmAction.onConfirm;
+                  setConfirmAction(null);
+                  await action();
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 cursor-pointer shadow-xs"
+              >
+                {confirmAction.confirmLabel || 'Confirm Delete'}
+              </button>
+            </div>
           </div>
         </div>
       )}

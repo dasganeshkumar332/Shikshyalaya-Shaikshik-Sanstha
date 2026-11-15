@@ -25,7 +25,8 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { StudyMaterial, Course } from '../types';
-import { dataUrlToBlobUrl, triggerFileDownload } from '../utils/fileStorage';
+import { triggerFileDownload } from '../utils/fileStorage';
+import { DocumentViewerModal } from '../components/common/DocumentViewerModal';
 
 export const StudyMaterialsPage: React.FC = () => {
   const {
@@ -52,9 +53,7 @@ export const StudyMaterialsPage: React.FC = () => {
   const [downloadSuccessModal, setDownloadSuccessModal] = useState<StudyMaterial | null>(null);
   const [previewResource, setPreviewResource] = useState<{
     mat: StudyMaterial;
-    blobUrl: string;
-    revoke: boolean;
-    isImage: boolean;
+    sourceUrl: string;
   } | null>(null);
 
   const resourceTypes = useMemo(() => {
@@ -396,17 +395,10 @@ export const StudyMaterialsPage: React.FC = () => {
       setDownloadSuccessModal(material);
       return;
     }
-    const fileName = (material.fileName || material.attachmentName || '').toLowerCase();
-    const isImage =
-      resolvedUrl.startsWith('data:image/') || /\.(png|jpe?g|webp|gif)$/i.test(fileName);
-    const { url, revoke } = dataUrlToBlobUrl(resolvedUrl);
-    setPreviewResource({ mat: material, blobUrl: url, revoke, isImage });
+    setPreviewResource({ mat: material, sourceUrl: resolvedUrl });
   };
 
   const closePreviewResource = () => {
-    if (previewResource?.revoke) {
-      URL.revokeObjectURL(previewResource.blobUrl);
-    }
     setPreviewResource(null);
   };
 
@@ -1495,7 +1487,21 @@ export const StudyMaterialsPage: React.FC = () => {
               Authorized academic document ready for download for <strong>{currentUser?.name || 'Verified Scholar'}</strong>.
             </p>
 
-            <div className="flex items-center gap-3 pt-1">
+            <div className="flex flex-wrap items-center gap-2.5 pt-1">
+              {downloadSuccessModal.downloadUrl && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const target = downloadSuccessModal;
+                    setDownloadSuccessModal(null);
+                    handlePreviewMaterial(target);
+                  }}
+                  className="py-2.5 px-4 rounded-xl font-bold text-xs text-[#12315A] bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Eye className="w-4 h-4 text-blue-700" />
+                  <span>View Inline</span>
+                </button>
+              )}
               <button
                 onClick={async () => {
                   const resolvedUrl = await resolveMaterialUrl(downloadSuccessModal);
@@ -1538,60 +1544,11 @@ export const StudyMaterialsPage: React.FC = () => {
 
       {/* Inline PDF / Image Resource Viewer Modal */}
       {previewResource && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl max-w-4xl w-full overflow-hidden shadow-2xl border border-slate-200 flex flex-col max-h-[90vh]">
-            <div className="p-4 sm:p-5 border-b border-slate-200 flex items-center justify-between gap-3 bg-slate-50">
-              <div className="min-w-0">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700">
-                  {previewResource.mat.subject} • {previewResource.mat.semesterOrYear}
-                </span>
-                <h4 className="text-sm sm:text-base font-bold text-[#12315A] truncate">
-                  {previewResource.mat.title}
-                </h4>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const fileName =
-                      previewResource.mat.fileName ||
-                      previewResource.mat.attachmentName ||
-                      `${previewResource.mat.title.replace(/\s+/g, '_')}.pdf`;
-                    triggerFileDownload(previewResource.blobUrl, fileName);
-                  }}
-                  className="px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-[#12315A] hover:bg-blue-900 flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Download className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Download</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={closePreviewResource}
-                  className="p-2 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200/70 cursor-pointer"
-                  aria-label="Close preview"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-
-            <div className="flex-1 bg-slate-100 overflow-auto flex items-center justify-center p-3">
-              {previewResource.isImage ? (
-                <img
-                  src={previewResource.blobUrl}
-                  alt={previewResource.mat.title}
-                  className="max-w-full max-h-[75vh] object-contain rounded-xl shadow"
-                />
-              ) : (
-                <iframe
-                  src={previewResource.blobUrl}
-                  title={previewResource.mat.title}
-                  className="w-full h-[72vh] rounded-xl bg-white border border-slate-200"
-                />
-              )}
-            </div>
-          </div>
-        </div>
+        <DocumentViewerModal
+          material={previewResource.mat}
+          sourceUrl={previewResource.sourceUrl}
+          onClose={closePreviewResource}
+        />
       )}
     </div>
   );

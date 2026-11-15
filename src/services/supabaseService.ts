@@ -153,6 +153,18 @@ export async function deleteMockRegistrationFromSupabase(id: string): Promise<bo
   }
 }
 
+export async function clearAllMockRegistrationsFromSupabase(): Promise<boolean> {
+  try {
+    await supabase.from('mock_test_registrations').delete().neq('id', '');
+    await supabase.from('app_storage').delete().eq('key', 'all_mock_registrations');
+    await supabase.from('app_storage').delete().like('key', 'mock_reg:%');
+    return true;
+  } catch (err) {
+    console.warn('[Supabase] Failed to clear mock registrations:', err);
+    return false;
+  }
+}
+
 /**
  * Saves or updates an admission inquiry in Supabase
  */
@@ -225,6 +237,12 @@ export async function deleteMultipleInquiriesFromSupabase(ids: string[]): Promis
 export async function clearAllInquiriesFromSupabase(): Promise<{ success: boolean; error?: string }> {
   try {
     const { error } = await supabase.from('admission_inquiries').delete().neq('id', '');
+    try {
+      await supabase.from('app_storage').delete().eq('key', 'all_inquiries');
+      await supabase.from('app_storage').delete().like('key', 'inquiry:%');
+    } catch {
+      // ignore
+    }
     if (error) {
       console.warn('[Supabase] Could not clear admission_inquiries:', error.message);
       return { success: false, error: error.message };
@@ -260,6 +278,29 @@ export async function saveMockSubmissionToSupabase(
   } catch (err: any) {
     console.error('[Supabase] Exception saving submission:', err);
     return { success: false, error: err?.message };
+  }
+}
+
+export async function deleteMockSubmissionFromSupabase(id: string): Promise<boolean> {
+  try {
+    await supabase.from('mock_test_submissions').delete().eq('id', id);
+    await supabase.from('app_storage').delete().eq('key', `submission:${id}`);
+    return true;
+  } catch (err) {
+    console.warn('[Supabase] Failed to delete mock submission:', err);
+    return false;
+  }
+}
+
+export async function clearAllMockSubmissionsFromSupabase(): Promise<boolean> {
+  try {
+    await supabase.from('mock_test_submissions').delete().neq('id', '');
+    await supabase.from('app_storage').delete().eq('key', 'all_submissions');
+    await supabase.from('app_storage').delete().like('key', 'submission:%');
+    return true;
+  } catch (err) {
+    console.warn('[Supabase] Failed to clear mock submissions:', err);
+    return false;
   }
 }
 
@@ -341,6 +382,69 @@ export async function saveStudentGroupToSupabase(group: StudentGroup): Promise<{
   } catch (err: any) {
     console.error('[Supabase] Exception saving student group:', err);
     return { success: false, error: err?.message };
+  }
+}
+
+export async function deleteStudentGroupFromSupabase(id: string): Promise<boolean> {
+  try {
+    await supabase.from('student_groups').delete().eq('id', id);
+    await supabase.from('app_storage').delete().eq('key', `group:${id}`);
+    return true;
+  } catch (err) {
+    console.warn('[Supabase] Failed to delete student group:', err);
+    return false;
+  }
+}
+
+export async function clearAllStudentGroupsFromSupabase(): Promise<boolean> {
+  try {
+    await supabase.from('student_groups').delete().neq('id', '');
+    await supabase.from('app_storage').delete().like('key', 'group:%');
+    return true;
+  } catch (err) {
+    console.warn('[Supabase] Failed to clear student groups:', err);
+    return false;
+  }
+}
+
+export async function deleteMockTestFromSupabase(id: string): Promise<boolean> {
+  try {
+    await supabase.from('mock_tests').delete().eq('id', id);
+    await supabase.from('mock_test_submissions').delete().eq('mock_test_id', id);
+    return true;
+  } catch (err) {
+    console.warn('[Supabase] Failed to delete mock test:', err);
+    return false;
+  }
+}
+
+export async function clearAllMockTestsFromSupabase(): Promise<boolean> {
+  try {
+    await supabase.from('mock_tests').delete().neq('id', '');
+    return true;
+  } catch (err) {
+    console.warn('[Supabase] Failed to clear mock tests:', err);
+    return false;
+  }
+}
+
+export async function deleteNoticeFromSupabase(id: string): Promise<boolean> {
+  try {
+    await supabase.from('notices').delete().eq('id', id);
+    return true;
+  } catch (err) {
+    console.warn('[Supabase] Failed to delete notice:', err);
+    return false;
+  }
+}
+
+export async function clearAllNoticesFromSupabase(): Promise<boolean> {
+  try {
+    await supabase.from('notices').delete().neq('id', '');
+    return true;
+  } catch (err) {
+    console.warn('[Supabase] Failed to clear notices:', err);
+    return false;
   }
 }
 
@@ -448,6 +552,17 @@ export async function deleteStudyMaterialFromSupabase(id: string): Promise<boole
     return true;
   } catch (err) {
     console.warn('[Supabase] Failed to delete study material:', err);
+    return false;
+  }
+}
+
+export async function clearAllStudyMaterialsFromSupabase(): Promise<boolean> {
+  try {
+    await supabase.from('study_materials').delete().neq('id', '');
+    await supabase.from('app_storage').delete().like('key', 'material:%');
+    return true;
+  } catch (err) {
+    console.warn('[Supabase] Failed to clear study materials:', err);
     return false;
   }
 }

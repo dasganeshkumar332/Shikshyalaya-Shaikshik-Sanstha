@@ -51,8 +51,18 @@ import {
   deleteInquiryFromSupabase,
   deleteMultipleInquiriesFromSupabase,
   clearAllInquiriesFromSupabase,
+  deleteMockSubmissionFromSupabase,
+  clearAllMockSubmissionsFromSupabase,
+  clearAllMockRegistrationsFromSupabase,
+  deleteStudentGroupFromSupabase,
+  clearAllStudentGroupsFromSupabase,
+  deleteMockTestFromSupabase,
+  clearAllMockTestsFromSupabase,
+  deleteNoticeFromSupabase,
+  clearAllNoticesFromSupabase,
   saveStudyMaterialToSupabase,
   deleteStudyMaterialFromSupabase,
+  clearAllStudyMaterialsFromSupabase,
   fetchStudyMaterialsFromSupabase,
   isLegacySeededMaterialId,
 } from '../services/supabaseService';
@@ -67,21 +77,25 @@ interface AppContextType {
   updateCourse: (id: string, updates: Partial<Course>) => void;
   togglePublishCourse: (id: string) => void;
   deleteCourse: (id: string) => void;
+  clearAllCourses: () => void;
 
   teachers: Teacher[];
   addTeacher: (teacher: Omit<Teacher, 'id'>) => void;
   updateTeacher: (id: string, updates: Partial<Teacher>) => void;
   deleteTeacher: (id: string) => void;
+  clearAllTeachers: () => void;
 
   notices: Notice[];
   addNotice: (notice: Omit<Notice, 'id'>) => void;
   updateNotice: (id: string, updates: Partial<Notice>) => void;
   deleteNotice: (id: string) => void;
+  clearAllNotices: () => void;
 
   studyMaterials: StudyMaterial[];
   addStudyMaterial: (mat: Omit<StudyMaterial, 'id'>) => void;
   updateStudyMaterial: (id: string, updates: Partial<StudyMaterial>) => void;
   deleteStudyMaterial: (id: string) => void;
+  clearAllStudyMaterials: () => void;
   resolveMaterialUrl: (mat: StudyMaterial) => Promise<string | undefined>;
 
   gallery: GalleryItem[];
@@ -117,6 +131,7 @@ interface AppContextType {
   addStudentGroup: (group: Partial<StudentGroup>) => void;
   updateStudentGroup: (id: string, updates: Partial<StudentGroup>) => void;
   deleteStudentGroup: (id: string) => void;
+  clearAllStudentGroups: () => void;
   addMemberToGroup: (groupId: string, member: Omit<StudentGroupMember, 'id' | 'addedAt'>) => void;
   bulkAddMembersToGroup: (
     groupId: string,
@@ -143,6 +158,7 @@ interface AppContextType {
   addMockTest: (testData: Partial<MockTest>) => MockTest;
   updateMockTest: (id: string, updates: Partial<MockTest>) => void;
   deleteMockTest: (id: string) => void;
+  clearAllMockTests: () => void;
   togglePublishMockTest: (id: string) => void;
   startMockExamTimer: (id: string, options?: { scheduledStartTime?: string; durationMinutes?: number; uploadGraceMinutes?: number }) => void;
   extendMockExamTimer: (id: string, extraMinutes: number, reason?: string) => void;
@@ -151,6 +167,8 @@ interface AppContextType {
 
   // Student Submissions & Examiner Feedback
   mockTestSubmissions: MockTestSubmission[];
+  deleteMockTestSubmission: (id: string) => void;
+  clearAllMockTestSubmissions: () => void;
   submitMockTestAnswer: (submission: Omit<MockTestSubmission, 'id' | 'submittedAt'>) => { success: boolean; submissionId: string; message: string };
   gradeMockTestSubmission: (
     submissionId: string,
@@ -184,6 +202,7 @@ interface AppContextType {
   registerForMockTest: (data: Omit<MockTestRegistration, 'id' | 'referenceNumber' | 'status' | 'createdAt'>) => MockTestRegistration;
   updateMockTestRegistrationStatus: (id: string, status: MockTestRegistration['status']) => void;
   deleteMockTestRegistration: (id: string) => void;
+  clearAllMockTestRegistrations: () => void;
   refreshMockRegistrations: () => Promise<void>;
 
   currentUser: UserProfile | null;
@@ -228,7 +247,50 @@ const STORAGE_KEYS = {
   MOCK_TESTS: 'sss_mock_tests',
   MOCK_SUBMISSIONS: 'sss_mock_submissions',
   MOCK_REGISTRATIONS: 'sss_mock_registrations',
+  DELETED_RECORDS: 'sss_deleted_records',
 };
+
+type DeletedRecordCategory =
+  | 'inquiries'
+  | 'mockSubmissions'
+  | 'mockRegistrations'
+  | 'studyMaterials'
+  | 'studentGroups'
+  | 'mockTests'
+  | 'notices'
+  | 'teachers'
+  | 'courses';
+
+function readDeletedRecordsMap(): Partial<Record<DeletedRecordCategory, string[]>> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.DELETED_RECORDS);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function getDeletedIdsSet(category: DeletedRecordCategory): Set<string> {
+  const map = readDeletedRecordsMap();
+  return new Set(Array.isArray(map[category]) ? map[category] : []);
+}
+
+function recordDeletedIds(category: DeletedRecordCategory, ids: string[]): void {
+  if (!ids.length) return;
+  try {
+    const map = readDeletedRecordsMap();
+    const existing = new Set(Array.isArray(map[category]) ? map[category] : []);
+    ids.forEach((id) => {
+      if (id) existing.add(id);
+    });
+    map[category] = Array.from(existing);
+    localStorage.setItem(STORAGE_KEYS.DELETED_RECORDS, JSON.stringify(map));
+  } catch (err) {
+    console.warn('Error persisting deleted record tombstones:', err);
+  }
+}
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Settings
@@ -257,59 +319,58 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Courses
   const [courses, setCourses] = useState<Course[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.COURSES);
-    if (!saved) return INITIAL_COURSES;
-    let parsed: Course[] = JSON.parse(saved);
-    // Remove obsolete combined bba-bbm-tu slug
-    parsed = parsed.filter((c) => c.slug !== 'bba-bbm-tu');
-    // Ensure all INITIAL_COURSES exist in parsed
-    INITIAL_COURSES.forEach((ic) => {
-      if (!parsed.some((c) => c.slug === ic.slug)) {
-        parsed.push(ic);
-      }
-    });
-    // Order strictly to match INITIAL_COURSES (BBS -> BBA -> BBM -> MBS -> +2 Science -> +2 Management -> BBA PU)
-    const initialOrder = INITIAL_COURSES.map((ic) => ic.slug);
-    const updated = parsed.map((c) => {
-      const initial = INITIAL_COURSES.find((ic) => ic.slug === c.slug);
-      if (initial) {
-        return {
-          ...c,
-          title: initial.title,
-          devanagariTitle: initial.devanagariTitle,
-          duration: initial.duration,
-          level: initial.level,
-          shortDescription: initial.shortDescription,
-          longDescription: initial.longDescription,
-          metaDescription: initial.metaDescription,
-          subjectsOffered: initial.subjectsOffered,
-          schedule: initial.schedule,
-          assignedTeacherIds: initial.assignedTeacherIds,
-          courseType: initial.courseType || c.courseType || 'New Course',
-          syllabusVersion: initial.syllabusVersion || c.syllabusVersion,
-          hasOldCourseOption: initial.hasOldCourseOption !== undefined ? initial.hasOldCourseOption : true,
-          newCourseNotes: initial.newCourseNotes || c.newCourseNotes,
-          oldCourseNotes: initial.oldCourseNotes || c.oldCourseNotes,
-        };
-      }
-      return c;
-    });
+    if (saved === null) return INITIAL_COURSES;
+    try {
+      let parsed: Course[] = JSON.parse(saved);
+      if (!Array.isArray(parsed)) return INITIAL_COURSES;
+      // Remove obsolete combined bba-bbm-tu slug without resurrecting deleted courses
+      parsed = parsed.filter((c) => c.slug !== 'bba-bbm-tu');
+      const initialOrder = INITIAL_COURSES.map((ic) => ic.slug);
+      const updated = parsed.map((c) => {
+        const initial = INITIAL_COURSES.find((ic) => ic.slug === c.slug);
+        if (initial) {
+          return {
+            ...c,
+            title: initial.title,
+            devanagariTitle: initial.devanagariTitle,
+            duration: initial.duration,
+            level: initial.level,
+            shortDescription: initial.shortDescription,
+            longDescription: initial.longDescription,
+            metaDescription: initial.metaDescription,
+            subjectsOffered: initial.subjectsOffered,
+            schedule: initial.schedule,
+            assignedTeacherIds: initial.assignedTeacherIds,
+            courseType: initial.courseType || c.courseType || 'New Course',
+            syllabusVersion: initial.syllabusVersion || c.syllabusVersion,
+            hasOldCourseOption: initial.hasOldCourseOption !== undefined ? initial.hasOldCourseOption : true,
+            newCourseNotes: initial.newCourseNotes || c.newCourseNotes,
+            oldCourseNotes: initial.oldCourseNotes || c.oldCourseNotes,
+          };
+        }
+        return c;
+      });
 
-    return updated.sort((a, b) => {
-      const idxA = initialOrder.indexOf(a.slug);
-      const idxB = initialOrder.indexOf(b.slug);
-      return (idxA !== -1 ? idxA : 999) - (idxB !== -1 ? idxB : 999);
-    });
+      return updated.sort((a, b) => {
+        const idxA = initialOrder.indexOf(a.slug);
+        const idxB = initialOrder.indexOf(b.slug);
+        return (idxA !== -1 ? idxA : 999) - (idxB !== -1 ? idxB : 999);
+      });
+    } catch {
+      return INITIAL_COURSES;
+    }
   });
 
   // Teachers
   const [teachers, setTeachers] = useState<Teacher[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.TEACHERS);
-      if (!saved) return INITIAL_TEACHERS;
+      if (saved === null) return INITIAL_TEACHERS;
       let parsed: Teacher[] = JSON.parse(saved);
-      // Filter out old placeholder/sample teachers
+      if (!Array.isArray(parsed)) return INITIAL_TEACHERS;
+      // Filter out old placeholder/sample teachers without resurrecting deleted teachers
       parsed = parsed.filter((t) => t.id !== 'teacher-3' && t.id !== 'teacher-4' && t.id !== 'teacher-5');
-      parsed = parsed.map((t) => {
+      return parsed.map((t) => {
         let updated = { ...t };
         if (updated.assignedCourseSlugs?.includes('bba-bbm-tu')) {
           const migrated = updated.assignedCourseSlugs.filter((s) => s !== 'bba-bbm-tu');
@@ -376,10 +437,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
         return updated;
       });
-      // Add any newly defined initial teachers not yet present in storage
-      const existingIds = new Set(parsed.map((t) => t.id));
-      const toAdd = INITIAL_TEACHERS.filter((it) => !existingIds.has(it.id));
-      return [...parsed, ...toAdd];
     } catch {
       return INITIAL_TEACHERS;
     }
@@ -388,26 +445,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Notices
   const [notices, setNotices] = useState<Notice[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.NOTICES);
-    if (!saved) return INITIAL_NOTICES;
-    const parsed: Notice[] = JSON.parse(saved);
-    return parsed.map((n) => {
-      if (n.targetCourses?.includes('bba-bbm-tu')) {
-        n.targetCourses = n.targetCourses.filter((s) => s !== 'bba-bbm-tu');
-        if (!n.targetCourses.includes('bba-tu')) n.targetCourses.push('bba-tu');
-        if (!n.targetCourses.includes('bbm-tu')) n.targetCourses.push('bbm-tu');
-      }
-      return n;
-    });
+    if (saved === null) return INITIAL_NOTICES;
+    try {
+      const parsed: Notice[] = JSON.parse(saved);
+      if (!Array.isArray(parsed)) return INITIAL_NOTICES;
+      return parsed.map((n) => {
+        if (n.targetCourses?.includes('bba-bbm-tu')) {
+          n.targetCourses = n.targetCourses.filter((s) => s !== 'bba-bbm-tu');
+          if (!n.targetCourses.includes('bba-tu')) n.targetCourses.push('bba-tu');
+          if (!n.targetCourses.includes('bbm-tu')) n.targetCourses.push('bbm-tu');
+        }
+        return n;
+      });
+    } catch {
+      return INITIAL_NOTICES;
+    }
   });
 
   // Study Materials (Only admin-uploaded resources; zero pre-seeded samples)
   const [studyMaterials, setStudyMaterials] = useState<StudyMaterial[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.MATERIALS);
-      if (!saved) return [];
+      if (saved === null) return [];
       const parsed: StudyMaterial[] = JSON.parse(saved);
       if (!Array.isArray(parsed)) return [];
-      return parsed.filter((m) => m && !isLegacySeededMaterialId(m.id));
+      const deletedSet = getDeletedIdsSet('studyMaterials');
+      return parsed.filter((m) => m && !isLegacySeededMaterialId(m.id) && !deletedSet.has(m.id));
     } catch {
       return [];
     }
@@ -416,26 +479,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Gallery
   const [gallery, setGallery] = useState<GalleryItem[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.GALLERY);
-    return saved ? JSON.parse(saved) : INITIAL_GALLERY;
+    if (saved === null) return INITIAL_GALLERY;
+    try {
+      const parsed = JSON.parse(saved);
+      return Array.isArray(parsed) ? parsed : INITIAL_GALLERY;
+    } catch {
+      return INITIAL_GALLERY;
+    }
   });
 
   // Admission Inquiries
   const [inquiries, setInquiries] = useState<AdmissionInquiry[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.INQUIRIES);
-    if (saved !== null) {
-      try {
-        const parsed: AdmissionInquiry[] = JSON.parse(saved);
-        const existingIds = new Set(parsed.map((i) => i.id));
-        const existingRefs = new Set(parsed.map((i) => i.referenceNumber).filter(Boolean));
-        const missing = INITIAL_INQUIRIES.filter(
-          (i) => !existingIds.has(i.id) && !existingRefs.has(i.referenceNumber)
-        );
-        return [...parsed, ...missing];
-      } catch {
-        return INITIAL_INQUIRIES;
-      }
+    if (saved === null) return INITIAL_INQUIRIES;
+    try {
+      const parsed: AdmissionInquiry[] = JSON.parse(saved);
+      return Array.isArray(parsed) ? parsed : INITIAL_INQUIRIES;
+    } catch {
+      return INITIAL_INQUIRIES;
     }
-    return INITIAL_INQUIRIES;
   });
 
   // Contact Messages
@@ -447,13 +509,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Student Communication Groups
   const [studentGroups, setStudentGroups] = useState<StudentGroup[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.GROUPS);
-    if (!saved) return INITIAL_STUDENT_GROUPS;
+    if (saved === null) return INITIAL_STUDENT_GROUPS;
     try {
       const parsed: StudentGroup[] = JSON.parse(saved);
-      const existingIds = new Set(parsed.map((g) => g.id));
-      const missing = INITIAL_STUDENT_GROUPS.filter((g) => !existingIds.has(g.id));
-      return [...parsed, ...missing];
-    } catch (e) {
+      return Array.isArray(parsed) ? parsed : INITIAL_STUDENT_GROUPS;
+    } catch {
       return INITIAL_STUDENT_GROUPS;
     }
   });
@@ -461,13 +521,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Mock Tests State
   const [mockTests, setMockTests] = useState<MockTest[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.MOCK_TESTS);
-    if (!saved) return INITIAL_MOCK_TESTS;
+    if (saved === null) return INITIAL_MOCK_TESTS;
     try {
       const parsed: MockTest[] = JSON.parse(saved);
-      const existingIds = new Set(parsed.map((t) => t.id));
-      const missing = INITIAL_MOCK_TESTS.filter((t) => !existingIds.has(t.id));
-      return [...parsed, ...missing];
-    } catch (e) {
+      return Array.isArray(parsed) ? parsed : INITIAL_MOCK_TESTS;
+    } catch {
       return INITIAL_MOCK_TESTS;
     }
   });
@@ -475,13 +533,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Mock Test Submissions State
   const [mockTestSubmissions, setMockTestSubmissions] = useState<MockTestSubmission[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.MOCK_SUBMISSIONS);
-    if (!saved) return INITIAL_MOCK_TEST_SUBMISSIONS;
+    if (saved === null) return INITIAL_MOCK_TEST_SUBMISSIONS;
     try {
       const parsed: MockTestSubmission[] = JSON.parse(saved);
-      const existingIds = new Set(parsed.map((s) => s.id));
-      const missing = INITIAL_MOCK_TEST_SUBMISSIONS.filter((s) => !existingIds.has(s.id));
-      return [...parsed, ...missing];
-    } catch (e) {
+      return Array.isArray(parsed) ? parsed : INITIAL_MOCK_TEST_SUBMISSIONS;
+    } catch {
       return INITIAL_MOCK_TEST_SUBMISSIONS;
     }
   });
@@ -489,16 +545,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Mock Test Registrations (Students interested only in mock tests)
   const [mockTestRegistrations, setMockTestRegistrations] = useState<MockTestRegistration[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.MOCK_REGISTRATIONS);
-    if (!saved) return INITIAL_MOCK_TEST_REGISTRATIONS;
+    if (saved === null) return INITIAL_MOCK_TEST_REGISTRATIONS;
     try {
       const parsed: MockTestRegistration[] = JSON.parse(saved);
-      const existingIds = new Set(parsed.map((r) => r.id));
-      const existingRefs = new Set(parsed.map((r) => r.referenceNumber).filter(Boolean));
-      const missing = INITIAL_MOCK_TEST_REGISTRATIONS.filter(
-        (r) => !existingIds.has(r.id) && !existingRefs.has(r.referenceNumber)
-      );
-      return [...parsed, ...missing];
-    } catch (e) {
+      return Array.isArray(parsed) ? parsed : INITIAL_MOCK_TEST_REGISTRATIONS;
+    } catch {
       return INITIAL_MOCK_TEST_REGISTRATIONS;
     }
   });
@@ -677,52 +728,68 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setSupabaseStatus(status);
     });
 
-    // Check if remote inquiries exist to merge
+    // Check if remote inquiries exist to merge (excluding deleted tombstones)
     fetchInquiriesFromSupabase().then((remoteInqs) => {
       if (remoteInqs && remoteInqs.length > 0) {
+        const deletedSet = getDeletedIdsSet('inquiries');
         setInquiries((localInqs) => {
           const map = new Map<string, AdmissionInquiry>();
-          localInqs.forEach((i) => map.set(i.id, i));
-          remoteInqs.forEach((i) => map.set(i.id, i));
+          localInqs.forEach((i) => {
+            if (!deletedSet.has(i.id)) map.set(i.id, i);
+          });
+          remoteInqs.forEach((i) => {
+            if (!deletedSet.has(i.id)) map.set(i.id, i);
+          });
           return Array.from(map.values());
         });
       }
     });
 
-    // Check if remote mock submissions exist to merge
+    // Check if remote mock submissions exist to merge (excluding deleted tombstones)
     fetchSubmissionsFromSupabase().then((remoteSubs) => {
       if (remoteSubs && remoteSubs.length > 0) {
+        const deletedSet = getDeletedIdsSet('mockSubmissions');
         setMockTestSubmissions((localSubs) => {
           const map = new Map<string, MockTestSubmission>();
-          localSubs.forEach((s) => map.set(s.id, s));
-          remoteSubs.forEach((s) => map.set(s.id, s));
+          localSubs.forEach((s) => {
+            if (!deletedSet.has(s.id)) map.set(s.id, s);
+          });
+          remoteSubs.forEach((s) => {
+            if (!deletedSet.has(s.id)) map.set(s.id, s);
+          });
           return Array.from(map.values());
         });
       }
     });
 
-    // Check if remote mock candidate registrations exist to merge
+    // Check if remote mock candidate registrations exist to merge (excluding deleted tombstones)
     fetchMockRegistrationsFromSupabase().then((remoteRegs) => {
       if (remoteRegs && remoteRegs.length > 0) {
+        const deletedSet = getDeletedIdsSet('mockRegistrations');
         setMockTestRegistrations((localRegs) => {
           const map = new Map<string, MockTestRegistration>();
-          localRegs.forEach((r) => map.set(r.id, r));
-          remoteRegs.forEach((r) => map.set(r.id, r));
+          localRegs.forEach((r) => {
+            if (!deletedSet.has(r.id)) map.set(r.id, r);
+          });
+          remoteRegs.forEach((r) => {
+            if (!deletedSet.has(r.id)) map.set(r.id, r);
+          });
           return Array.from(map.values());
         });
       }
     });
 
-    // Check if remote admin-uploaded study materials exist to merge
+    // Check if remote admin-uploaded study materials exist to merge (excluding deleted tombstones)
     fetchStudyMaterialsFromSupabase().then((remoteMats) => {
       if (remoteMats && remoteMats.length > 0) {
+        const deletedSet = getDeletedIdsSet('studyMaterials');
         setStudyMaterials((localMats) => {
           const map = new Map<string, StudyMaterial>();
           localMats
-            .filter((m) => !isLegacySeededMaterialId(m.id))
+            .filter((m) => !isLegacySeededMaterialId(m.id) && !deletedSet.has(m.id))
             .forEach((m) => map.set(m.id, m));
           remoteMats
-            .filter((m) => !isLegacySeededMaterialId(m.id))
+            .filter((m) => !isLegacySeededMaterialId(m.id) && !deletedSet.has(m.id))
             .forEach((remote) => {
               const existing = map.get(remote.id);
               const mergedUrl =
@@ -756,10 +823,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setMockTests(parsed);
         } catch {}
       }
+      if (e.key === STORAGE_KEYS.MOCK_SUBMISSIONS && e.newValue) {
+        try {
+          const parsed: MockTestSubmission[] = JSON.parse(e.newValue);
+          setMockTestSubmissions(parsed);
+        } catch {}
+      }
+      if (e.key === STORAGE_KEYS.GROUPS && e.newValue) {
+        try {
+          const parsed: StudentGroup[] = JSON.parse(e.newValue);
+          setStudentGroups(parsed);
+        } catch {}
+      }
+      if (e.key === STORAGE_KEYS.COURSES && e.newValue) {
+        try {
+          const parsed: Course[] = JSON.parse(e.newValue);
+          setCourses(parsed);
+        } catch {}
+      }
+      if (e.key === STORAGE_KEYS.TEACHERS && e.newValue) {
+        try {
+          const parsed: Teacher[] = JSON.parse(e.newValue);
+          setTeachers(parsed);
+        } catch {}
+      }
+      if (e.key === STORAGE_KEYS.NOTICES && e.newValue) {
+        try {
+          const parsed: Notice[] = JSON.parse(e.newValue);
+          setNotices(parsed);
+        } catch {}
+      }
       if (e.key === STORAGE_KEYS.MATERIALS && e.newValue) {
         try {
+          const deletedSet = getDeletedIdsSet('studyMaterials');
           const parsed: StudyMaterial[] = JSON.parse(e.newValue);
-          setStudyMaterials(parsed.filter((m) => m && !isLegacySeededMaterialId(m.id)));
+          setStudyMaterials(
+            parsed.filter((m) => m && !isLegacySeededMaterialId(m.id) && !deletedSet.has(m.id))
+          );
         } catch {}
       }
     };
@@ -830,7 +930,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteCourse = (id: string) => {
-    setCourses((prev) => prev.filter((c) => c.id !== id));
+    recordDeletedIds('courses', [id]);
+    setCourses((prev) => {
+      const next = prev.filter((c) => c.id !== id);
+      try {
+        localStorage.setItem(STORAGE_KEYS.COURSES, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const clearAllCourses = () => {
+    recordDeletedIds('courses', courses.map((c) => c.id));
+    setCourses([]);
+    try {
+      localStorage.setItem(STORAGE_KEYS.COURSES, JSON.stringify([]));
+    } catch {}
   };
 
   const addTeacher = (teacherData: Omit<Teacher, 'id'>) => {
@@ -862,6 +977,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteTeacher = (id: string) => {
+    recordDeletedIds('teachers', [id]);
     setTeachers((prev) => {
       const next = prev.filter((t) => t.id !== id);
       try {
@@ -871,6 +987,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return next;
     });
+  };
+
+  const clearAllTeachers = () => {
+    recordDeletedIds('teachers', teachers.map((t) => t.id));
+    setTeachers([]);
+    try {
+      localStorage.setItem(STORAGE_KEYS.TEACHERS, JSON.stringify([]));
+    } catch {}
   };
 
   const addNotice = (noticeData: Omit<Notice, 'id'>) => {
@@ -888,7 +1012,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteNotice = (id: string) => {
-    setNotices((prev) => prev.filter((n) => n.id !== id));
+    recordDeletedIds('notices', [id]);
+    deleteNoticeFromSupabase(id).catch(console.warn);
+    setNotices((prev) => {
+      const next = prev.filter((n) => n.id !== id);
+      try {
+        localStorage.setItem(STORAGE_KEYS.NOTICES, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const clearAllNotices = () => {
+    recordDeletedIds('notices', notices.map((n) => n.id));
+    clearAllNoticesFromSupabase().catch(console.warn);
+    setNotices([]);
+    try {
+      localStorage.setItem(STORAGE_KEYS.NOTICES, JSON.stringify([]));
+    } catch {}
   };
 
   const addStudyMaterial = (matData: Omit<StudyMaterial, 'id'>) => {
@@ -924,6 +1065,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteStudyMaterial = (id: string) => {
+    recordDeletedIds('studyMaterials', [id]);
     deleteStoredFile(`material:${id}`).catch(console.warn);
     deleteStudyMaterialFromSupabase(id).catch(console.warn);
     setStudyMaterials((prev) => {
@@ -931,6 +1073,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       persistMaterialsSafely(next);
       return next;
     });
+  };
+
+  const clearAllStudyMaterials = () => {
+    recordDeletedIds('studyMaterials', studyMaterials.map((m) => m.id));
+    studyMaterials.forEach((m) => {
+      deleteStoredFile(`material:${m.id}`).catch(console.warn);
+    });
+    clearAllStudyMaterialsFromSupabase().catch(console.warn);
+    setStudyMaterials([]);
+    try {
+      localStorage.setItem(STORAGE_KEYS.MATERIALS, JSON.stringify([]));
+    } catch {}
   };
 
   const resolveMaterialUrl = async (mat: StudyMaterial): Promise<string | undefined> => {
@@ -1188,6 +1342,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteInquiry = async (id: string) => {
+    recordDeletedIds('inquiries', [id]);
     setInquiries((prev) => {
       const updated = prev.filter((inq) => inq.id !== id);
       try {
@@ -1201,6 +1356,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteMultipleInquiries = async (ids: string[]) => {
+    recordDeletedIds('inquiries', ids);
     const idSet = new Set(ids);
     setInquiries((prev) => {
       const updated = prev.filter((inq) => !idSet.has(inq.id));
@@ -1215,6 +1371,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const clearAllInquiries = async () => {
+    recordDeletedIds('inquiries', inquiries.map((i) => i.id));
     setInquiries([]);
     try {
       localStorage.setItem(STORAGE_KEYS.INQUIRIES, JSON.stringify([]));
@@ -1333,7 +1490,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteStudentGroup = (id: string) => {
-    setStudentGroups((prev) => prev.filter((g) => g.id !== id));
+    recordDeletedIds('studentGroups', [id]);
+    deleteStudentGroupFromSupabase(id).catch(console.warn);
+    setStudentGroups((prev) => {
+      const next = prev.filter((g) => g.id !== id);
+      try {
+        localStorage.setItem(STORAGE_KEYS.GROUPS, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const clearAllStudentGroups = () => {
+    recordDeletedIds('studentGroups', studentGroups.map((g) => g.id));
+    clearAllStudentGroupsFromSupabase().catch(console.warn);
+    setStudentGroups([]);
+    try {
+      localStorage.setItem(STORAGE_KEYS.GROUPS, JSON.stringify([]));
+    } catch {}
   };
 
   const addMemberToGroup = (groupId: string, memberData: Omit<StudentGroupMember, 'id' | 'addedAt'>) => {
@@ -1620,10 +1794,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Immediately fetch latest database records from Supabase on successful admin authentication
       fetchInquiriesFromSupabase(false).then((remoteInqs) => {
         if (remoteInqs && remoteInqs.length > 0) {
+          const deletedSet = getDeletedIdsSet('inquiries');
           setInquiries((localInqs) => {
             const map = new Map<string, AdmissionInquiry>();
-            localInqs.forEach((i) => map.set(i.id, i));
-            remoteInqs.forEach((i) => map.set(i.id, i));
+            localInqs.forEach((i) => {
+              if (!deletedSet.has(i.id)) map.set(i.id, i);
+            });
+            remoteInqs.forEach((i) => {
+              if (!deletedSet.has(i.id)) map.set(i.id, i);
+            });
             const merged = Array.from(map.values());
             try {
               localStorage.setItem(STORAGE_KEYS.INQUIRIES, JSON.stringify(merged));
@@ -1635,10 +1814,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       fetchSubmissionsFromSupabase(false).then((remoteSubs) => {
         if (remoteSubs && remoteSubs.length > 0) {
+          const deletedSet = getDeletedIdsSet('mockSubmissions');
           setMockTestSubmissions((localSubs) => {
             const map = new Map<string, MockTestSubmission>();
-            localSubs.forEach((s) => map.set(s.id, s));
-            remoteSubs.forEach((s) => map.set(s.id, s));
+            localSubs.forEach((s) => {
+              if (!deletedSet.has(s.id)) map.set(s.id, s);
+            });
+            remoteSubs.forEach((s) => {
+              if (!deletedSet.has(s.id)) map.set(s.id, s);
+            });
             return Array.from(map.values());
           });
         }
@@ -1646,10 +1830,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       fetchMockRegistrationsFromSupabase(false).then((remoteRegs) => {
         if (remoteRegs && remoteRegs.length > 0) {
+          const deletedSet = getDeletedIdsSet('mockRegistrations');
           setMockTestRegistrations((localRegs) => {
             const map = new Map<string, MockTestRegistration>();
-            localRegs.forEach((r) => map.set(r.id, r));
-            remoteRegs.forEach((r) => map.set(r.id, r));
+            localRegs.forEach((r) => {
+              if (!deletedSet.has(r.id)) map.set(r.id, r);
+            });
+            remoteRegs.forEach((r) => {
+              if (!deletedSet.has(r.id)) map.set(r.id, r);
+            });
             const merged = Array.from(map.values());
             try {
               localStorage.setItem(STORAGE_KEYS.MOCK_REGISTRATIONS, JSON.stringify(merged));
@@ -2010,6 +2199,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteMockTestRegistration = (id: string) => {
+    recordDeletedIds('mockRegistrations', [id]);
     setMockTestRegistrations((prev) => {
       const next = prev.filter((r) => r.id !== id);
       try {
@@ -2020,14 +2210,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     deleteMockRegistrationFromSupabase(id).catch(console.warn);
   };
 
+  const clearAllMockTestRegistrations = () => {
+    recordDeletedIds('mockRegistrations', mockTestRegistrations.map((r) => r.id));
+    setMockTestRegistrations([]);
+    try {
+      localStorage.setItem(STORAGE_KEYS.MOCK_REGISTRATIONS, JSON.stringify([]));
+    } catch {}
+    clearAllMockRegistrationsFromSupabase().catch(console.warn);
+  };
+
   const refreshMockRegistrations = async () => {
     try {
       const remote = await fetchMockRegistrationsFromSupabase();
       if (remote && remote.length > 0) {
+        const deletedSet = getDeletedIdsSet('mockRegistrations');
         setMockTestRegistrations((localRegs) => {
           const map = new Map<string, MockTestRegistration>();
-          localRegs.forEach((r) => map.set(r.id, r));
-          remote.forEach((r) => map.set(r.id, r));
+          localRegs.forEach((r) => {
+            if (!deletedSet.has(r.id)) map.set(r.id, r);
+          });
+          remote.forEach((r) => {
+            if (!deletedSet.has(r.id)) map.set(r.id, r);
+          });
           const merged = Array.from(map.values());
           try {
             localStorage.setItem(STORAGE_KEYS.MOCK_REGISTRATIONS, JSON.stringify(merged));
@@ -2038,10 +2242,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       const remoteInqs = await fetchInquiriesFromSupabase();
       if (remoteInqs && remoteInqs.length > 0) {
+        const deletedInqSet = getDeletedIdsSet('inquiries');
         setInquiries((localInqs) => {
           const map = new Map<string, AdmissionInquiry>();
-          localInqs.forEach((i) => map.set(i.id, i));
-          remoteInqs.forEach((i) => map.set(i.id, i));
+          localInqs.forEach((i) => {
+            if (!deletedInqSet.has(i.id)) map.set(i.id, i);
+          });
+          remoteInqs.forEach((i) => {
+            if (!deletedInqSet.has(i.id)) map.set(i.id, i);
+          });
           const merged = Array.from(map.values());
           try {
             localStorage.setItem(STORAGE_KEYS.INQUIRIES, JSON.stringify(merged));
@@ -2113,8 +2322,54 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteMockTest = (id: string) => {
-    setMockTests((prev) => prev.filter((t) => t.id !== id));
-    setMockTestSubmissions((prev) => prev.filter((s) => s.mockTestId !== id));
+    recordDeletedIds('mockTests', [id]);
+    const removedSubs = mockTestSubmissions.filter((s) => s.mockTestId === id).map((s) => s.id);
+    recordDeletedIds('mockSubmissions', removedSubs);
+    deleteMockTestFromSupabase(id).catch(console.warn);
+    setMockTests((prev) => {
+      const next = prev.filter((t) => t.id !== id);
+      try {
+        localStorage.setItem(STORAGE_KEYS.MOCK_TESTS, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+    setMockTestSubmissions((prev) => {
+      const next = prev.filter((s) => s.mockTestId !== id);
+      try {
+        localStorage.setItem(STORAGE_KEYS.MOCK_SUBMISSIONS, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const clearAllMockTests = () => {
+    recordDeletedIds('mockTests', mockTests.map((t) => t.id));
+    clearAllMockTestsFromSupabase().catch(console.warn);
+    setMockTests([]);
+    try {
+      localStorage.setItem(STORAGE_KEYS.MOCK_TESTS, JSON.stringify([]));
+    } catch {}
+  };
+
+  const deleteMockTestSubmission = (id: string) => {
+    recordDeletedIds('mockSubmissions', [id]);
+    deleteMockSubmissionFromSupabase(id).catch(console.warn);
+    setMockTestSubmissions((prev) => {
+      const next = prev.filter((s) => s.id !== id);
+      try {
+        localStorage.setItem(STORAGE_KEYS.MOCK_SUBMISSIONS, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const clearAllMockTestSubmissions = () => {
+    recordDeletedIds('mockSubmissions', mockTestSubmissions.map((s) => s.id));
+    clearAllMockSubmissionsFromSupabase().catch(console.warn);
+    setMockTestSubmissions([]);
+    try {
+      localStorage.setItem(STORAGE_KEYS.MOCK_SUBMISSIONS, JSON.stringify([]));
+    } catch {}
   };
 
   const togglePublishMockTest = (id: string) => {
@@ -2444,18 +2699,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateCourse,
         togglePublishCourse,
         deleteCourse,
+        clearAllCourses,
         teachers,
         addTeacher,
         updateTeacher,
         deleteTeacher,
+        clearAllTeachers,
         notices,
         addNotice,
         updateNotice,
         deleteNotice,
+        clearAllNotices,
         studyMaterials,
         addStudyMaterial,
         updateStudyMaterial,
         deleteStudyMaterial,
+        clearAllStudyMaterials,
         resolveMaterialUrl,
         gallery,
         addGalleryItem,
@@ -2476,6 +2735,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addStudentGroup,
         updateStudentGroup,
         deleteStudentGroup,
+        clearAllStudentGroups,
         addMemberToGroup,
         bulkAddMembersToGroup,
         importVerifiedInquiriesToGroup,
@@ -2486,12 +2746,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addMockTest,
         updateMockTest,
         deleteMockTest,
+        clearAllMockTests,
         togglePublishMockTest,
         startMockExamTimer,
         extendMockExamTimer,
         concludeMockExamTimer,
         resetMockExamTimer,
         mockTestSubmissions,
+        deleteMockTestSubmission,
+        clearAllMockTestSubmissions,
         submitMockTestAnswer,
         gradeMockTestSubmission,
         uploadMockTestResult,
@@ -2499,6 +2762,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         registerForMockTest,
         updateMockTestRegistrationStatus,
         deleteMockTestRegistration,
+        clearAllMockTestRegistrations,
         refreshMockRegistrations,
         currentUser,
         loginAsAdmin,
