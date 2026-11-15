@@ -10,6 +10,7 @@ import {
   StudyMaterial,
   SiteSettings,
 } from '../types';
+import { IDB_MARKER } from '../utils/fileStorage';
 
 /**
  * Transforms an AdmissionInquiry object to match database columns and keeps raw JSON
@@ -379,6 +380,125 @@ export async function saveSettingsToSupabase(settings: SiteSettings): Promise<{ 
   }
 }
 
+export function isLegacySeededMaterialId(id?: string): boolean {
+  return Boolean(id && /^mat-(\d{1,4}|loksewa-.+)$/.test(id));
+}
+
+/**
+ * Transforms a StudyMaterial object to match database columns and keeps raw JSON
+ */
+function mapStudyMaterialToRow(mat: StudyMaterial) {
+  const safeUrl = mat.downloadUrl && mat.downloadUrl !== IDB_MARKER ? mat.downloadUrl : null;
+  const cleanRaw: StudyMaterial = {
+    ...mat,
+    downloadUrl: safeUrl || undefined,
+  };
+  return {
+    id: mat.id,
+    title: mat.title,
+    course_slug: mat.courseSlug,
+    course_name: mat.courseName,
+    course_type: mat.courseType || 'New Course',
+    board: mat.board || null,
+    subject: mat.subject,
+    semester_or_year: mat.semesterOrYear || null,
+    resource_type: mat.resourceType,
+    access_level: mat.accessLevel || 'Public',
+    file_size: mat.fileSize || null,
+    upload_date: mat.uploadDate || null,
+    download_url: safeUrl,
+    description: mat.description || null,
+    published: mat.published !== undefined ? mat.published : true,
+    raw_data: cleanRaw,
+  };
+}
+
+/**
+ * Saves or updates a study material in Supabase
+ */
+export async function saveStudyMaterialToSupabase(
+  mat: StudyMaterial
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const row = mapStudyMaterialToRow(mat);
+    const { error } = await supabase.from('study_materials').upsert(row, { onConflict: 'id' });
+    if (error) {
+      console.warn('[Supabase] Could not save study material:', error.message);
+      await supabase.from('app_storage').upsert({
+        key: `material:${mat.id}`,
+        value: row.raw_data,
+        updated_at: new Date().toISOString(),
+      });
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (err: any) {
+    console.error('[Supabase] Exception saving study material:', err);
+    return { success: false, error: err?.message };
+  }
+}
+
+/**
+ * Deletes a study material from Supabase
+ */
+export async function deleteStudyMaterialFromSupabase(id: string): Promise<boolean> {
+  try {
+    await supabase.from('study_materials').delete().eq('id', id);
+    await supabase.from('app_storage').delete().eq('key', `material:${id}`);
+    return true;
+  } catch (err) {
+    console.warn('[Supabase] Failed to delete study material:', err);
+    return false;
+  }
+}
+
+/**
+ * Loads admin-uploaded study materials from Supabase
+ */
+export async function fetchStudyMaterialsFromSupabase(): Promise<StudyMaterial[] | null> {
+  try {
+    const { data, error } = await supabase
+      .from('study_materials')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error || !data || data.length === 0) return null;
+
+    const mapped = data
+      .filter((row: any) => !isLegacySeededMaterialId(row.id))
+      .map((row: any) => {
+        if (row.raw_data && row.raw_data.title) {
+          return {
+            ...(row.raw_data as StudyMaterial),
+            downloadUrl: row.raw_data.downloadUrl || row.download_url || undefined,
+          } as StudyMaterial;
+        }
+        return {
+          id: row.id,
+          title: row.title,
+          courseSlug: row.course_slug,
+          courseName: row.course_name,
+          courseType: row.course_type || 'New Course',
+          board: row.board || '',
+          subject: row.subject,
+          semesterOrYear: row.semester_or_year || '',
+          resourceType: row.resource_type,
+          accessLevel: row.access_level || 'Public',
+          fileSize: row.file_size || '',
+          uploadDate: row.upload_date || '',
+          downloadUrl: row.download_url || undefined,
+          description: row.description || '',
+          published: row.published !== undefined ? row.published : true,
+        } as StudyMaterial;
+      });
+
+    return mapped;
+  } catch (err) {
+    console.warn('[Supabase] Failed to fetch study materials:', err);
+    return null;
+  }
+}
+
 /**
  * Sync all current in-memory application records to Supabase in one batch
  */
@@ -595,6 +715,22 @@ export async function syncAllDataToSupabase(data: {
       }
     } catch (e: any) {
       errors.push(`Mock Registrations: ${e?.message}`);
+    }
+  }
+
+  // 8. Admin-Uploaded Study Materials
+  const adminMaterials = (data.studyMaterials || []).filter((m) => !isLegacySeededMaterialId(m.id));
+  if (adminMaterials.length > 0) {
+    try {
+      const rows = adminMaterials.map(mapStudyMaterialToRow);
+      const { error } = await supabase.from('study_materials').upsert(rows, { onConflict: 'id' });
+      if (error) {
+        errors.push(`Study Materials: ${error.message}`);
+      } else {
+        syncedCounts.studyMaterials = rows.length;
+      }
+    } catch (e: any) {
+      errors.push(`Study Materials: ${e?.message}`);
     }
   }
 

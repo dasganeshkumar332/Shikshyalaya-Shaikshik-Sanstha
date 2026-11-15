@@ -3084,8 +3084,19 @@ export const AdminDashboardPage: React.FC = () => {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {studyMaterials.map((m) => {
+          {studyMaterials.length === 0 ? (
+            <div className="bg-white p-10 rounded-3xl border border-dashed border-slate-300 text-center space-y-3">
+              <FileText className="w-10 h-10 text-slate-400 mx-auto" />
+              <div className="space-y-1">
+                <h4 className="text-sm font-bold text-[#12315A]">No Study Resources Uploaded Yet</h4>
+                <p className="text-xs text-slate-500 max-w-md mx-auto">
+                  Only resources uploaded by the administrator appear here and in the student portal. Click Add Resource above to upload PDF notes, Word documents, or past papers.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {studyMaterials.map((m) => {
               const hasAttachment = Boolean(m.downloadUrl);
               const displayFileName =
                 m.fileName || m.attachmentName || (hasAttachment ? 'Attached_Resource.pdf' : '');
@@ -3189,7 +3200,8 @@ export const AdminDashboardPage: React.FC = () => {
                 </div>
               );
             })}
-          </div>
+            </div>
+          )}
         </div>
       )}
 

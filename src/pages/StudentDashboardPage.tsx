@@ -508,7 +508,7 @@ export const StudentDashboardPage: React.FC = () => {
               <BookOpen className="w-8 h-8 text-slate-400 mx-auto" />
               <p className="text-sm font-bold text-slate-700">No resources available</p>
               <p className="text-xs text-slate-500 max-w-md mx-auto">
-                No study materials are available for your enrolled subject(s) yet.
+                No study resources have been uploaded by the administrator for your enrolled subject(s) yet.
               </p>
             </div>
           ) : (

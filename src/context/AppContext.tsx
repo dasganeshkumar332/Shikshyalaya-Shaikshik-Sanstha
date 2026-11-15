@@ -22,7 +22,6 @@ import {
   INITIAL_COURSES,
   INITIAL_TEACHERS,
   INITIAL_NOTICES,
-  INITIAL_STUDY_MATERIALS,
   INITIAL_GALLERY,
   INITIAL_INQUIRIES,
   INITIAL_STUDENT_GROUPS,
@@ -52,6 +51,10 @@ import {
   deleteInquiryFromSupabase,
   deleteMultipleInquiriesFromSupabase,
   clearAllInquiriesFromSupabase,
+  saveStudyMaterialToSupabase,
+  deleteStudyMaterialFromSupabase,
+  fetchStudyMaterialsFromSupabase,
+  isLegacySeededMaterialId,
 } from '../services/supabaseService';
 
 interface AppContextType {
@@ -196,6 +199,7 @@ interface AppContextType {
   updateStudentEnrolledSubjects: (subjects: string[]) => void;
   isStudentEnrolledInCourse: (courseSlug: string) => boolean;
   isStudentEnrolledInSubject: (courseSlug: string, subjectName: string) => boolean;
+  subjectsMatch: (a: string, b: string) => boolean;
   logout: () => void;
 
   language: 'en' | 'ne';
@@ -396,34 +400,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   });
 
-  // Study Materials
+  // Study Materials (Only admin-uploaded resources; zero pre-seeded samples)
   const [studyMaterials, setStudyMaterials] = useState<StudyMaterial[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.MATERIALS);
-      if (!saved) return INITIAL_STUDY_MATERIALS;
-      let parsed: StudyMaterial[] = JSON.parse(saved);
-      // Update any older materials with updated subjects/titles or courseSlug
-      parsed = parsed.map((m) => {
-        const initial = INITIAL_STUDY_MATERIALS.find((im) => im.id === m.id);
-        if (initial && (m.courseSlug === 'bba-bbm-tu' || m.id.startsWith('mat-6') || m.courseSlug === 'bbm-tu')) {
-          return {
-            ...m,
-            title: initial.title,
-            courseSlug: initial.courseSlug,
-            courseName: initial.courseName,
-            subject: initial.subject,
-            semesterOrYear: initial.semesterOrYear,
-            description: initial.description,
-          };
-        }
-        return m;
-      });
-      // Ensure any new initial materials (such as BBM additions) are available
-      const existingIds = new Set(parsed.map((m) => m.id));
-      const toAdd = INITIAL_STUDY_MATERIALS.filter((m) => !existingIds.has(m.id));
-      return [...parsed, ...toAdd];
+      if (!saved) return [];
+      const parsed: StudyMaterial[] = JSON.parse(saved);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter((m) => m && !isLegacySeededMaterialId(m.id));
     } catch {
-      return INITIAL_STUDY_MATERIALS;
+      return [];
     }
   });
 
@@ -658,6 +644,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const syncAllToSupabase = async () => {
+    const resolvedMaterials = await Promise.all(
+      studyMaterials
+        .filter((m) => !isLegacySeededMaterialId(m.id))
+        .map(async (m) => {
+          if (m.downloadUrl === IDB_MARKER) {
+            const actualUrl = await getStoredFile(`material:${m.id}`);
+            return { ...m, downloadUrl: actualUrl || undefined };
+          }
+          return m;
+        })
+    );
     const res = await syncAllDataToSupabase({
       inquiries,
       mockSubmissions: mockTestSubmissions,
@@ -666,7 +663,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       studentGroups,
       mockTests,
       notices,
-      studyMaterials,
+      studyMaterials: resolvedMaterials,
       settings,
     });
     // Re-verify status
@@ -716,6 +713,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     });
 
+    // Check if remote admin-uploaded study materials exist to merge
+    fetchStudyMaterialsFromSupabase().then((remoteMats) => {
+      if (remoteMats && remoteMats.length > 0) {
+        setStudyMaterials((localMats) => {
+          const map = new Map<string, StudyMaterial>();
+          localMats
+            .filter((m) => !isLegacySeededMaterialId(m.id))
+            .forEach((m) => map.set(m.id, m));
+          remoteMats
+            .filter((m) => !isLegacySeededMaterialId(m.id))
+            .forEach((remote) => {
+              const existing = map.get(remote.id);
+              const mergedUrl =
+                existing?.downloadUrl && existing.downloadUrl !== IDB_MARKER
+                  ? existing.downloadUrl
+                  : remote.downloadUrl || existing?.downloadUrl;
+              map.set(remote.id, { ...remote, ...existing, downloadUrl: mergedUrl });
+            });
+          return Array.from(map.values());
+        });
+      }
+    });
+
     // Instant cross-tab synchronization listener
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === STORAGE_KEYS.MOCK_REGISTRATIONS && e.newValue) {
@@ -734,6 +754,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         try {
           const parsed: MockTest[] = JSON.parse(e.newValue);
           setMockTests(parsed);
+        } catch {}
+      }
+      if (e.key === STORAGE_KEYS.MATERIALS && e.newValue) {
+        try {
+          const parsed: StudyMaterial[] = JSON.parse(e.newValue);
+          setStudyMaterials(parsed.filter((m) => m && !isLegacySeededMaterialId(m.id)));
         } catch {}
       }
     };
@@ -876,18 +902,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       persistMaterialsSafely(next);
       return next;
     });
+    saveStudyMaterialToSupabase(newMat).catch(console.warn);
   };
 
   const updateStudyMaterial = (id: string, updates: Partial<StudyMaterial>) => {
     setStudyMaterials((prev) => {
       const next = prev.map((m) => (m.id === id ? { ...m, ...updates } : m));
       persistMaterialsSafely(next);
+      const updatedItem = next.find((m) => m.id === id);
+      if (updatedItem) {
+        if (updatedItem.downloadUrl === IDB_MARKER) {
+          getStoredFile(`material:${updatedItem.id}`)
+            .then((url) => saveStudyMaterialToSupabase({ ...updatedItem, downloadUrl: url || undefined }))
+            .catch(console.warn);
+        } else {
+          saveStudyMaterialToSupabase(updatedItem).catch(console.warn);
+        }
+      }
       return next;
     });
   };
 
   const deleteStudyMaterial = (id: string) => {
     deleteStoredFile(`material:${id}`).catch(console.warn);
+    deleteStudyMaterialFromSupabase(id).catch(console.warn);
     setStudyMaterials((prev) => {
       const next = prev.filter((m) => m.id !== id);
       persistMaterialsSafely(next);
@@ -2469,6 +2507,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateStudentEnrolledSubjects,
         isStudentEnrolledInCourse,
         isStudentEnrolledInSubject,
+        subjectsMatch,
         logout,
         language,
         toggleLanguage,

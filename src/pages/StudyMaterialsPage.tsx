@@ -21,10 +21,11 @@ import {
   AlertCircle,
   GraduationCap,
   Pause,
+  Eye,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { StudyMaterial, Course } from '../types';
-import { triggerFileDownload } from '../utils/fileStorage';
+import { dataUrlToBlobUrl, triggerFileDownload } from '../utils/fileStorage';
 
 export const StudyMaterialsPage: React.FC = () => {
   const {
@@ -33,6 +34,7 @@ export const StudyMaterialsPage: React.FC = () => {
     currentUser,
     language,
     isStudentEnrolledInSubject,
+    subjectsMatch,
     resolveMaterialUrl,
   } = useApp();
 
@@ -48,17 +50,31 @@ export const StudyMaterialsPage: React.FC = () => {
   const [isPlayingVideo, setIsPlayingVideo] = useState(false);
   const [restrictedMaterial, setRestrictedMaterial] = useState<StudyMaterial | null>(null);
   const [downloadSuccessModal, setDownloadSuccessModal] = useState<StudyMaterial | null>(null);
+  const [previewResource, setPreviewResource] = useState<{
+    mat: StudyMaterial;
+    blobUrl: string;
+    revoke: boolean;
+    isImage: boolean;
+  } | null>(null);
 
-  const resourceTypes = [
-    'Recorded Videos',
-    'PDF Notes',
-    'Lecture Slides',
-    'Practice Questions',
-    'Model Question Papers',
-    'Past Papers',
-    'Assignments',
-    'Revision Materials',
-  ];
+  const resourceTypes = useMemo(() => {
+    const base = [
+      'PDF Notes',
+      'Word Document / Notes',
+      'Image / Handwritten Solutions',
+      'Recorded Videos',
+      'Lecture Slides',
+      'Practice Questions',
+      'Model Question Papers',
+      'Past Papers',
+      'Assignments',
+      'Revision Materials',
+    ];
+    const extras = studyMaterials
+      .map((m) => m.resourceType)
+      .filter((t) => Boolean(t) && !base.includes(t));
+    return Array.from(new Set([...base, ...extras]));
+  }, [studyMaterials]);
 
   // Concise standardized course name without "4 Year" or "8 Semester"
   const getCourseDisplayName = (c: Course) => {
@@ -186,30 +202,20 @@ export const StudyMaterialsPage: React.FC = () => {
     return false;
   };
 
-  // Dynamic Subjects strictly as per selected Course AND Year/Semester
+  // Dynamic Subjects strictly derived from admin-uploaded published materials matching active course, syllabus & term
   const availableSubjects = useMemo(() => {
     const set = new Set<string>();
 
-    const targetCourses = selectedCourse === 'ALL'
-      ? courses
-      : courses.filter((c) => c.slug === selectedCourse);
-
-    targetCourses.forEach((c) => {
-      c.subjectsOffered.forEach((s) => {
-        if (selectedYearOrSemester === 'ALL' || matchesYearOrSemester(s.semesterOrYear, selectedYearOrSemester)) {
-          if (currentUser?.role !== 'student' || isStudentEnrolledInSubject(c.slug, s.name)) {
-            set.add(s.name);
-          }
-        }
-      });
-    });
-
-    // Also include published materials' subject names matching the course and year/semester
     studyMaterials.forEach((m) => {
       if (!m.published) return;
       const courseMatch = selectedCourse === 'ALL' || m.courseSlug === selectedCourse;
-      const yearMatch = selectedYearOrSemester === 'ALL' || matchesYearOrSemester(m.semesterOrYear, selectedYearOrSemester);
-      if (courseMatch && yearMatch && m.subject) {
+      const typeMatch =
+        selectedCourseType === 'ALL' || (m.courseType || 'New Course') === selectedCourseType;
+      const yearMatch =
+        selectedYearOrSemester === 'ALL' ||
+        matchesYearOrSemester(m.semesterOrYear, selectedYearOrSemester);
+      const accessMatch = selectedAccess === 'ALL' || m.accessLevel === selectedAccess;
+      if (courseMatch && typeMatch && yearMatch && accessMatch && m.subject) {
         if (currentUser?.role !== 'student' || isStudentEnrolledInSubject(m.courseSlug, m.subject)) {
           set.add(m.subject);
         }
@@ -217,7 +223,15 @@ export const StudyMaterialsPage: React.FC = () => {
     });
 
     return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [courses, studyMaterials, selectedCourse, selectedYearOrSemester, currentUser, isStudentEnrolledInSubject]);
+  }, [
+    studyMaterials,
+    selectedCourse,
+    selectedCourseType,
+    selectedYearOrSemester,
+    selectedAccess,
+    currentUser,
+    isStudentEnrolledInSubject,
+  ]);
 
   // Handler when Course changes: resets downstream Year/Semester and Subject
   const handleCourseChange = (newCourse: string) => {
@@ -260,7 +274,7 @@ export const StudyMaterialsPage: React.FC = () => {
       })
       .filter((m) => {
         if (selectedSubject === 'ALL') return true;
-        return m.subject.toLowerCase() === selectedSubject.toLowerCase();
+        return subjectsMatch(m.subject, selectedSubject);
       })
       .filter((m) => {
         if (selectedType === 'ALL') return true;
@@ -313,7 +327,7 @@ export const StudyMaterialsPage: React.FC = () => {
       .filter((m) => selectedCourse === 'ALL' || m.courseSlug === selectedCourse)
       .filter((m) => selectedCourseType === 'ALL' || (m.courseType || 'New Course') === selectedCourseType)
       .filter((m) => selectedYearOrSemester === 'ALL' || matchesYearOrSemester(m.semesterOrYear, selectedYearOrSemester))
-      .filter((m) => selectedSubject === 'ALL' || m.subject.toLowerCase() === selectedSubject.toLowerCase())
+      .filter((m) => selectedSubject === 'ALL' || subjectsMatch(m.subject, selectedSubject))
       .filter((m) => selectedAccess === 'ALL' || m.accessLevel === selectedAccess)
       .forEach((m) => {
         if (counts[m.resourceType] !== undefined) {
@@ -322,7 +336,7 @@ export const StudyMaterialsPage: React.FC = () => {
       });
 
     return counts;
-  }, [studyMaterials, searchQuery, selectedCourse, selectedCourseType, selectedYearOrSemester, selectedSubject, selectedAccess, currentUser, isStudentEnrolledInSubject]);
+  }, [studyMaterials, resourceTypes, searchQuery, selectedCourse, selectedCourseType, selectedYearOrSemester, selectedSubject, selectedAccess, currentUser, isStudentEnrolledInSubject, subjectsMatch]);
 
   const recordedVideosTotalCount = useMemo(() => {
     return studyMaterials.filter(
@@ -343,6 +357,35 @@ export const StudyMaterialsPage: React.FC = () => {
       return;
     }
     setDownloadSuccessModal(material);
+  };
+
+  const handlePreviewMaterial = async (material: StudyMaterial) => {
+    const isEnrolled =
+      currentUser?.role === 'admin' ||
+      (currentUser?.role === 'student' && isStudentEnrolledInSubject(material.courseSlug, material.subject));
+
+    if (!isEnrolled) {
+      setRestrictedMaterial(material);
+      return;
+    }
+
+    const resolvedUrl = await resolveMaterialUrl(material);
+    if (!resolvedUrl) {
+      setDownloadSuccessModal(material);
+      return;
+    }
+    const fileName = (material.fileName || material.attachmentName || '').toLowerCase();
+    const isImage =
+      resolvedUrl.startsWith('data:image/') || /\.(png|jpe?g|webp|gif)$/i.test(fileName);
+    const { url, revoke } = dataUrlToBlobUrl(resolvedUrl);
+    setPreviewResource({ mat: material, blobUrl: url, revoke, isImage });
+  };
+
+  const closePreviewResource = () => {
+    if (previewResource?.revoke) {
+      URL.revokeObjectURL(previewResource.blobUrl);
+    }
+    setPreviewResource(null);
   };
 
   const handleOpenVideo = (material: StudyMaterial) => {
@@ -874,14 +917,19 @@ export const StudyMaterialsPage: React.FC = () => {
             </div>
 
             {availableSubjects.length === 0 ? (
-              <div className="p-8 text-center rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-500">
-                No subjects match the selected course or semester filter.
+              <div className="p-8 text-center rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-500 space-y-2">
+                <BookOpen className="w-8 h-8 text-slate-400 mx-auto" />
+                <p className="font-bold text-slate-700">
+                  {studyMaterials.length === 0
+                    ? 'No study resources have been uploaded by the administrator yet.'
+                    : 'No uploaded resources match the selected course, semester, or enrollment criteria.'}
+                </p>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                 {availableSubjects.map((sub) => {
-                  const subCount = filteredMaterials.filter(
-                    (m) => m.subject.toLowerCase() === sub.toLowerCase()
+                  const subCount = filteredMaterials.filter((m) =>
+                    subjectsMatch(m.subject, sub)
                   ).length;
                   return (
                     <button
@@ -1063,12 +1111,23 @@ export const StudyMaterialsPage: React.FC = () => {
                       </div>
                     )}
 
-                    <p className="text-xs text-slate-600 leading-relaxed line-clamp-2">
-                      {mat.description}
-                    </p>
+                    {mat.description && (
+                      <p className="text-xs text-slate-600 leading-relaxed line-clamp-2">
+                        {mat.description}
+                      </p>
+                    )}
+
+                    {(mat.fileName || mat.attachmentName || mat.downloadUrl) && mat.resourceType !== 'Recorded Videos' && (
+                      <div className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center gap-2 text-[11px] text-slate-700">
+                        <FileText className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                        <span className="font-semibold truncate">
+                          {mat.fileName || mat.attachmentName || 'Uploaded_Resource.pdf'}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
-                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2 text-xs">
                     <span className="text-slate-400 font-medium">{mat.fileSize} • Uploaded {mat.uploadDate}</span>
 
                     {hasAccess ? (
@@ -1081,13 +1140,25 @@ export const StudyMaterialsPage: React.FC = () => {
                           <span>Watch Video</span>
                         </button>
                       ) : (
-                        <button
-                          onClick={() => handleDownload(mat)}
-                          className="px-3.5 py-1.5 rounded-lg text-xs font-bold text-white bg-[#12315A] hover:bg-[#1f487e] transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
-                        >
-                          <Download className="w-3.5 h-3.5 text-amber-400" />
-                          <span>Download / View</span>
-                        </button>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {mat.downloadUrl && (
+                            <button
+                              type="button"
+                              onClick={() => handlePreviewMaterial(mat)}
+                              className="px-3 py-1.5 rounded-lg text-xs font-bold text-[#12315A] bg-slate-100 hover:bg-blue-50 border border-slate-200 transition-colors flex items-center gap-1 cursor-pointer"
+                            >
+                              <Eye className="w-3.5 h-3.5 text-blue-700" />
+                              <span>View</span>
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleDownload(mat)}
+                            className="px-3.5 py-1.5 rounded-lg text-xs font-bold text-white bg-[#12315A] hover:bg-[#1f487e] transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
+                          >
+                            <Download className="w-3.5 h-3.5 text-amber-400" />
+                            <span>Download</span>
+                          </button>
+                        </div>
                       )
                     ) : isSubjectRestricted ? (
                       <button
@@ -1438,6 +1509,64 @@ export const StudyMaterialsPage: React.FC = () => {
               >
                 Close
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Inline PDF / Image Resource Viewer Modal */}
+      {previewResource && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl max-w-4xl w-full overflow-hidden shadow-2xl border border-slate-200 flex flex-col max-h-[90vh]">
+            <div className="p-4 sm:p-5 border-b border-slate-200 flex items-center justify-between gap-3 bg-slate-50">
+              <div className="min-w-0">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700">
+                  {previewResource.mat.subject} • {previewResource.mat.semesterOrYear}
+                </span>
+                <h4 className="text-sm sm:text-base font-bold text-[#12315A] truncate">
+                  {previewResource.mat.title}
+                </h4>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const fileName =
+                      previewResource.mat.fileName ||
+                      previewResource.mat.attachmentName ||
+                      `${previewResource.mat.title.replace(/\s+/g, '_')}.pdf`;
+                    triggerFileDownload(previewResource.blobUrl, fileName);
+                  }}
+                  className="px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-[#12315A] hover:bg-blue-900 flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Download</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={closePreviewResource}
+                  className="p-2 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200/70 cursor-pointer"
+                  aria-label="Close preview"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 bg-slate-100 overflow-auto flex items-center justify-center p-3">
+              {previewResource.isImage ? (
+                <img
+                  src={previewResource.blobUrl}
+                  alt={previewResource.mat.title}
+                  className="max-w-full max-h-[75vh] object-contain rounded-xl shadow"
+                />
+              ) : (
+                <iframe
+                  src={previewResource.blobUrl}
+                  title={previewResource.mat.title}
+                  className="w-full h-[72vh] rounded-xl bg-white border border-slate-200"
+                />
+              )}
             </div>
           </div>
         </div>
