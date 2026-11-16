@@ -11,6 +11,7 @@ import {
   Share2,
   CheckCircle2,
   ArrowUpDown,
+  Users,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Notice } from '../types';
@@ -50,7 +51,11 @@ export const NoticesPage: React.FC = () => {
       .filter((n) => {
         if (!searchQuery.trim()) return true;
         const q = searchQuery.toLowerCase();
-        return n.title.toLowerCase().includes(q) || n.content.toLowerCase().includes(q);
+        return (
+          n.title.toLowerCase().includes(q) ||
+          n.content.toLowerCase().includes(q) ||
+          (n.targetBatchName && n.targetBatchName.toLowerCase().includes(q))
+        );
       })
       .filter((n) => {
         if (selectedCategory === 'ALL') return true;
@@ -169,6 +174,12 @@ export const NoticesPage: React.FC = () => {
                         <span>High Priority</span>
                       </span>
                     )}
+                    {notice.targetBatchId && notice.targetBatchId !== 'ALL' && notice.targetBatchName && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-50 text-indigo-800 border border-indigo-200 inline-flex items-center gap-1">
+                        <Users className="w-3 h-3 text-indigo-600" />
+                        <span>{notice.targetBatchName}</span>
+                      </span>
+                    )}
                   </div>
 
                   <span className="text-xs text-slate-400 flex items-center gap-1 font-medium">
@@ -220,10 +231,16 @@ export const NoticesPage: React.FC = () => {
             </button>
 
             <div className="space-y-3">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-blue-100 text-blue-800">
                   {selectedNoticeModal.category}
                 </span>
+                {selectedNoticeModal.targetBatchId && selectedNoticeModal.targetBatchId !== 'ALL' && selectedNoticeModal.targetBatchName && (
+                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-800 border border-indigo-200 inline-flex items-center gap-1">
+                    <Users className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>{selectedNoticeModal.targetBatchName}</span>
+                  </span>
+                )}
                 <span className="text-xs text-slate-400 flex items-center gap-1">
                   <Calendar className="w-3.5 h-3.5" />
                   {selectedNoticeModal.publishDate}

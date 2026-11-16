@@ -130,6 +130,8 @@ export interface Notice {
   published: boolean;
   attachmentName?: string;
   targetCourses?: string[];
+  targetBatchId?: string;
+  targetBatchName?: string;
 }
 
 export interface StudyMaterial {
@@ -305,6 +307,8 @@ export interface MockTest {
   semesterOrYear?: string;
   subject: string;
   subjectCode?: string;
+  batchId?: string;
+  batchName?: string;
   examDate?: string;
   startTime?: string;
   durationMinutes: number;
@@ -343,6 +347,8 @@ export interface MockTestSubmission {
   courseSlug: string;
   courseType?: CourseType;
   subject?: string;
+  batchId?: string;
+  batchName?: string;
   studentId: string;
   studentName: string;
   studentEmail?: string;
@@ -377,6 +383,8 @@ export interface MockTestRegistration {
   enrolledSubjects: string[];
   preferredMode?: string;
   shift?: string;
+  batchId?: string;
+  batchName?: string;
   studentRollNo?: string;
   notes?: string;
   status: 'Registered' | 'Confirmed' | 'Attended' | 'Completed' | 'Cancelled';

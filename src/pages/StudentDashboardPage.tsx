@@ -43,6 +43,8 @@ export const StudentDashboardPage: React.FC = () => {
     mockTestSubmissions,
     isStudentEnrolledInSubject,
     isStudentAllowedMaterial,
+    isStudentAllowedMockTest,
+    getStudentLiveBatches,
     resolveMaterialUrl,
   } = useApp();
 
@@ -172,16 +174,18 @@ export const StudentDashboardPage: React.FC = () => {
     return Array.from(new Set(base.map((m) => m.resourceType)));
   }, [enrolledMaterials, selectedResourceSubject]);
 
-  // Strictly enrolled mock tests ONLY (course + specific subject check), sorted by date
+  const liveBatches = getStudentLiveBatches();
+
+  // Strictly enrolled & batch-allowed mock tests ONLY, sorted by date
   const myMockTests = useMemo(() => {
     const filtered = (mockTests || []).filter(
-      (t) => t.published && isStudentEnrolledInSubject(t.courseSlug, t.subject)
+      (t) => t.published && isStudentAllowedMockTest(t)
     );
     return sortByDate(filtered, (t) => t.scheduledStartTime || t.examDate || t.createdAt, 'desc', {
       getFallbackDate: (t) => t.updatedAt,
       getId: (t) => t.id,
     });
-  }, [mockTests, currentUser, isStudentEnrolledInSubject]);
+  }, [mockTests, currentUser, isStudentAllowedMockTest]);
 
   const mockTestSubjectGroups = useMemo(() => {
     const map = new Map<string, { subject: string; count: number }>();
@@ -230,30 +234,43 @@ export const StudentDashboardPage: React.FC = () => {
     return sortByDate(filtered, (sub) => sub.submittedAt, 'desc', { getId: (sub) => sub.id });
   }, [mockTestSubmissions, currentUser, myMockTests, isStudentEnrolledInSubject]);
 
-  // Notices strictly relevant to the student's enrolled course(s) + general institutional notices
+  // Notices strictly relevant to the student's enrolled course(s) & live batch(es)
   const myNotices = useMemo(() => {
     const enrolledSlugs = currentUser.enrolledCourseSlugs || [];
+    const liveBatchIds = new Set(liveBatches.map((b) => b.id));
+    const liveBatchNames = new Set(liveBatches.map((b) => b.name || b.title));
 
-    const cohortBroadcasts = (studentGroups || [])
-      .filter((g) => enrolledSlugs.includes(g.courseSlug))
-      .flatMap((g) =>
-        (g.broadcasts || []).map((b) => ({
-          id: `bc-${b.id}`,
-          title: b.title,
-          content: b.message,
-          category: b.urgency || 'Batch Alert',
-          date: b.sentAt,
-          important: b.urgency === 'Urgent' || b.urgency === 'Urgent / Exam Alert' || b.urgency === 'Emergency Alert',
-          sourceLabel: `${g.courseName} • ${b.sentBy}`,
-          attachmentName: undefined as string | undefined,
-        }))
-      );
+    const cohortGroups =
+      liveBatches.length > 0
+        ? (studentGroups || []).filter((g) => liveBatchIds.has(g.id))
+        : (studentGroups || []).filter((g) => enrolledSlugs.includes(g.courseSlug));
+
+    const cohortBroadcasts = cohortGroups.flatMap((g) =>
+      (g.broadcasts || []).map((b) => ({
+        id: `bc-${b.id}`,
+        title: b.title,
+        content: b.message,
+        category: b.urgency || 'Batch Alert',
+        date: b.sentAt,
+        important: b.urgency === 'Urgent' || b.urgency === 'Urgent / Exam Alert' || b.urgency === 'Emergency Alert',
+        sourceLabel: `${g.courseName} • ${b.sentBy}`,
+        batchName: g.name || g.title,
+        attachmentName: undefined as string | undefined,
+      }))
+    );
 
     const institutionalNotices = (notices || [])
       .filter((n) => n.published)
       .filter((n) => {
-        if (!n.targetCourses || n.targetCourses.length === 0) return true;
-        return n.targetCourses.some((slug) => enrolledSlugs.includes(slug));
+        if (n.targetCourses && n.targetCourses.length > 0 && !n.targetCourses.some((slug) => enrolledSlugs.includes(slug))) {
+          return false;
+        }
+        if (n.targetBatchId && n.targetBatchId !== 'ALL') {
+          if (liveBatchIds.has(n.targetBatchId)) return true;
+          if (n.targetBatchName && liveBatchNames.has(n.targetBatchName)) return true;
+          return false;
+        }
+        return true;
       })
       .map((n) => ({
         id: n.id,
@@ -263,13 +280,14 @@ export const StudentDashboardPage: React.FC = () => {
         date: n.publishDate,
         important: n.important,
         sourceLabel: 'Official Academic Notice',
+        batchName: n.targetBatchId && n.targetBatchId !== 'ALL' ? n.targetBatchName : undefined,
         attachmentName: n.attachmentName,
       }));
 
     return sortByDate([...cohortBroadcasts, ...institutionalNotices], (n) => n.date, 'desc', {
       getId: (n) => n.id,
     });
-  }, [notices, studentGroups, currentUser.enrolledCourseSlugs]);
+  }, [notices, studentGroups, liveBatches, currentUser.enrolledCourseSlugs]);
 
   const noticeCategories = useMemo(() => {
     return Array.from(new Set(myNotices.map((n) => n.category)));
@@ -354,21 +372,22 @@ export const StudentDashboardPage: React.FC = () => {
                   <span>{c.title}</span>
                 </span>
               ))}
-              {((currentUser.batchNames && currentUser.batchNames.length > 0) || currentUser.batchName) &&
-                (currentUser.batchNames && currentUser.batchNames.length > 0
-                  ? currentUser.batchNames
-                  : currentUser.batchName
-                  ? [currentUser.batchName]
-                  : []
-                ).map((bName) => (
-                  <span
-                    key={bName}
-                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-indigo-500/40 text-white border border-indigo-300/40 font-semibold text-[11px]"
-                  >
-                    <Users className="w-3 h-3 text-amber-300" />
-                    <span>{bName}</span>
-                  </span>
-                ))}
+              {(liveBatches.length > 0
+                ? liveBatches.map((b) => b.name || b.title)
+                : currentUser.batchNames && currentUser.batchNames.length > 0
+                ? currentUser.batchNames
+                : currentUser.batchName
+                ? [currentUser.batchName]
+                : []
+              ).map((bName) => (
+                <span
+                  key={bName}
+                  className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-indigo-500/40 text-white border border-indigo-300/40 font-semibold text-[11px]"
+                >
+                  <Users className="w-3 h-3 text-amber-300" />
+                  <span>{bName}</span>
+                </span>
+              ))}
               {currentUser.enrolledSubjects &&
                 currentUser.enrolledSubjects.length > 0 &&
                 currentUser.enrolledSubjects.map((subj) => (
@@ -803,10 +822,16 @@ export const StudentDashboardPage: React.FC = () => {
                   className="p-5 rounded-2xl border border-slate-200 bg-slate-50/50 hover:border-blue-300 transition-colors flex flex-col justify-between space-y-4"
                 >
                   <div className="space-y-1.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase bg-blue-100 text-blue-900">
-                        {test.semesterOrYear || test.courseName}
-                      </span>
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase bg-blue-100 text-blue-900">
+                          {test.semesterOrYear || test.courseName}
+                        </span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-50 text-indigo-800 border border-indigo-200 inline-flex items-center gap-1">
+                          <Users className="w-3 h-3 text-indigo-600" />
+                          <span>{test.batchId && test.batchId !== 'ALL' && test.batchName ? test.batchName : 'All Batches'}</span>
+                        </span>
+                      </div>
                       <span className="text-[11px] font-mono font-semibold text-slate-500 flex items-center gap-1">
                         <Clock className="w-3.5 h-3.5 text-amber-500" />
                         <span>{test.durationMinutes} mins</span>
@@ -824,13 +849,13 @@ export const StudentDashboardPage: React.FC = () => {
 
                   <div className="flex flex-col sm:flex-row gap-2">
                     <Link
-                      to={`/mock-tests?course=${encodeURIComponent(test.courseSlug)}&subject=${encodeURIComponent(test.subject)}`}
+                      to={`/mock-tests?course=${encodeURIComponent(test.courseSlug)}&subject=${encodeURIComponent(test.subject)}&batch=${encodeURIComponent(test.batchId && test.batchId !== 'ALL' ? test.batchId : '')}`}
                       className="flex-1 text-center px-3 py-2 rounded-xl text-xs font-bold text-white bg-[#12315A] hover:bg-blue-900 transition-colors"
                     >
                       Start Timed Exam &rarr;
                     </Link>
                     <Link
-                      to={`/upload-answer-sheet?course=${encodeURIComponent(test.courseSlug)}&year=${encodeURIComponent(test.semesterOrYear || '')}&subject=${encodeURIComponent(test.subject)}&testId=${encodeURIComponent(test.id)}`}
+                      to={`/upload-answer-sheet?course=${encodeURIComponent(test.courseSlug)}&year=${encodeURIComponent(test.semesterOrYear || '')}&subject=${encodeURIComponent(test.subject)}&testId=${encodeURIComponent(test.id)}&batch=${encodeURIComponent(test.batchId && test.batchId !== 'ALL' ? test.batchId : '')}`}
                       className="px-3 py-2 rounded-xl text-xs font-bold text-slate-900 bg-amber-400 hover:bg-amber-500 transition-colors flex items-center justify-center gap-1"
                     >
                       <Upload className="w-3.5 h-3.5" />
@@ -1012,6 +1037,12 @@ export const StudentDashboardPage: React.FC = () => {
                           >
                             {n.category}
                           </span>
+                          {n.batchName && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-50 text-indigo-800 border border-indigo-200 inline-flex items-center gap-1">
+                              <Users className="w-3 h-3 text-indigo-600" />
+                              <span>{n.batchName}</span>
+                            </span>
+                          )}
                           <span className="text-[11px] text-slate-500">{n.date}</span>
                         </div>
                         <h3 className="text-sm font-bold text-slate-900">{n.title}</h3>

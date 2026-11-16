@@ -34,6 +34,7 @@ import {
   Square,
   Play,
   ArrowUpDown,
+  Users,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { MockTest, MockTestSubmission, MockTestRegistration } from '../types';
@@ -47,11 +48,14 @@ export const MockTestsPage: React.FC = () => {
     mockTestRegistrations,
     registerForMockTest,
     courses,
+    studentGroups,
     currentUser,
     submitMockTestAnswer,
     language,
     settings,
     isStudentEnrolledInSubject,
+    isStudentAllowedMockTest,
+    getStudentLiveBatches,
   } = useApp();
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -106,6 +110,7 @@ export const MockTestsPage: React.FC = () => {
     return initial ? `${initial.shiftName} (${initial.timeSlot})` : 'Morning Exam Shift (06:30 AM – 09:30 AM)';
   });
   const [regRollNo, setRegRollNo] = useState(currentUser?.studentId || '');
+  const [regBatchId, setRegBatchId] = useState<string>('');
   const [registrationPassModal, setRegistrationPassModal] = useState<MockTestRegistration | null>(null);
   const [regSuccessToast, setRegSuccessToast] = useState(false);
 
@@ -125,8 +130,17 @@ export const MockTestsPage: React.FC = () => {
   const [selectedCourseSlug, setSelectedCourseSlug] = useState<string>(searchParams.get('course') || 'ALL');
   const [selectedYearOrSem, setSelectedYearOrSem] = useState<string>(searchParams.get('year') || 'ALL');
   const [selectedSubject, setSelectedSubject] = useState<string>(searchParams.get('subject') || 'ALL');
+  const [selectedBatch, setSelectedBatch] = useState<string>(searchParams.get('batch') || 'ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [dateSortOrder, setDateSortOrder] = useState<DateSortOrder>('desc');
+
+  const availableFilterBatches = useMemo(() => {
+    if (currentUser?.role === 'student') {
+      const live = getStudentLiveBatches();
+      return live.filter((g) => selectedCourseSlug === 'ALL' || g.courseSlug === selectedCourseSlug);
+    }
+    return studentGroups.filter((g) => selectedCourseSlug === 'ALL' || g.courseSlug === selectedCourseSlug);
+  }, [currentUser, getStudentLiveBatches, studentGroups, selectedCourseSlug]);
 
   // Course, Year & Subject Quick Attender / Uploader Widget State
   const [quickCourseSlug, setQuickCourseSlug] = useState<string>(
@@ -301,14 +315,16 @@ export const MockTestsPage: React.FC = () => {
     return mockTests.filter(
       (t) =>
         t.published &&
-        (currentUser?.role !== 'student' || isStudentEnrolledInSubject(t.courseSlug, t.subject)) &&
+        (currentUser?.role !== 'student' || isStudentAllowedMockTest(t)) &&
         t.courseSlug === quickCourseSlug &&
+        (selectedBatch === 'ALL' ||
+          (selectedBatch === 'COMMON' ? !t.batchId || t.batchId === 'ALL' : t.batchId === selectedBatch)) &&
         (quickYearOrSem === 'ALL' || t.semesterOrYear === quickYearOrSem || t.title.toLowerCase().includes(quickYearOrSem.toLowerCase())) &&
         (t.subject.toLowerCase() === qSubLower ||
           t.subject.toLowerCase().includes(qSubLower) ||
           t.title.toLowerCase().includes(qSubLower))
     );
-  }, [mockTests, quickCourseSlug, quickYearOrSem, quickSubject, currentUser, isStudentEnrolledInSubject]);
+  }, [mockTests, quickCourseSlug, quickYearOrSem, quickSubject, selectedBatch, currentUser, isStudentAllowedMockTest]);
 
   // Filtered mock tests (sorted by date)
   const filteredTests = useMemo(() => {
@@ -316,13 +332,24 @@ export const MockTestsPage: React.FC = () => {
       .filter((t) => t.published)
       .filter((t) => {
         if (currentUser?.role === 'student') {
-          return isStudentEnrolledInSubject(t.courseSlug, t.subject);
+          return isStudentAllowedMockTest(t);
         }
         return true;
       })
       .filter((t) => {
         if (selectedCourseSlug === 'ALL') return true;
         return t.courseSlug === selectedCourseSlug;
+      })
+      .filter((t) => {
+        if (selectedBatch === 'ALL') return true;
+        if (selectedBatch === 'COMMON') return !t.batchId || t.batchId === 'ALL';
+        return (
+          t.batchId === selectedBatch ||
+          (t.batchName &&
+            availableFilterBatches.some(
+              (b) => b.id === selectedBatch && (b.name || b.title) === t.batchName
+            ))
+        );
       })
       .filter((t) => {
         if (selectedYearOrSem === 'ALL') return true;
@@ -347,6 +374,7 @@ export const MockTestsPage: React.FC = () => {
           t.title.toLowerCase().includes(q) ||
           t.subject.toLowerCase().includes(q) ||
           t.courseName.toLowerCase().includes(q) ||
+          (t.batchName && t.batchName.toLowerCase().includes(q)) ||
           (t.semesterOrYear && t.semesterOrYear.toLowerCase().includes(q)) ||
           (t.instructions &&
             (Array.isArray(t.instructions)
@@ -361,7 +389,7 @@ export const MockTestsPage: React.FC = () => {
       dateSortOrder,
       { getFallbackDate: (t) => t.updatedAt, getId: (t) => t.id }
     );
-  }, [mockTests, selectedCourseSlug, selectedYearOrSem, selectedSubject, searchQuery, currentUser, isStudentEnrolledInSubject, dateSortOrder]);
+  }, [mockTests, selectedCourseSlug, selectedBatch, availableFilterBatches, selectedYearOrSem, selectedSubject, searchQuery, currentUser, isStudentAllowedMockTest, dateSortOrder]);
 
   // Private evaluated results visible to the logged-in student ONLY
   const myEvaluatedSubmissions = useMemo(() => {
@@ -425,7 +453,7 @@ export const MockTestsPage: React.FC = () => {
 
   // Start exam timer (Synchronized with official admin timer)
   const handleStartExam = (test: MockTest) => {
-    if (currentUser?.role === 'student' && !isStudentEnrolledInSubject(test.courseSlug, test.subject)) {
+    if (currentUser?.role === 'student' && !isStudentAllowedMockTest(test)) {
       return;
     }
     setActiveExamTest(test);
@@ -562,6 +590,8 @@ export const MockTestsPage: React.FC = () => {
       courseSlug: activeExamTest.courseSlug,
       courseType: activeExamTest.courseType,
       subject: activeExamTest.subject,
+      batchId: activeExamTest.batchId,
+      batchName: activeExamTest.batchName,
       studentId: currentUser?.id || examRollNumber.trim(),
       studentName: examStudentName.trim(),
       studentEmail: currentUser?.email || '',
@@ -621,6 +651,7 @@ export const MockTestsPage: React.FC = () => {
 
     const courseObj = courses.find((c) => c.slug === regCourseSlug);
     const courseName = courseObj ? courseObj.title : 'BBS – TU';
+    const selectedRegBatch = regBatchId ? studentGroups.find((g) => g.id === regBatchId) : undefined;
 
     const newReg = registerForMockTest({
       fullName: regName.trim(),
@@ -633,6 +664,8 @@ export const MockTestsPage: React.FC = () => {
       enrolledSubjects: regSelectedSubjects.length > 0 ? regSelectedSubjects : ['Business Statistics'],
       preferredMode: regPreferredMode,
       shift: regShift,
+      batchId: selectedRegBatch?.id,
+      batchName: selectedRegBatch ? selectedRegBatch.name || selectedRegBatch.title : undefined,
       studentRollNo: regRollNo.trim() || undefined,
     });
 
@@ -877,7 +910,13 @@ export const MockTestsPage: React.FC = () => {
                   )}
 
                   <Link
-                    to={`/upload-answer-sheet?course=${quickCourseSlug}&year=${encodeURIComponent(quickYearOrSem !== 'ALL' ? quickYearOrSem : '')}&subject=${encodeURIComponent(quickSubject)}`}
+                    to={`/upload-answer-sheet?course=${quickCourseSlug}&year=${encodeURIComponent(quickYearOrSem !== 'ALL' ? quickYearOrSem : '')}&subject=${encodeURIComponent(quickSubject)}&batch=${encodeURIComponent(
+                      quickMatchingTests[0]?.batchId && quickMatchingTests[0]?.batchId !== 'ALL'
+                        ? quickMatchingTests[0].batchId
+                        : selectedBatch !== 'ALL' && selectedBatch !== 'COMMON'
+                        ? selectedBatch
+                        : ''
+                    )}`}
                     className="flex-1 md:flex-none px-4 py-2 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 transition-colors flex items-center justify-center gap-1.5 shadow-sm"
                   >
                     <Upload className="w-3.5 h-3.5" />
@@ -983,8 +1022,26 @@ export const MockTestsPage: React.FC = () => {
                 </select>
               </div>
 
+              {/* Batch Selector */}
+              <div className="shrink-0 sm:w-48">
+                <select
+                  value={selectedBatch}
+                  onChange={(e) => setSelectedBatch(e.target.value)}
+                  aria-label="Filter by Batch"
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-xs font-medium bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="ALL">All Batches</option>
+                  <option value="COMMON">Common / Open to All Batches</option>
+                  {availableFilterBatches.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.name || g.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               {/* Reset */}
-              {(searchQuery || selectedCourseSlug !== 'ALL' || selectedYearOrSem !== 'ALL' || selectedSubject !== 'ALL') && (
+              {(searchQuery || selectedCourseSlug !== 'ALL' || selectedYearOrSem !== 'ALL' || selectedSubject !== 'ALL' || selectedBatch !== 'ALL') && (
                 <button
                   onClick={() => {
                     setSearchQuery('');
@@ -992,6 +1049,7 @@ export const MockTestsPage: React.FC = () => {
                     setSelectedYearOrSem('ALL');
                     setQuickYearOrSem('ALL');
                     setSelectedSubject('ALL');
+                    setSelectedBatch('ALL');
                   }}
                   className="px-3 py-2.5 rounded-xl text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                 >
@@ -1158,6 +1216,10 @@ export const MockTestsPage: React.FC = () => {
                               {test.semesterOrYear}
                             </span>
                           )}
+                          <span className="text-[11px] font-bold text-indigo-800 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200 inline-flex items-center gap-1">
+                            <Users className="w-3 h-3 text-indigo-600" />
+                            <span>{test.batchId && test.batchId !== 'ALL' && test.batchName ? test.batchName : 'All Batches'}</span>
+                          </span>
                           <span className="text-xs text-slate-500 font-medium">
                             • {test.courseName}
                           </span>
@@ -1238,7 +1300,7 @@ export const MockTestsPage: React.FC = () => {
 
                         {/* Direct PDF Answer Sheet Upload Button for this specific Course & Subject */}
                         <Link
-                          to={`/upload-answer-sheet?course=${test.courseSlug}&year=${encodeURIComponent(test.semesterOrYear || '')}&subject=${encodeURIComponent(test.subject)}`}
+                          to={`/upload-answer-sheet?course=${test.courseSlug}&year=${encodeURIComponent(test.semesterOrYear || '')}&subject=${encodeURIComponent(test.subject)}&testId=${encodeURIComponent(test.id)}&batch=${encodeURIComponent(test.batchId && test.batchId !== 'ALL' ? test.batchId : '')}`}
                           className="w-full px-3 py-2 rounded-xl text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-colors flex items-center justify-center gap-1.5"
                         >
                           <Upload className="w-3.5 h-3.5 text-rose-600" />
@@ -1332,8 +1394,8 @@ export const MockTestsPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Row 2: Program & Year/Semester */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
+              {/* Row 2: Program, Year/Semester & Batch */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-slate-100">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">
                     Target Program / Course *
@@ -1341,11 +1403,18 @@ export const MockTestsPage: React.FC = () => {
                   <select
                     value={regCourseSlug}
                     onChange={(e) => {
-                      setRegCourseSlug(e.target.value);
-                      if (e.target.value === 'bbs-tu') {
+                      const nextSlug = e.target.value;
+                      setRegCourseSlug(nextSlug);
+                      if (regBatchId) {
+                        const existingBatch = studentGroups.find((g) => g.id === regBatchId);
+                        if (existingBatch && existingBatch.courseSlug !== nextSlug) {
+                          setRegBatchId('');
+                        }
+                      }
+                      if (nextSlug === 'bbs-tu') {
                         setRegYearOrSem('1st Year');
                         setRegSelectedSubjects(['Business Statistics']);
-                      } else if (e.target.value === 'mbs-tu') {
+                      } else if (nextSlug === 'mbs-tu') {
                         setRegYearOrSem('1st Semester');
                         setRegSelectedSubjects(['Managerial Economics']);
                       } else {
@@ -1395,6 +1464,41 @@ export const MockTestsPage: React.FC = () => {
                         <option value="7th Semester">7th Semester</option>
                         <option value="8th Semester">8th Semester</option>
                       </>
+                    )}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Academic Batch (Optional)
+                  </label>
+                  <select
+                    value={regBatchId}
+                    onChange={(e) => setRegBatchId(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  >
+                    <option value="">No Specific Batch / Admin Will Assign</option>
+                    {studentGroups.filter((g) => g.courseSlug === regCourseSlug).length > 0 && (
+                      <optgroup label="Batches for Selected Program">
+                        {studentGroups
+                          .filter((g) => g.courseSlug === regCourseSlug)
+                          .map((g) => (
+                            <option key={g.id} value={g.id}>
+                              {g.name || g.title} ({g.shift})
+                            </option>
+                          ))}
+                      </optgroup>
+                    )}
+                    {studentGroups.filter((g) => g.courseSlug !== regCourseSlug).length > 0 && (
+                      <optgroup label="Other Batches">
+                        {studentGroups
+                          .filter((g) => g.courseSlug !== regCourseSlug)
+                          .map((g) => (
+                            <option key={g.id} value={g.id}>
+                              {g.name || g.title} ({g.courseName})
+                            </option>
+                          ))}
+                      </optgroup>
                     )}
                   </select>
                 </div>
@@ -1551,6 +1655,12 @@ export const MockTestsPage: React.FC = () => {
                       </div>
                       <p className="font-bold text-slate-900 text-sm mt-0.5">{r.fullName}</p>
                       <p className="text-slate-500 text-[11px]">{r.courseName} • {r.semesterOrYear}</p>
+                      {r.batchName && (
+                        <span className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded bg-indigo-50 text-indigo-800 border border-indigo-200 text-[10px] font-bold">
+                          <Users className="w-3 h-3 text-indigo-600" />
+                          <span>{r.batchName}</span>
+                        </span>
+                      )}
                     </div>
 
                     <div className="pt-2 border-t border-slate-200 flex items-center justify-between">
@@ -1914,10 +2024,16 @@ export const MockTestsPage: React.FC = () => {
               }`}
             >
               <div className="space-y-1">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-white/20 text-white">
                     {activeExamTest.semesterOrYear || activeExamTest.subject}
                   </span>
+                  {activeExamTest.batchId && activeExamTest.batchId !== 'ALL' && activeExamTest.batchName && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-500/40 text-white border border-indigo-300/40 inline-flex items-center gap-1">
+                      <Users className="w-3 h-3 text-amber-300" />
+                      <span>{activeExamTest.batchName}</span>
+                    </span>
+                  )}
                   <span className="text-xs text-blue-200 font-medium">
                     {activeExamTest.courseName}
                   </span>
@@ -2190,9 +2306,17 @@ export const MockTestsPage: React.FC = () => {
           <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden shadow-2xl">
             <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-[#12315A] text-white">
               <div>
-                <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-amber-400 text-slate-950">
-                  {previewTest.semesterOrYear || previewTest.courseName}
-                </span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-amber-400 text-slate-950">
+                    {previewTest.semesterOrYear || previewTest.courseName}
+                  </span>
+                  {previewTest.batchId && previewTest.batchId !== 'ALL' && previewTest.batchName && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-500/40 text-white border border-indigo-300/40 inline-flex items-center gap-1">
+                      <Users className="w-3 h-3 text-amber-300" />
+                      <span>{previewTest.batchName}</span>
+                    </span>
+                  )}
+                </div>
                 <h3 className="text-base font-bold mt-1">{previewTest.title}</h3>
                 <p className="text-xs text-blue-200">
                   {previewTest.subject} • Full Marks: {previewTest.fullMarks}
@@ -2359,6 +2483,15 @@ export const MockTestsPage: React.FC = () => {
                     {registrationPassModal.preferredMode} • {registrationPassModal.shift}
                   </span>
                 </div>
+                {registrationPassModal.batchName && (
+                  <div className="flex justify-between py-1 border-b border-slate-200/60">
+                    <span className="text-slate-500 font-medium">Assigned Batch:</span>
+                    <span className="font-bold text-indigo-800 flex items-center gap-1">
+                      <Users className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>{registrationPassModal.batchName}</span>
+                    </span>
+                  </div>
+                )}
                 <div className="pt-1">
                   <span className="text-slate-500 font-medium block mb-1.5">Registered Exam Subjects:</span>
                   <div className="flex flex-wrap gap-1.5">

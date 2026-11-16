@@ -121,6 +121,7 @@ interface AppContextType {
     }
   ) => { success: boolean; message: string; inquiry?: AdmissionInquiry };
   addInquiryNote: (id: string, noteText: string) => void;
+  assignInquiryBatch: (inquiryId: string, batchId: string, options?: { replaceOtherCourseBatches?: boolean }) => void;
   deleteInquiry: (id: string) => Promise<void>;
   deleteMultipleInquiries: (ids: string[]) => Promise<void>;
   clearAllInquiries: () => Promise<void>;
@@ -130,7 +131,7 @@ interface AppContextType {
   submitContactMessage: (msg: Omit<ContactMessage, 'id' | 'status' | 'createdAt'>) => Promise<void>;
 
   studentGroups: StudentGroup[];
-  addStudentGroup: (group: Partial<StudentGroup>) => void;
+  addStudentGroup: (group: Partial<StudentGroup>) => StudentGroup;
   updateStudentGroup: (id: string, updates: Partial<StudentGroup>) => void;
   deleteStudentGroup: (id: string) => void;
   clearAllStudentGroups: () => void;
@@ -141,6 +142,7 @@ interface AppContextType {
   ) => number;
   importVerifiedInquiriesToGroup: (groupId: string, inquiryIds?: string[]) => number;
   removeMemberFromGroup: (groupId: string, memberId: string) => void;
+  moveMemberToBatch: (fromGroupId: string, memberId: string, toGroupId: string) => void;
   sendGroupBroadcast: (
     groupId: string,
     broadcast: {
@@ -203,6 +205,7 @@ interface AppContextType {
   mockTestRegistrations: MockTestRegistration[];
   registerForMockTest: (data: Omit<MockTestRegistration, 'id' | 'referenceNumber' | 'status' | 'createdAt'>) => MockTestRegistration;
   updateMockTestRegistrationStatus: (id: string, status: MockTestRegistration['status']) => void;
+  assignMockRegistrationBatch: (regId: string, batchId: string) => void;
   deleteMockTestRegistration: (id: string) => void;
   clearAllMockTestRegistrations: () => void;
   refreshMockRegistrations: () => Promise<void>;
@@ -220,7 +223,10 @@ interface AppContextType {
   updateStudentEnrolledSubjects: (subjects: string[]) => void;
   isStudentEnrolledInCourse: (courseSlug: string) => boolean;
   isStudentEnrolledInSubject: (courseSlug: string, subjectName: string) => boolean;
+  getStudentLiveBatches: () => StudentGroup[];
+  getStudentLiveBatchIds: () => string[];
   isStudentAllowedMaterial: (material: StudyMaterial) => boolean;
+  isStudentAllowedMockTest: (test: MockTest) => boolean;
   isStudentBatchRestricted: (material: StudyMaterial) => boolean;
   subjectsMatch: (a: string, b: string) => boolean;
   logout: () => void;
@@ -1590,7 +1596,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Student Group Management
-  const addStudentGroup = (groupData: Partial<StudentGroup>) => {
+  const addStudentGroup = (groupData: Partial<StudentGroup>): StudentGroup => {
     const now = new Date().toISOString();
     const groupTitle = (groupData.title || groupData.name || 'New Student Cohort').trim();
     const customCode = groupData.code?.trim();
@@ -1622,6 +1628,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setStudentGroups((prev) => [newGroup, ...prev]);
     saveStudentGroupToSupabase(newGroup).catch(console.warn);
+    return newGroup;
   };
 
   const updateStudentGroup = (id: string, updates: Partial<StudentGroup>) => {
@@ -1685,6 +1692,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return inq;
         })
       );
+      setMockTests((prev) =>
+        prev.map((t) => (t.batchId === id ? { ...t, batchName: newBatchName, updatedAt: now } : t))
+      );
+      setMockTestSubmissions((prev) =>
+        prev.map((s) => {
+          if (s.batchId === id) {
+            const nextSub = { ...s, batchName: newBatchName };
+            saveMockSubmissionToSupabase(nextSub).catch(console.warn);
+            return nextSub;
+          }
+          return s;
+        })
+      );
+      setMockTestRegistrations((prev) =>
+        prev.map((r) => {
+          if (r.batchId === id) {
+            const nextReg = { ...r, batchName: newBatchName };
+            saveMockRegistrationToSupabase(nextReg).catch(console.warn);
+            return nextReg;
+          }
+          return r;
+        })
+      );
+      setNotices((prev) =>
+        prev.map((n) => (n.targetBatchId === id ? { ...n, targetBatchName: newBatchName } : n))
+      );
     }
   };
 
@@ -1712,10 +1745,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const addMemberToGroup = (groupId: string, memberData: Omit<StudentGroupMember, 'id' | 'addedAt'>) => {
     const now = new Date().toISOString();
     const normalizedMobile = normalizeMobileNumber(memberData.phone);
+    const targetGroupMeta = studentGroups.find((g) => g.id === groupId);
     const newMember: StudentGroupMember = {
       ...memberData,
       id: `mem-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       studentId: memberData.studentId || normalizedMobile || undefined,
+      batchId: memberData.batchId || groupId,
+      batchName: memberData.batchName || targetGroupMeta?.name || targetGroupMeta?.title,
       addedAt: now,
     };
     setStudentGroups((prev) =>
@@ -1727,11 +1763,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               (m.studentId && memberData.studentId && m.studentId === memberData.studentId)
           );
           if (exists) return g;
-          return {
+          const updatedGroup = {
             ...g,
             members: [...g.members, newMember],
             updatedAt: now,
           };
+          saveStudentGroupToSupabase(updatedGroup).catch(console.warn);
+          return updatedGroup;
         }
         return g;
       })
@@ -1762,6 +1800,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             studentId: item.studentId || normalizeMobileNumber(item.phone) || undefined,
             enrolledCourseSlug: item.enrolledCourseSlug || targetGroup.courseSlug,
             semesterOrYear: item.semesterOrYear || targetGroup.academicLevel,
+            batchId: targetGroup.id,
+            batchName: targetGroup.name || targetGroup.title,
             addedAt: now,
           });
         }
@@ -1805,6 +1845,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             email: email || undefined,
             enrolledCourseSlug: targetGroup.courseSlug,
             semesterOrYear: targetGroup.academicLevel,
+            batchId: targetGroup.id,
+            batchName: targetGroup.name || targetGroup.title,
             addedAt: now,
           });
         }
@@ -1813,11 +1855,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (addedList.length > 0) {
       setStudentGroups((prev) =>
-        prev.map((g) =>
-          g.id === groupId
-            ? { ...g, members: [...g.members, ...addedList], updatedAt: now }
-            : g
-        )
+        prev.map((g) => {
+          if (g.id === groupId) {
+            const updatedGroup = { ...g, members: [...g.members, ...addedList], updatedAt: now };
+            saveStudentGroupToSupabase(updatedGroup).catch(console.warn);
+            return updatedGroup;
+          }
+          return g;
+        })
       );
     }
 
@@ -1871,6 +1916,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         enrolledCourseSlug: inq.courseSlug,
         enrolledSubjects: parsedSubjects,
         semesterOrYear: inq.academicLevel,
+        batchId: targetGroup.id,
+        batchName: targetGroup.name || targetGroup.title,
         addedAt: now,
         notes: inq.paymentVerified ? 'Payment Verified & Enrolled' : undefined,
       };
@@ -1878,11 +1925,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (newMembers.length > 0) {
       setStudentGroups((prev) =>
-        prev.map((g) =>
-          g.id === groupId
-            ? { ...g, members: [...g.members, ...newMembers], updatedAt: now }
-            : g
-        )
+        prev.map((g) => {
+          if (g.id === groupId) {
+            const updatedGroup = { ...g, members: [...g.members, ...newMembers], updatedAt: now };
+            saveStudentGroupToSupabase(updatedGroup).catch(console.warn);
+            return updatedGroup;
+          }
+          return g;
+        })
+      );
+      const candIds = new Set(candidates.map((c) => c.id));
+      setInquiries((prev) =>
+        prev.map((inq) => {
+          if (candIds.has(inq.id)) {
+            const nextInq = {
+              ...inq,
+              batchId: targetGroup.id,
+              batchName: targetGroup.name || targetGroup.title,
+              updatedAt: now,
+            };
+            saveInquiryToSupabase(nextInq).catch(console.warn);
+            return nextInq;
+          }
+          return inq;
+        })
       );
     }
 
@@ -1892,16 +1958,381 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const removeMemberFromGroup = (groupId: string, memberId: string) => {
     const now = new Date().toISOString();
     setStudentGroups((prev) =>
-      prev.map((g) =>
-        g.id === groupId
-          ? {
-              ...g,
-              members: g.members.filter((m) => m.id !== memberId),
-              updatedAt: now,
-            }
-          : g
-      )
+      prev.map((g) => {
+        if (g.id === groupId) {
+          const updatedGroup = {
+            ...g,
+            members: g.members.filter((m) => m.id !== memberId),
+            updatedAt: now,
+          };
+          saveStudentGroupToSupabase(updatedGroup).catch(console.warn);
+          return updatedGroup;
+        }
+        return g;
+      })
     );
+  };
+
+  const assignInquiryBatch = (
+    inquiryId: string,
+    batchId: string,
+    options?: { replaceOtherCourseBatches?: boolean }
+  ) => {
+    const now = new Date().toISOString();
+    const targetInquiry = inquiries.find((i) => i.id === inquiryId);
+    if (!targetInquiry) return;
+
+    const cleanBatchId = batchId && batchId !== 'NONE' && batchId !== 'ALL' ? batchId : '';
+    const targetGroup = cleanBatchId ? studentGroups.find((g) => g.id === cleanBatchId) : undefined;
+    const targetBatchName = targetGroup ? targetGroup.name || targetGroup.title : undefined;
+
+    setInquiries((prev) =>
+      prev.map((inq) => {
+        if (inq.id !== inquiryId) return inq;
+        const notes = inq.adminNotes ? [...inq.adminNotes] : [];
+        notes.push({
+          date: new Date().toLocaleDateString(),
+          text: targetGroup
+            ? `Assigned to batch "${targetBatchName}".`
+            : 'Batch assignment cleared (Unassigned).',
+          by: currentUser?.name || 'Administrator',
+        });
+        const updated: AdmissionInquiry = {
+          ...inq,
+          batchId: targetGroup?.id,
+          batchName: targetBatchName,
+          adminNotes: notes,
+          updatedAt: now,
+        };
+        saveInquiryToSupabase(updated).catch(console.warn);
+        return updated;
+      })
+    );
+
+    // Also update mirrored MockTestRegistration if one corresponds to this inquiry
+    setMockTestRegistrations((prev) =>
+      prev.map((reg) => {
+        const isMirror =
+          targetInquiry.id === `inq-${reg.id}` ||
+          (targetInquiry.referenceNumber && reg.referenceNumber === targetInquiry.referenceNumber);
+        if (!isMirror) return reg;
+        const nextReg: MockTestRegistration = {
+          ...reg,
+          batchId: targetGroup?.id,
+          batchName: targetBatchName,
+        };
+        saveMockRegistrationToSupabase(nextReg).catch(console.warn);
+        return nextReg;
+      })
+    );
+
+    const parsedSubjects =
+      targetInquiry.enrolledSubjects && targetInquiry.enrolledSubjects.length > 0
+        ? targetInquiry.enrolledSubjects
+        : targetInquiry.subjectsOfInterest &&
+          !/^(all subjects under|general mock series|all offered subjects)/i.test(
+            targetInquiry.subjectsOfInterest.trim()
+          )
+        ? targetInquiry.subjectsOfInterest
+            .split(/[,|]+/)
+            .map((s) => s.replace(/^additional:\s*/i, '').trim())
+            .filter(Boolean)
+        : undefined;
+
+    const studentMatches = (m: StudentGroupMember) =>
+      (targetInquiry.referenceNumber && m.referenceNumber === targetInquiry.referenceNumber) ||
+      (targetInquiry.phone && mobileMatches(m.phone, targetInquiry.phone)) ||
+      (targetInquiry.assignedStudentId &&
+        m.studentId &&
+        m.studentId.toLowerCase() === targetInquiry.assignedStudentId.toLowerCase());
+
+    setStudentGroups((prev) =>
+      prev.map((g) => {
+        const hasMember = g.members.some(studentMatches);
+        if (!targetGroup) {
+          if (hasMember && g.courseSlug === targetInquiry.courseSlug) {
+            const nextGroup = {
+              ...g,
+              members: g.members.filter((m) => !studentMatches(m)),
+              updatedAt: now,
+            };
+            saveStudentGroupToSupabase(nextGroup).catch(console.warn);
+            return nextGroup;
+          }
+          return g;
+        }
+
+        if (g.id === targetGroup.id) {
+          if (hasMember) {
+            const nextGroup = {
+              ...g,
+              members: g.members.map((m) =>
+                studentMatches(m) ? { ...m, batchId: g.id, batchName: targetBatchName } : m
+              ),
+              updatedAt: now,
+            };
+            saveStudentGroupToSupabase(nextGroup).catch(console.warn);
+            return nextGroup;
+          }
+          const newMember: StudentGroupMember = {
+            id: `mem-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            fullName: targetInquiry.fullName,
+            phone: targetInquiry.phone,
+            email: targetInquiry.email,
+            studentId:
+              targetInquiry.assignedStudentId || normalizeMobileNumber(targetInquiry.phone) || undefined,
+            referenceNumber: targetInquiry.referenceNumber,
+            enrolledCourseSlug: targetInquiry.courseSlug,
+            enrolledSubjects: parsedSubjects,
+            semesterOrYear: targetInquiry.academicLevel,
+            batchId: g.id,
+            batchName: targetBatchName,
+            addedAt: now,
+            notes: targetInquiry.paymentVerified ? 'Payment Verified & Enrolled' : 'Assigned by Admin',
+          };
+          const nextGroup = {
+            ...g,
+            members: [newMember, ...g.members],
+            updatedAt: now,
+          };
+          saveStudentGroupToSupabase(nextGroup).catch(console.warn);
+          return nextGroup;
+        }
+
+        if (
+          options?.replaceOtherCourseBatches !== false &&
+          hasMember &&
+          (g.courseSlug === targetInquiry.courseSlug || g.courseSlug === targetGroup.courseSlug)
+        ) {
+          const nextGroup = {
+            ...g,
+            members: g.members.filter((m) => !studentMatches(m)),
+            updatedAt: now,
+          };
+          saveStudentGroupToSupabase(nextGroup).catch(console.warn);
+          return nextGroup;
+        }
+
+        return g;
+      })
+    );
+  };
+
+  const assignMockRegistrationBatch = (regId: string, batchId: string) => {
+    const now = new Date().toISOString();
+    const targetReg = mockTestRegistrations.find((r) => r.id === regId);
+    if (!targetReg) return;
+
+    const cleanBatchId = batchId && batchId !== 'NONE' && batchId !== 'ALL' ? batchId : '';
+    const targetGroup = cleanBatchId ? studentGroups.find((g) => g.id === cleanBatchId) : undefined;
+    const targetBatchName = targetGroup ? targetGroup.name || targetGroup.title : undefined;
+
+    setMockTestRegistrations((prev) => {
+      const next = prev.map((r) => {
+        if (r.id !== regId) return r;
+        const updated: MockTestRegistration = {
+          ...r,
+          batchId: targetGroup?.id,
+          batchName: targetBatchName,
+        };
+        saveMockRegistrationToSupabase(updated).catch(console.warn);
+        return updated;
+      });
+      try {
+        localStorage.setItem(STORAGE_KEYS.MOCK_REGISTRATIONS, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    // Also update mirrored AdmissionInquiry if present
+    setInquiries((prev) =>
+      prev.map((inq) => {
+        const isMirror =
+          inq.id === `inq-${regId}` ||
+          (targetReg.referenceNumber && inq.referenceNumber === targetReg.referenceNumber);
+        if (!isMirror) return inq;
+        const nextInq: AdmissionInquiry = {
+          ...inq,
+          batchId: targetGroup?.id,
+          batchName: targetBatchName,
+          updatedAt: now,
+        };
+        saveInquiryToSupabase(nextInq).catch(console.warn);
+        return nextInq;
+      })
+    );
+
+    const regMatches = (m: StudentGroupMember) =>
+      (targetReg.referenceNumber && m.referenceNumber === targetReg.referenceNumber) ||
+      (targetReg.phone && mobileMatches(m.phone, targetReg.phone)) ||
+      (targetReg.studentRollNo &&
+        m.studentId &&
+        m.studentId.toLowerCase() === targetReg.studentRollNo.toLowerCase());
+
+    setStudentGroups((prev) =>
+      prev.map((g) => {
+        const hasMember = g.members.some(regMatches);
+        if (!targetGroup) {
+          if (hasMember && g.courseSlug === targetReg.courseSlug) {
+            const nextGroup = {
+              ...g,
+              members: g.members.filter((m) => !regMatches(m)),
+              updatedAt: now,
+            };
+            saveStudentGroupToSupabase(nextGroup).catch(console.warn);
+            return nextGroup;
+          }
+          return g;
+        }
+
+        if (g.id === targetGroup.id) {
+          if (hasMember) {
+            const nextGroup = {
+              ...g,
+              members: g.members.map((m) =>
+                regMatches(m) ? { ...m, batchId: g.id, batchName: targetBatchName } : m
+              ),
+              updatedAt: now,
+            };
+            saveStudentGroupToSupabase(nextGroup).catch(console.warn);
+            return nextGroup;
+          }
+          const newMember: StudentGroupMember = {
+            id: `mem-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            fullName: targetReg.fullName,
+            phone: targetReg.phone,
+            email: targetReg.email,
+            studentId:
+              normalizeMobileNumber(targetReg.phone) || targetReg.studentRollNo || targetReg.referenceNumber,
+            referenceNumber: targetReg.referenceNumber,
+            enrolledCourseSlug: targetReg.courseSlug,
+            enrolledSubjects: targetReg.enrolledSubjects,
+            semesterOrYear: targetReg.semesterOrYear,
+            batchId: g.id,
+            batchName: targetBatchName,
+            source: 'Mock Test Registration',
+            addedAt: now,
+            notes: 'Assigned by Admin',
+          };
+          const nextGroup = {
+            ...g,
+            members: [newMember, ...g.members],
+            updatedAt: now,
+          };
+          saveStudentGroupToSupabase(nextGroup).catch(console.warn);
+          return nextGroup;
+        }
+
+        if (
+          hasMember &&
+          (g.courseSlug === targetReg.courseSlug || g.courseSlug === targetGroup.courseSlug)
+        ) {
+          const nextGroup = {
+            ...g,
+            members: g.members.filter((m) => !regMatches(m)),
+            updatedAt: now,
+          };
+          saveStudentGroupToSupabase(nextGroup).catch(console.warn);
+          return nextGroup;
+        }
+
+        return g;
+      })
+    );
+  };
+
+  const moveMemberToBatch = (fromGroupId: string, memberId: string, toGroupId: string) => {
+    if (!toGroupId || fromGroupId === toGroupId) return;
+    const now = new Date().toISOString();
+    const sourceGroup = studentGroups.find((g) => g.id === fromGroupId);
+    const targetGroup = studentGroups.find((g) => g.id === toGroupId);
+    if (!sourceGroup || !targetGroup) return;
+
+    const sourceMember = sourceGroup.members.find((m) => m.id === memberId);
+    if (!sourceMember) return;
+
+    const targetBatchName = targetGroup.name || targetGroup.title;
+
+    setStudentGroups((prev) =>
+      prev.map((g) => {
+        if (g.id === fromGroupId) {
+          const updatedFrom = {
+            ...g,
+            members: g.members.filter((m) => m.id !== memberId),
+            updatedAt: now,
+          };
+          saveStudentGroupToSupabase(updatedFrom).catch(console.warn);
+          return updatedFrom;
+        }
+        if (g.id === toGroupId) {
+          const alreadyInTarget = g.members.some(
+            (m) =>
+              (sourceMember.phone && m.phone && mobileMatches(m.phone, sourceMember.phone)) ||
+              (sourceMember.studentId &&
+                m.studentId &&
+                m.studentId.toLowerCase() === sourceMember.studentId.toLowerCase())
+          );
+          if (alreadyInTarget) return g;
+          const movedMember: StudentGroupMember = {
+            ...sourceMember,
+            batchId: targetGroup.id,
+            batchName: targetBatchName,
+            enrolledCourseSlug: sourceMember.enrolledCourseSlug || targetGroup.courseSlug,
+            addedAt: now,
+          };
+          const updatedTo = {
+            ...g,
+            members: [movedMember, ...g.members],
+            updatedAt: now,
+          };
+          saveStudentGroupToSupabase(updatedTo).catch(console.warn);
+          return updatedTo;
+        }
+        return g;
+      })
+    );
+
+    // Sync matching inquiries & mock registrations
+    setInquiries((prev) =>
+      prev.map((inq) => {
+        const matches =
+          (sourceMember.referenceNumber && inq.referenceNumber === sourceMember.referenceNumber) ||
+          (sourceMember.phone && inq.phone && mobileMatches(inq.phone, sourceMember.phone));
+        if (matches && (inq.batchId === fromGroupId || !inq.batchId || inq.courseSlug === targetGroup.courseSlug)) {
+          const nextInq = {
+            ...inq,
+            batchId: targetGroup.id,
+            batchName: targetBatchName,
+            updatedAt: now,
+          };
+          saveInquiryToSupabase(nextInq).catch(console.warn);
+          return nextInq;
+        }
+        return inq;
+      })
+    );
+
+    setMockTestRegistrations((prev) => {
+      let changed = false;
+      const next = prev.map((reg) => {
+        const matches =
+          (sourceMember.referenceNumber && reg.referenceNumber === sourceMember.referenceNumber) ||
+          (sourceMember.phone && reg.phone && mobileMatches(reg.phone, sourceMember.phone));
+        if (matches && (reg.batchId === fromGroupId || !reg.batchId || reg.courseSlug === targetGroup.courseSlug)) {
+          changed = true;
+          const nextReg = { ...reg, batchId: targetGroup.id, batchName: targetBatchName };
+          saveMockRegistrationToSupabase(nextReg).catch(console.warn);
+          return nextReg;
+        }
+        return reg;
+      });
+      if (changed) {
+        try {
+          localStorage.setItem(STORAGE_KEYS.MOCK_REGISTRATIONS, JSON.stringify(next));
+        } catch {}
+      }
+      return next;
+    });
   };
 
   const sendGroupBroadcast = (
@@ -2227,10 +2658,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const matchedBatches = studentGroups.filter((g) => {
       if (matchedInquiry?.batchId && g.id === matchedInquiry.batchId) return true;
+      if (matchedMockReg?.batchId && g.id === matchedMockReg.batchId) return true;
       return g.members.some(
         (m) =>
           (resolvedPhone && mobileMatches(m.phone, resolvedPhone)) ||
           (matchedInquiry?.referenceNumber && m.referenceNumber === matchedInquiry.referenceNumber) ||
+          (matchedMockReg?.referenceNumber && m.referenceNumber === matchedMockReg.referenceNumber) ||
           (resolvedId && m.studentId && m.studentId.toLowerCase() === resolvedId.toLowerCase())
       );
     });
@@ -2238,12 +2671,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const resolvedBatchIds = Array.from(
       new Set([
         ...(matchedInquiry?.batchId ? [matchedInquiry.batchId] : []),
+        ...(matchedMockReg?.batchId ? [matchedMockReg.batchId] : []),
         ...matchedBatches.map((g) => g.id),
       ])
     );
     const resolvedBatchNames = Array.from(
       new Set([
         ...(matchedInquiry?.batchName ? [matchedInquiry.batchName] : []),
+        ...(matchedMockReg?.batchName ? [matchedMockReg.batchName] : []),
         ...matchedBatches.map((g) => g.name || g.title),
       ])
     );
@@ -2354,20 +2789,57 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return true;
   };
 
+  const getStudentLiveBatches = (): StudentGroup[] => {
+    if (!currentUser || currentUser.role !== 'student') return [];
+    const matchedGroupIds = new Set<string>();
+
+    // Include batches directly where student appears as a member
+    studentGroups.forEach((g) => {
+      const inMembers = g.members.some(
+        (m) =>
+          (currentUser.phone && mobileMatches(m.phone, currentUser.phone)) ||
+          (currentUser.studentId && m.phone && mobileMatches(m.phone, currentUser.studentId)) ||
+          (currentUser.studentId &&
+            m.studentId &&
+            m.studentId.toLowerCase() === currentUser.studentId.toLowerCase())
+      );
+      if (inMembers) matchedGroupIds.add(g.id);
+    });
+
+    // Live check verified/enrolled inquiries & mock registrations matching this student
+    inquiries.forEach((inq) => {
+      if (!inq.batchId) return;
+      const matches =
+        (currentUser.phone && inq.phone && mobileMatches(inq.phone, currentUser.phone)) ||
+        (currentUser.studentId && inq.phone && mobileMatches(inq.phone, currentUser.studentId)) ||
+        (currentUser.studentId &&
+          inq.assignedStudentId &&
+          inq.assignedStudentId.toLowerCase() === currentUser.studentId.toLowerCase());
+      if (matches) matchedGroupIds.add(inq.batchId);
+    });
+
+    mockTestRegistrations.forEach((reg) => {
+      if (!reg.batchId) return;
+      const matches =
+        (currentUser.phone && reg.phone && mobileMatches(reg.phone, currentUser.phone)) ||
+        (currentUser.studentId && reg.phone && mobileMatches(reg.phone, currentUser.studentId));
+      if (matches) matchedGroupIds.add(reg.batchId);
+    });
+
+    // Fallback to session profile batch IDs if live groups haven't been created yet
+    if (matchedGroupIds.size === 0) {
+      const fromProfile = currentUser.batchIds || (currentUser.batchId ? [currentUser.batchId] : []);
+      fromProfile.forEach((id) => matchedGroupIds.add(id));
+    }
+
+    return studentGroups.filter((g) => matchedGroupIds.has(g.id));
+  };
+
   const getStudentLiveBatchIds = (): string[] => {
     if (!currentUser || currentUser.role !== 'student') return [];
+    const liveIds = getStudentLiveBatches().map((g) => g.id);
     const fromProfile = currentUser.batchIds || (currentUser.batchId ? [currentUser.batchId] : []);
-    const fromGroups = studentGroups
-      .filter((g) =>
-        g.members.some(
-          (m) =>
-            (currentUser.phone && mobileMatches(m.phone, currentUser.phone)) ||
-            (currentUser.studentId && m.studentId && mobileMatches(m.phone, currentUser.studentId)) ||
-            (currentUser.studentId && m.studentId?.toLowerCase() === currentUser.studentId.toLowerCase())
-        )
-      )
-      .map((g) => g.id);
-    return Array.from(new Set([...fromProfile, ...fromGroups]));
+    return Array.from(new Set([...liveIds, ...(liveIds.length === 0 ? fromProfile : [])]));
   };
 
   const isStudentAllowedMaterial = (material: StudyMaterial): boolean => {
@@ -2377,11 +2849,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Common material (no specific batch set or explicitly All Batches)
     if (!material.batchId || material.batchId === 'ALL') return true;
 
-    const studentBatchIds = getStudentLiveBatchIds();
+    const liveBatches = getStudentLiveBatches();
+    const studentBatchIds = liveBatches.map((b) => b.id);
     if (studentBatchIds.includes(material.batchId)) return true;
     if (
       material.batchName &&
-      (currentUser.batchNames?.includes(material.batchName) || currentUser.batchName === material.batchName)
+      (liveBatches.some((b) => (b.name || b.title) === material.batchName) ||
+        currentUser.batchNames?.includes(material.batchName) ||
+        currentUser.batchName === material.batchName)
+    ) {
+      return true;
+    }
+    return false;
+  };
+
+  const isStudentAllowedMockTest = (test: MockTest): boolean => {
+    if (!currentUser) return false;
+    if (currentUser.role === 'admin') return true;
+    if (!isStudentEnrolledInSubject(test.courseSlug, test.subject)) return false;
+    if (!test.batchId || test.batchId === 'ALL') return true;
+
+    const liveBatches = getStudentLiveBatches();
+    if (liveBatches.some((b) => b.id === test.batchId)) return true;
+    if (
+      test.batchName &&
+      (liveBatches.some((b) => (b.name || b.title) === test.batchName) ||
+        currentUser.batchNames?.includes(test.batchName) ||
+        currentUser.batchName === test.batchName)
     ) {
       return true;
     }
@@ -2401,8 +2895,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const id = `mockreg-${Date.now()}`;
     const rand = Math.floor(1000 + Math.random() * 9000);
     const referenceNumber = `MOCK-REG-2026-${rand}`;
+    const cleanBatchId =
+      data.batchId && data.batchId !== 'NONE' && data.batchId !== 'ALL' ? data.batchId : undefined;
+    const matchedBatch = cleanBatchId ? studentGroups.find((g) => g.id === cleanBatchId) : undefined;
+    const resolvedBatchName = matchedBatch
+      ? matchedBatch.name || matchedBatch.title
+      : cleanBatchId
+      ? data.batchName
+      : undefined;
+
     const newReg: MockTestRegistration = {
       ...data,
+      batchId: cleanBatchId,
+      batchName: resolvedBatchName,
       id,
       referenceNumber,
       status: 'Registered',
@@ -2419,6 +2924,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Save to Supabase cloud table
     saveMockRegistrationToSupabase(newReg).catch(console.warn);
+
+    // If a batch was selected, also enroll into that batch group
+    if (matchedBatch) {
+      const now = newReg.createdAt;
+      const newMember: StudentGroupMember = {
+        id: `mem-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        fullName: newReg.fullName,
+        phone: newReg.phone,
+        email: newReg.email,
+        studentId: normalizeMobileNumber(newReg.phone) || newReg.studentRollNo || newReg.referenceNumber,
+        referenceNumber: newReg.referenceNumber,
+        enrolledCourseSlug: newReg.courseSlug,
+        enrolledSubjects: newReg.enrolledSubjects,
+        semesterOrYear: newReg.semesterOrYear,
+        batchId: matchedBatch.id,
+        batchName: resolvedBatchName,
+        source: 'Mock Test Registration',
+        addedAt: now,
+      };
+      setStudentGroups((prev) =>
+        prev.map((g) => {
+          if (g.id !== matchedBatch.id) return g;
+          const exists = g.members.some(
+            (m) =>
+              (m.phone && mobileMatches(m.phone, newReg.phone)) ||
+              m.referenceNumber === newReg.referenceNumber
+          );
+          if (exists) return g;
+          const updatedGroup = { ...g, members: [newMember, ...g.members], updatedAt: now };
+          saveStudentGroupToSupabase(updatedGroup).catch(console.warn);
+          return updatedGroup;
+        })
+      );
+    }
 
     // Broadcast across windows / tabs
     try {
@@ -2441,12 +2980,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         : 'General Mock Series',
       preferredMode: (newReg.preferredMode?.includes('Offline') ? 'Offline' : newReg.preferredMode?.includes('Hybrid') ? 'Hybrid' : 'Online') as any,
       preferredShift: ((newReg.shift || '').toLowerCase().includes('evening') ? 'Evening' : (newReg.shift || '').toLowerCase().includes('day') ? 'Day' : 'Morning') as any,
+      batchId: cleanBatchId,
+      batchName: resolvedBatchName,
       message: `Candidate registered for Mock Examination Series (${newReg.shift || 'General Shift'}) with subjects: ${(newReg.enrolledSubjects || []).join(', ')}.`,
       status: 'New',
       adminNotes: [
         {
           date: new Date().toLocaleDateString(),
-          text: `Candidate registered for Mock Examination Series (${newReg.shift || 'General Shift'}) with subjects: ${(newReg.enrolledSubjects || []).join(', ')}.`,
+          text: `Candidate registered for Mock Examination Series (${newReg.shift || 'General Shift'})${resolvedBatchName ? ` • Batch: ${resolvedBatchName}` : ''} with subjects: ${(newReg.enrolledSubjects || []).join(', ')}.`,
           by: 'Mock Test Registration Portal',
         },
       ],
@@ -2569,6 +3110,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       semesterOrYear: testData.semesterOrYear || '1st Year',
       subject: testData.subject || 'General Subject',
       subjectCode: testData.subjectCode || '',
+      batchId: testData.batchId || 'ALL',
+      batchName:
+        testData.batchId && testData.batchId !== 'ALL'
+          ? testData.batchName
+          : undefined,
       examDate: testData.examDate || new Date().toISOString().split('T')[0],
       startTime: testData.startTime || '07:00 AM',
       durationMinutes: Number(testData.durationMinutes) || 180,
@@ -2599,7 +3145,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateMockTest = (id: string, updates: Partial<MockTest>) => {
     setMockTests((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, ...updates, updatedAt: new Date().toISOString() } : t))
+      prev.map((t) =>
+        t.id === id
+          ? {
+              ...t,
+              ...updates,
+              batchId: updates.batchId !== undefined ? updates.batchId || 'ALL' : t.batchId,
+              batchName:
+                updates.batchId !== undefined
+                  ? updates.batchId && updates.batchId !== 'ALL'
+                    ? updates.batchName
+                    : undefined
+                  : t.batchName,
+              updatedAt: new Date().toISOString(),
+            }
+          : t
+      )
     );
   };
 
@@ -3008,6 +3569,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         verifyAndEnrollApplicant,
         attachPaymentProofToInquiry,
         addInquiryNote,
+        assignInquiryBatch,
         deleteInquiry,
         deleteMultipleInquiries,
         clearAllInquiries,
@@ -3023,6 +3585,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         bulkAddMembersToGroup,
         importVerifiedInquiriesToGroup,
         removeMemberFromGroup,
+        moveMemberToBatch,
         sendGroupBroadcast,
         deleteGroupBroadcast,
         mockTests,
@@ -3044,6 +3607,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         mockTestRegistrations,
         registerForMockTest,
         updateMockTestRegistrationStatus,
+        assignMockRegistrationBatch,
         deleteMockTestRegistration,
         clearAllMockTestRegistrations,
         refreshMockRegistrations,
@@ -3054,7 +3618,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateStudentEnrolledSubjects,
         isStudentEnrolledInCourse,
         isStudentEnrolledInSubject,
+        getStudentLiveBatches,
+        getStudentLiveBatchIds,
         isStudentAllowedMaterial,
+        isStudentAllowedMockTest,
         isStudentBatchRestricted,
         subjectsMatch,
         logout,

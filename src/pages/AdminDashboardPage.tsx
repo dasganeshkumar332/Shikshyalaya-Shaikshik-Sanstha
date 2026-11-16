@@ -119,6 +119,7 @@ export const AdminDashboardPage: React.FC = () => {
     updateInquiryStatus,
     verifyAndEnrollApplicant,
     addInquiryNote,
+    assignInquiryBatch,
     deleteInquiry,
     deleteMultipleInquiries,
     clearAllInquiries,
@@ -133,6 +134,7 @@ export const AdminDashboardPage: React.FC = () => {
     bulkAddMembersToGroup,
     importVerifiedInquiriesToGroup,
     removeMemberFromGroup,
+    moveMemberToBatch,
     sendGroupBroadcast,
     deleteGroupBroadcast,
     mockTests,
@@ -152,6 +154,7 @@ export const AdminDashboardPage: React.FC = () => {
     uploadMockTestResult,
     mockTestRegistrations,
     updateMockTestRegistrationStatus,
+    assignMockRegistrationBatch,
     deleteMockTestRegistration,
     clearAllMockTestRegistrations,
     refreshMockRegistrations,
@@ -230,8 +233,13 @@ export const AdminDashboardPage: React.FC = () => {
 
   // Student Groups states
   const [groupSearch, setGroupSearch] = useState('');
+  const [groupCourseFilter, setGroupCourseFilter] = useState('ALL');
   const [editingGroup, setEditingGroup] = useState<StudentGroup | null>(null);
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
+  const [quickCreateBatchConfig, setQuickCreateBatchConfig] = useState<{
+    defaultCourseSlug?: string;
+    onCreated?: (batch: StudentGroup) => void;
+  } | null>(null);
   const [selectedGroupForBroadcast, setSelectedGroupForBroadcast] = useState<StudentGroup | null>(null);
   const [selectedGroupForMembers, setSelectedGroupForMembers] = useState<StudentGroup | null>(null);
   const [groupToastMessage, setGroupToastMessage] = useState<string | null>(null);
@@ -262,6 +270,7 @@ export const AdminDashboardPage: React.FC = () => {
   const [mockTestCourseFilter, setMockTestCourseFilter] = useState('ALL');
   const [mockTestYearFilter, setMockTestYearFilter] = useState('ALL');
   const [mockTestSubjectFilter, setMockTestSubjectFilter] = useState('ALL');
+  const [mockTestBatchFilter, setMockTestBatchFilter] = useState('ALL');
   const [mockTestEvaluationStatusFilter, setMockTestEvaluationStatusFilter] = useState<'ALL' | 'Submitted' | 'Evaluated'>('ALL');
   const [mockTestSubView, setMockTestSubView] = useState<'tests' | 'answer-sheets' | 'registrations' | 'shifts'>('tests');
   const [mockTestSearch, setMockTestSearch] = useState('');
@@ -271,6 +280,7 @@ export const AdminDashboardPage: React.FC = () => {
   const [regStudentCourseFilter, setRegStudentCourseFilter] = useState('ALL');
   const [regStudentStatusFilter, setRegStudentStatusFilter] = useState('ALL');
   const [regStudentShiftFilter, setRegStudentShiftFilter] = useState('ALL');
+  const [regStudentBatchFilter, setRegStudentBatchFilter] = useState('ALL');
   const [regStudentToast, setRegStudentToast] = useState<string | null>(null);
 
   // Live Exam Timer Control & Monitoring States
@@ -502,6 +512,11 @@ export const AdminDashboardPage: React.FC = () => {
       if (regStudentShiftFilter !== 'ALL' && reg.shift !== regStudentShiftFilter) {
         return false;
       }
+      if (regStudentBatchFilter === 'UNASSIGNED') {
+        if (reg.batchId) return false;
+      } else if (regStudentBatchFilter !== 'ALL' && reg.batchId !== regStudentBatchFilter) {
+        return false;
+      }
       if (regStudentSearch.trim()) {
         const q = regStudentSearch.toLowerCase();
         const matchesName = reg.fullName.toLowerCase().includes(q);
@@ -511,12 +526,13 @@ export const AdminDashboardPage: React.FC = () => {
         const matchesRoll = reg.studentRollNo?.toLowerCase().includes(q) || false;
         const matchesSubject = reg.enrolledSubjects?.some((s) => s.toLowerCase().includes(q)) || false;
         const matchesCourse = reg.courseName.toLowerCase().includes(q);
-        return matchesName || matchesRef || matchesPhone || matchesEmail || matchesRoll || matchesSubject || matchesCourse;
+        const matchesBatch = reg.batchName?.toLowerCase().includes(q) || false;
+        return matchesName || matchesRef || matchesPhone || matchesEmail || matchesRoll || matchesSubject || matchesCourse || matchesBatch;
       }
       return true;
     });
     return sortByDate(filtered, (reg) => reg.createdAt, dateSortOrder, { getId: (reg) => reg.id });
-  }, [mockTestRegistrations, regStudentSearch, regStudentCourseFilter, regStudentStatusFilter, regStudentShiftFilter, dateSortOrder]);
+  }, [mockTestRegistrations, regStudentSearch, regStudentCourseFilter, regStudentStatusFilter, regStudentShiftFilter, regStudentBatchFilter, dateSortOrder]);
 
   // Derived available Years / Semesters for admin filtering
   const adminMockTestYears = useMemo(() => {
@@ -777,7 +793,7 @@ export const AdminDashboardPage: React.FC = () => {
           { id: 'inquiries', label: `Inquiries (${stats.newInquiries} New)`, icon: GraduationCap },
           { id: 'registered-students', label: `Registered Students (${mockTestRegistrations.length})`, icon: UserCheck },
           { id: 'courses', label: `Courses (${courses.length})`, icon: BookOpen },
-          { id: 'groups', label: `Student Groups (${studentGroups.length})`, icon: MessageSquare },
+          { id: 'groups', label: `Batches & Groups (${studentGroups.length})`, icon: MessageSquare },
           { id: 'mock-tests', label: `Mock Tests & Exams (${mockTests.length})`, icon: Clock },
           { id: 'teachers', label: `Teachers (${teachers.length})`, icon: Users },
           { id: 'notices', label: `Notices (${notices.length})`, icon: Bell },
@@ -1002,10 +1018,21 @@ export const AdminDashboardPage: React.FC = () => {
               <div className="space-y-2 pt-1">
                 <button
                   onClick={() => {
+                    setQuickCreateBatchConfig(null);
+                    setEditingGroup(null);
+                    setIsGroupModalOpen(true);
+                  }}
+                  className="w-full py-2.5 px-3 rounded-xl bg-white border border-indigo-200 text-left font-bold text-[#12315A] hover:border-indigo-500 flex items-center justify-between cursor-pointer"
+                >
+                  <span>Create New Academic Batch</span>
+                  <Plus className="w-4 h-4 text-indigo-700" />
+                </button>
+                <button
+                  onClick={() => {
                     setEditingNotice(null);
                     setIsNoticeModalOpen(true);
                   }}
-                  className="w-full py-2.5 px-3 rounded-xl bg-white border border-slate-200 text-left font-bold text-slate-800 hover:border-blue-500 flex items-center justify-between"
+                  className="w-full py-2.5 px-3 rounded-xl bg-white border border-slate-200 text-left font-bold text-slate-800 hover:border-blue-500 flex items-center justify-between cursor-pointer"
                 >
                   <span>Publish New Notice</span>
                   <Plus className="w-4 h-4 text-blue-700" />
@@ -1015,14 +1042,14 @@ export const AdminDashboardPage: React.FC = () => {
                     setEditingMaterial(null);
                     setIsMaterialModalOpen(true);
                   }}
-                  className="w-full py-2.5 px-3 rounded-xl bg-white border border-slate-200 text-left font-bold text-slate-800 hover:border-blue-500 flex items-center justify-between"
+                  className="w-full py-2.5 px-3 rounded-xl bg-white border border-slate-200 text-left font-bold text-slate-800 hover:border-blue-500 flex items-center justify-between cursor-pointer"
                 >
                   <span>Upload Study Material</span>
                   <Plus className="w-4 h-4 text-blue-700" />
                 </button>
                 <button
                   onClick={() => setActiveTab('settings')}
-                  className="w-full py-2.5 px-3 rounded-xl bg-white border border-slate-200 text-left font-bold text-slate-800 hover:border-blue-500 flex items-center justify-between"
+                  className="w-full py-2.5 px-3 rounded-xl bg-white border border-slate-200 text-left font-bold text-slate-800 hover:border-blue-500 flex items-center justify-between cursor-pointer"
                 >
                   <span>Update Contact & Branding</span>
                   <Settings className="w-4 h-4 text-slate-500" />
@@ -1298,6 +1325,7 @@ export const AdminDashboardPage: React.FC = () => {
                     <th className="py-3 px-3">Ref Number</th>
                     <th className="py-3 px-4">Student Name</th>
                     <th className="py-3 px-4">Program & Level</th>
+                    <th className="py-3 px-4">Assigned Batch</th>
                     <th className="py-3 px-4">Payment Proof</th>
                     <th className="py-3 px-4">Contact</th>
                     <th className="py-3 px-4">Mode & Shift</th>
@@ -1343,6 +1371,39 @@ export const AdminDashboardPage: React.FC = () => {
                       <td className="py-3 px-4">
                         <p className="font-semibold text-slate-800">{inq.courseName}</p>
                         <p className="text-[11px] text-slate-500">{inq.academicLevel}</p>
+                      </td>
+                      <td className="py-3 px-4">
+                        <select
+                          value={inq.batchId || ''}
+                          onChange={(e) => {
+                            const chosenId = e.target.value;
+                            const chosen = studentGroups.find((g) => g.id === chosenId);
+                            assignInquiryBatch(inq.id, chosenId);
+                            setInquiryToastMessage(
+                              chosen
+                                ? `Assigned ${inq.fullName} to batch "${chosen.name || chosen.title}".`
+                                : `Cleared batch assignment for ${inq.fullName}.`
+                            );
+                            setTimeout(() => setInquiryToastMessage(null), 3500);
+                          }}
+                          className={`px-2 py-1 rounded-lg text-[11px] font-bold border max-w-[175px] focus:outline-none cursor-pointer ${
+                            inq.batchId
+                              ? 'bg-indigo-50 text-indigo-900 border-indigo-200'
+                              : 'bg-slate-50 text-slate-600 border-slate-200'
+                          }`}
+                        >
+                          <option value="">-- Unassigned --</option>
+                          {studentGroups
+                            .slice()
+                            .sort((a, b) =>
+                              a.courseSlug === inq.courseSlug ? -1 : b.courseSlug === inq.courseSlug ? 1 : 0
+                            )
+                            .map((g) => (
+                              <option key={g.id} value={g.id}>
+                                {g.name || g.title} ({g.shift})
+                              </option>
+                            ))}
+                        </select>
                       </td>
                       <td className="py-3 px-4">
                         {inq.hasPaymentProof ? (
@@ -1544,6 +1605,60 @@ export const AdminDashboardPage: React.FC = () => {
                 <p className="text-[10px] font-bold uppercase text-slate-400">Mode & Shift</p>
                 <p className="font-bold text-slate-800">{selectedInquiryDetail.preferredMode}</p>
                 <p className="text-xs text-slate-500">{selectedInquiryDetail.preferredShift} Batch</p>
+              </div>
+            </div>
+
+            {/* Admin Assigned Academic Batch Control (works before and after enrollment) */}
+            <div className="p-4 rounded-2xl bg-indigo-50/70 border border-indigo-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-900">
+                  Assigned Academic Batch (Admin Control)
+                </p>
+                <p className="text-[11px] text-indigo-800">
+                  Decide which batch this student belongs to. Updates student group roster and portal access live.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <select
+                  value={selectedInquiryDetail.batchId || ''}
+                  onChange={(e) => {
+                    const chosenId = e.target.value;
+                    const chosen = studentGroups.find((g) => g.id === chosenId);
+                    assignInquiryBatch(selectedInquiryDetail.id, chosenId);
+                    setAssignedBatchIdInput(chosenId);
+                    setSelectedInquiryDetail((prev: any) =>
+                      prev
+                        ? {
+                            ...prev,
+                            batchId: chosen?.id,
+                            batchName: chosen ? chosen.name || chosen.title : undefined,
+                          }
+                        : null
+                    );
+                    setVerificationSuccessToast(
+                      chosen
+                        ? `${selectedInquiryDetail.fullName} assigned to batch "${chosen.name || chosen.title}".`
+                        : `Batch assignment cleared for ${selectedInquiryDetail.fullName}.`
+                    );
+                  }}
+                  className="px-3 py-2 rounded-xl border border-indigo-300 bg-white text-xs font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:outline-none max-w-[230px]"
+                >
+                  <option value="">-- Unassigned --</option>
+                  {studentGroups
+                    .slice()
+                    .sort((a, b) =>
+                      a.courseSlug === selectedInquiryDetail.courseSlug
+                        ? -1
+                        : b.courseSlug === selectedInquiryDetail.courseSlug
+                        ? 1
+                        : 0
+                    )
+                    .map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.name || g.title} ({g.shift} • {g.batchYear})
+                      </option>
+                    ))}
+                </select>
               </div>
             </div>
 
@@ -2046,7 +2161,7 @@ export const AdminDashboardPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => {
-                  const headers = ['Ref Number', 'Name', 'Phone', 'Email', 'Course', 'Semester/Year', 'Subjects', 'Exam Shift', 'Mode', 'Status', 'Date'];
+                  const headers = ['Ref Number', 'Name', 'Phone', 'Email', 'Course', 'Semester/Year', 'Assigned Batch', 'Subjects', 'Exam Shift', 'Mode', 'Status', 'Date'];
                   const rows = mockTestRegistrations.map((r) => [
                     r.referenceNumber,
                     r.fullName,
@@ -2054,6 +2169,7 @@ export const AdminDashboardPage: React.FC = () => {
                     r.email,
                     r.courseName,
                     r.semesterOrYear || '',
+                    r.batchName || 'Unassigned',
                     (r.enrolledSubjects || []).join('; '),
                     r.shift || '',
                     r.preferredMode || '',
@@ -2270,7 +2386,22 @@ export const AdminDashboardPage: React.FC = () => {
                 ))}
               </select>
 
-              {(regStudentSearch || regStudentCourseFilter !== 'ALL' || regStudentStatusFilter !== 'ALL' || regStudentShiftFilter !== 'ALL') && (
+              {/* Filter Batch */}
+              <select
+                value={regStudentBatchFilter}
+                onChange={(e) => setRegStudentBatchFilter(e.target.value)}
+                className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium bg-white text-slate-700"
+              >
+                <option value="ALL">All Batches</option>
+                <option value="UNASSIGNED">Unassigned Batch</option>
+                {studentGroups.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name || g.title}
+                  </option>
+                ))}
+              </select>
+
+              {(regStudentSearch || regStudentCourseFilter !== 'ALL' || regStudentStatusFilter !== 'ALL' || regStudentShiftFilter !== 'ALL' || regStudentBatchFilter !== 'ALL') && (
                 <button
                   type="button"
                   onClick={() => {
@@ -2278,6 +2409,7 @@ export const AdminDashboardPage: React.FC = () => {
                     setRegStudentCourseFilter('ALL');
                     setRegStudentStatusFilter('ALL');
                     setRegStudentShiftFilter('ALL');
+                    setRegStudentBatchFilter('ALL');
                   }}
                   className="px-2.5 py-2 text-xs text-rose-600 hover:underline font-bold"
                 >
@@ -2306,6 +2438,7 @@ export const AdminDashboardPage: React.FC = () => {
                     <th className="py-3 px-4">Ref Number</th>
                     <th className="py-3 px-4">Candidate Information</th>
                     <th className="py-3 px-4">Program & Level</th>
+                    <th className="py-3 px-4">Assigned Batch</th>
                     <th className="py-3 px-4">Registered Subjects</th>
                     <th className="py-3 px-4">Admin-Fixed Shift & Time</th>
                     <th className="py-3 px-4">Mode</th>
@@ -2316,7 +2449,7 @@ export const AdminDashboardPage: React.FC = () => {
                 <tbody className="divide-y divide-slate-100">
                   {filteredRegistrations.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="py-12 text-center text-slate-400">
+                      <td colSpan={9} className="py-12 text-center text-slate-400">
                         <UserCheck className="w-10 h-10 mx-auto mb-2 text-slate-300" />
                         <p className="font-bold text-slate-700 text-sm">
                           No Registered Candidates Found
@@ -2369,6 +2502,40 @@ export const AdminDashboardPage: React.FC = () => {
                                 </span>
                               )}
                             </div>
+                          </td>
+
+                          <td className="py-3.5 px-4">
+                            <select
+                              value={reg.batchId || ''}
+                              onChange={(e) => {
+                                const chosenId = e.target.value;
+                                const chosen = studentGroups.find((g) => g.id === chosenId);
+                                assignMockRegistrationBatch(reg.id, chosenId);
+                                setRegStudentToast(
+                                  chosen
+                                    ? `Assigned ${reg.fullName} to batch "${chosen.name || chosen.title}".`
+                                    : `Cleared batch assignment for ${reg.fullName}.`
+                                );
+                                setTimeout(() => setRegStudentToast(null), 3000);
+                              }}
+                              className={`text-[11px] font-bold px-2 py-1 rounded-lg border max-w-[175px] focus:outline-none cursor-pointer ${
+                                reg.batchId
+                                  ? 'bg-indigo-50 text-indigo-900 border-indigo-200'
+                                  : 'bg-slate-50 text-slate-600 border-slate-200'
+                              }`}
+                            >
+                              <option value="">-- Unassigned --</option>
+                              {studentGroups
+                                .slice()
+                                .sort((a, b) =>
+                                  a.courseSlug === reg.courseSlug ? -1 : b.courseSlug === reg.courseSlug ? 1 : 0
+                                )
+                                .map((g) => (
+                                  <option key={g.id} value={g.id}>
+                                    {g.name || g.title} ({g.shift})
+                                  </option>
+                                ))}
+                            </select>
                           </td>
 
                           <td className="py-3.5 px-4">
@@ -2764,7 +2931,19 @@ export const AdminDashboardPage: React.FC = () => {
               />
             </div>
 
-            <div className="flex items-center gap-1.5 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap">
+              <select
+                value={groupCourseFilter}
+                onChange={(e) => setGroupCourseFilter(e.target.value)}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-700 bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="ALL">All Programs</option>
+                {courses.map((c) => (
+                  <option key={c.id} value={c.slug}>
+                    {c.title}
+                  </option>
+                ))}
+              </select>
               <button
                 type="button"
                 onClick={() => setDateSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'))}
@@ -2781,6 +2960,7 @@ export const AdminDashboardPage: React.FC = () => {
           {(() => {
             const filteredGroups = sortByDate(
               studentGroups.filter((g) => {
+                if (groupCourseFilter !== 'ALL' && g.courseSlug !== groupCourseFilter) return false;
                 if (!groupSearch.trim()) return true;
                 const q = groupSearch.toLowerCase();
                 const gName = g.name || g.title || '';
@@ -3058,16 +3238,24 @@ export const AdminDashboardPage: React.FC = () => {
           group={editingGroup}
           courses={courses}
           teachers={teachers}
-          onClose={() => setIsGroupModalOpen(false)}
+          defaultCourseSlug={quickCreateBatchConfig?.defaultCourseSlug}
+          onClose={() => {
+            setIsGroupModalOpen(false);
+            setQuickCreateBatchConfig(null);
+          }}
           onSave={(data) => {
             if (editingGroup) {
               updateStudentGroup(editingGroup.id, data);
               setGroupToastMessage(`Updated batch/group: ${data.name || editingGroup.name}`);
             } else {
-              addStudentGroup(data as any);
+              const created = addStudentGroup(data as any);
               setGroupToastMessage(`Created new batch/group: ${data.name}`);
+              if (quickCreateBatchConfig?.onCreated) {
+                quickCreateBatchConfig.onCreated(created);
+              }
             }
             setIsGroupModalOpen(false);
+            setQuickCreateBatchConfig(null);
             setTimeout(() => setGroupToastMessage(null), 3000);
           }}
         />
@@ -3076,18 +3264,13 @@ export const AdminDashboardPage: React.FC = () => {
       {/* Group Immediate Broadcast Notice Modal */}
       {selectedGroupForBroadcast && (
         <GroupBroadcastModal
-          group={selectedGroupForBroadcast}
+          group={studentGroups.find((g) => g.id === selectedGroupForBroadcast.id) || selectedGroupForBroadcast}
           onClose={() => setSelectedGroupForBroadcast(null)}
           onSendBroadcast={(groupId, data) => {
             sendGroupBroadcast(groupId, data);
-            // Refresh reference to modal's group
-            const updated = studentGroups.find((item) => item.id === groupId);
-            if (updated) setSelectedGroupForBroadcast(updated);
           }}
           onDeleteBroadcast={(groupId, broadcastId) => {
             deleteGroupBroadcast(groupId, broadcastId);
-            const updated = studentGroups.find((item) => item.id === groupId);
-            if (updated) setSelectedGroupForBroadcast(updated);
           }}
         />
       )}
@@ -3095,29 +3278,30 @@ export const AdminDashboardPage: React.FC = () => {
       {/* Group Members Management Modal */}
       {selectedGroupForMembers && (
         <GroupMembersModal
-          group={selectedGroupForMembers}
+          group={studentGroups.find((g) => g.id === selectedGroupForMembers.id) || selectedGroupForMembers}
+          allGroups={studentGroups}
           inquiries={inquiries}
+          mockRegistrations={mockTestRegistrations}
+          courses={courses}
           onClose={() => setSelectedGroupForMembers(null)}
           onAddMember={(groupId, member) => {
             addMemberToGroup(groupId, member);
-            const updated = studentGroups.find((item) => item.id === groupId);
-            if (updated) setSelectedGroupForMembers(updated);
           }}
           onBulkAddMembers={(groupId, members) => {
             bulkAddMembersToGroup(groupId, members);
-            const updated = studentGroups.find((item) => item.id === groupId);
-            if (updated) setSelectedGroupForMembers(updated);
           }}
-          onImportFromInquiries={(groupId) => {
-            const count = importVerifiedInquiriesToGroup(groupId);
-            const updated = studentGroups.find((item) => item.id === groupId);
-            if (updated) setSelectedGroupForMembers(updated);
-            return count;
-          }}
+          onImportFromInquiries={(groupId) => importVerifiedInquiriesToGroup(groupId)}
           onRemoveMember={(groupId, memberId) => {
             removeMemberFromGroup(groupId, memberId);
-            const updated = studentGroups.find((item) => item.id === groupId);
-            if (updated) setSelectedGroupForMembers(updated);
+          }}
+          onMoveMember={(fromGroupId, memberId, toGroupId) => {
+            moveMemberToBatch(fromGroupId, memberId, toGroupId);
+          }}
+          onAssignInquiryToBatch={(inquiryId, batchId) => {
+            assignInquiryBatch(inquiryId, batchId);
+          }}
+          onAssignRegToBatch={(regId, batchId) => {
+            assignMockRegistrationBatch(regId, batchId);
           }}
         />
       )}
@@ -3329,11 +3513,16 @@ export const AdminDashboardPage: React.FC = () => {
                 className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs"
               >
                 <div className="space-y-1 max-w-2xl">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-bold uppercase text-[10px] px-2 py-0.5 rounded bg-blue-100 text-blue-800">
                       {n.category}
                     </span>
                     <span className="text-slate-400 text-[11px]">{n.publishDate}</span>
+                    {n.targetBatchId && n.targetBatchId !== 'ALL' && n.targetBatchName && (
+                      <span className="text-[10px] font-bold text-indigo-800 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
+                        Batch: {n.targetBatchName}
+                      </span>
+                    )}
                     {n.important && (
                       <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.2 rounded">
                         High Priority
@@ -3379,6 +3568,12 @@ export const AdminDashboardPage: React.FC = () => {
       {isNoticeModalOpen && (
         <NoticeEditModal
           notice={editingNotice}
+          studentGroups={studentGroups}
+          onQuickCreateBatch={(defaultCourseSlug, onCreated) => {
+            setQuickCreateBatchConfig({ defaultCourseSlug, onCreated });
+            setEditingGroup(null);
+            setIsGroupModalOpen(true);
+          }}
           onClose={() => setIsNoticeModalOpen(false)}
           onSave={(data) => {
             if (editingNotice) {
@@ -3621,6 +3816,11 @@ export const AdminDashboardPage: React.FC = () => {
           courses={courses}
           studentGroups={studentGroups}
           teachers={teachers}
+          onQuickCreateBatch={(defaultCourseSlug, onCreated) => {
+            setQuickCreateBatchConfig({ defaultCourseSlug, onCreated });
+            setEditingGroup(null);
+            setIsGroupModalOpen(true);
+          }}
           onClose={() => setIsMaterialModalOpen(false)}
           onSave={(data) => {
             if (editingMaterial) {
@@ -4594,6 +4794,22 @@ export const AdminDashboardPage: React.FC = () => {
                 ))}
               </select>
 
+              {/* Batch Filter */}
+              <select
+                value={mockTestBatchFilter}
+                onChange={(e) => setMockTestBatchFilter(e.target.value)}
+                aria-label="Filter by Batch"
+                className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium bg-white text-slate-700"
+              >
+                <option value="ALL">All Batches</option>
+                <option value="COMMON">All Batches (Common Only)</option>
+                {studentGroups.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name || g.title}
+                  </option>
+                ))}
+              </select>
+
               {/* Evaluation Status Filter (when viewing answer sheets) */}
               {mockTestSubView === 'answer-sheets' && (
                 <select
@@ -4612,6 +4828,7 @@ export const AdminDashboardPage: React.FC = () => {
               {(mockTestCourseFilter !== 'ALL' ||
                 mockTestYearFilter !== 'ALL' ||
                 mockTestSubjectFilter !== 'ALL' ||
+                mockTestBatchFilter !== 'ALL' ||
                 mockTestEvaluationStatusFilter !== 'ALL' ||
                 mockTestSearch) && (
                 <button
@@ -4620,6 +4837,7 @@ export const AdminDashboardPage: React.FC = () => {
                     setMockTestCourseFilter('ALL');
                     setMockTestYearFilter('ALL');
                     setMockTestSubjectFilter('ALL');
+                    setMockTestBatchFilter('ALL');
                     setMockTestEvaluationStatusFilter('ALL');
                     setMockTestSearch('');
                   }}
@@ -4821,12 +5039,18 @@ export const AdminDashboardPage: React.FC = () => {
                           if (mockTestCourseFilter !== 'ALL' && t.courseSlug !== mockTestCourseFilter) return false;
                           if (mockTestYearFilter !== 'ALL' && t.semesterOrYear && t.semesterOrYear !== mockTestYearFilter) return false;
                           if (mockTestSubjectFilter !== 'ALL' && t.subject !== mockTestSubjectFilter) return false;
+                          if (mockTestBatchFilter === 'COMMON') {
+                            if (t.batchId && t.batchId !== 'ALL') return false;
+                          } else if (mockTestBatchFilter !== 'ALL' && t.batchId !== mockTestBatchFilter) {
+                            return false;
+                          }
                           if (!mockTestSearch.trim()) return true;
                           const q = mockTestSearch.toLowerCase();
                           return (
                             t.title.toLowerCase().includes(q) ||
                             t.subject.toLowerCase().includes(q) ||
                             t.courseName.toLowerCase().includes(q) ||
+                            (t.batchName && t.batchName.toLowerCase().includes(q)) ||
                             (t.semesterOrYear && t.semesterOrYear.toLowerCase().includes(q))
                           );
                         }),
@@ -4849,6 +5073,15 @@ export const AdminDashboardPage: React.FC = () => {
                                   {test.semesterOrYear && (
                                     <span className="text-[10px] font-semibold text-purple-700 bg-purple-50 px-2 py-0.2 rounded-full border border-purple-200">
                                       {test.semesterOrYear}
+                                    </span>
+                                  )}
+                                  {test.batchId && test.batchId !== 'ALL' && test.batchName ? (
+                                    <span className="text-[10px] font-bold text-indigo-800 bg-indigo-50 px-2 py-0.2 rounded-full border border-indigo-200">
+                                      Batch: {test.batchName}
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.2 rounded-full">
+                                      All Batches
                                     </span>
                                   )}
                                 </div>
@@ -5071,8 +5304,8 @@ export const AdminDashboardPage: React.FC = () => {
                     Showing {
                       mockTestSubmissions.filter((sub) => {
                         if (mockTestCourseFilter !== 'ALL' && sub.courseSlug !== mockTestCourseFilter) return false;
+                        const tTest = mockTests.find((t) => t.id === sub.mockTestId || t.id === sub.testId);
                         if (mockTestYearFilter !== 'ALL') {
-                          const tTest = mockTests.find((t) => t.id === sub.mockTestId || t.id === sub.testId);
                           const subYr = (sub as any).semesterOrYear || tTest?.semesterOrYear;
                           if (subYr && subYr !== mockTestYearFilter) return false;
                         }
@@ -5081,6 +5314,13 @@ export const AdminDashboardPage: React.FC = () => {
                           const fSub = mockTestSubjectFilter.toLowerCase();
                           if (sSub !== fSub && !sSub.includes(fSub)) return false;
                         }
+                        if (mockTestBatchFilter === 'COMMON') {
+                          const bId = sub.batchId || tTest?.batchId;
+                          if (bId && bId !== 'ALL') return false;
+                        } else if (mockTestBatchFilter !== 'ALL') {
+                          const bId = sub.batchId || tTest?.batchId;
+                          if (bId !== mockTestBatchFilter) return false;
+                        }
                         if (mockTestEvaluationStatusFilter !== 'ALL' && sub.evaluationStatus !== mockTestEvaluationStatusFilter) return false;
                         if (!mockTestSearch.trim()) return true;
                         const q = mockTestSearch.toLowerCase();
@@ -5088,6 +5328,7 @@ export const AdminDashboardPage: React.FC = () => {
                           sub.studentName.toLowerCase().includes(q) ||
                           (sub.rollNumber || '').toLowerCase().includes(q) ||
                           (sub.subject || '').toLowerCase().includes(q) ||
+                          (sub.batchName || '').toLowerCase().includes(q) ||
                           (sub.mockTestTitle || sub.testTitle || '').toLowerCase().includes(q)
                         );
                       }).length
@@ -5113,8 +5354,8 @@ export const AdminDashboardPage: React.FC = () => {
                       const filteredSubmissions = sortByDate(
                         mockTestSubmissions.filter((sub) => {
                           if (mockTestCourseFilter !== 'ALL' && sub.courseSlug !== mockTestCourseFilter) return false;
+                          const tTest = mockTests.find((t) => t.id === sub.mockTestId || t.id === sub.testId);
                           if (mockTestYearFilter !== 'ALL') {
-                            const tTest = mockTests.find((t) => t.id === sub.mockTestId || t.id === sub.testId);
                             const subYr = (sub as any).semesterOrYear || tTest?.semesterOrYear;
                             if (subYr && subYr !== mockTestYearFilter) return false;
                           }
@@ -5123,6 +5364,13 @@ export const AdminDashboardPage: React.FC = () => {
                             const fSub = mockTestSubjectFilter.toLowerCase();
                             if (sSub !== fSub && !sSub.includes(fSub)) return false;
                           }
+                          if (mockTestBatchFilter === 'COMMON') {
+                            const bId = sub.batchId || tTest?.batchId;
+                            if (bId && bId !== 'ALL') return false;
+                          } else if (mockTestBatchFilter !== 'ALL') {
+                            const bId = sub.batchId || tTest?.batchId;
+                            if (bId !== mockTestBatchFilter) return false;
+                          }
                           if (mockTestEvaluationStatusFilter !== 'ALL' && sub.evaluationStatus !== mockTestEvaluationStatusFilter) return false;
                           if (!mockTestSearch.trim()) return true;
                           const q = mockTestSearch.toLowerCase();
@@ -5130,6 +5378,7 @@ export const AdminDashboardPage: React.FC = () => {
                             sub.studentName.toLowerCase().includes(q) ||
                             (sub.rollNumber || '').toLowerCase().includes(q) ||
                             (sub.subject || '').toLowerCase().includes(q) ||
+                            (sub.batchName || '').toLowerCase().includes(q) ||
                             (sub.mockTestTitle || sub.testTitle || '').toLowerCase().includes(q)
                           );
                         }),
@@ -5155,6 +5404,10 @@ export const AdminDashboardPage: React.FC = () => {
                         const courseObj = courses.find((c) => c.slug === sub.courseSlug);
                         const fullMarks = targetTest?.fullMarks || 100;
                         const submissionYearOrSem = (sub as any).semesterOrYear || targetTest?.semesterOrYear;
+                        const subBatchLabel =
+                          (sub.batchId && sub.batchId !== 'ALL' && sub.batchName) ||
+                          (targetTest?.batchId && targetTest?.batchId !== 'ALL' && targetTest?.batchName) ||
+                          undefined;
 
                         return (
                           <tr key={sub.id} className="hover:bg-slate-50/80 transition-colors">
@@ -5183,6 +5436,11 @@ export const AdminDashboardPage: React.FC = () => {
                                 {submissionYearOrSem && (
                                   <span className="inline-block text-[9px] font-bold px-2 py-0.2 rounded-full bg-purple-50 text-purple-800 border border-purple-200">
                                     {submissionYearOrSem}
+                                  </span>
+                                )}
+                                {subBatchLabel && (
+                                  <span className="inline-block text-[9px] font-bold px-2 py-0.2 rounded-full bg-indigo-50 text-indigo-800 border border-indigo-200">
+                                    {subBatchLabel}
                                   </span>
                                 )}
                               </div>
@@ -5329,6 +5587,7 @@ export const AdminDashboardPage: React.FC = () => {
                       <th className="py-3 px-4">Pass Ref & Date</th>
                       <th className="py-3 px-4">Student Name & Contact</th>
                       <th className="py-3 px-4">Target Course & Shift</th>
+                      <th className="py-3 px-4">Assigned Batch</th>
                       <th className="py-3 px-4">Registered Subjects</th>
                       <th className="py-3 px-4">Mode</th>
                       <th className="py-3 px-4">Status</th>
@@ -5336,16 +5595,41 @@ export const AdminDashboardPage: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {mockTestRegistrations.length === 0 ? (
-                      <tr>
-                        <td colSpan={7} className="py-8 text-center text-slate-400">
-                          No mock test registrations recorded yet.
-                        </td>
-                      </tr>
-                    ) : (
-                      sortByDate(mockTestRegistrations, (reg) => reg.createdAt, dateSortOrder, {
-                        getId: (reg) => reg.id,
-                      }).map((reg) => (
+                    {(() => {
+                      const filteredRegs = sortByDate(
+                        mockTestRegistrations.filter((reg) => {
+                          if (mockTestCourseFilter !== 'ALL' && reg.courseSlug !== mockTestCourseFilter) return false;
+                          if (mockTestBatchFilter === 'COMMON') {
+                            if (reg.batchId) return false;
+                          } else if (mockTestBatchFilter !== 'ALL' && reg.batchId !== mockTestBatchFilter) {
+                            return false;
+                          }
+                          if (!mockTestSearch.trim()) return true;
+                          const q = mockTestSearch.toLowerCase();
+                          return (
+                            reg.fullName.toLowerCase().includes(q) ||
+                            reg.referenceNumber.toLowerCase().includes(q) ||
+                            reg.phone.includes(q) ||
+                            (reg.batchName && reg.batchName.toLowerCase().includes(q)) ||
+                            reg.courseName.toLowerCase().includes(q)
+                          );
+                        }),
+                        (reg) => reg.createdAt,
+                        dateSortOrder,
+                        { getId: (reg) => reg.id }
+                      );
+
+                      if (filteredRegs.length === 0) {
+                        return (
+                          <tr>
+                            <td colSpan={8} className="py-8 text-center text-slate-400">
+                              No mock test registrations match your current filters.
+                            </td>
+                          </tr>
+                        );
+                      }
+
+                      return filteredRegs.map((reg) => (
                         <tr key={reg.id} className="hover:bg-slate-50/80 transition-colors">
                           <td className="py-3 px-4 font-mono">
                             <span className="font-bold text-slate-900">{reg.referenceNumber}</span>
@@ -5365,6 +5649,39 @@ export const AdminDashboardPage: React.FC = () => {
                               <span>•</span>
                               <span className="font-medium">{reg.shift}</span>
                             </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <select
+                              value={reg.batchId || ''}
+                              onChange={(e) => {
+                                const chosenId = e.target.value;
+                                const chosen = studentGroups.find((g) => g.id === chosenId);
+                                assignMockRegistrationBatch(reg.id, chosenId);
+                                setMockTimerToast(
+                                  chosen
+                                    ? `Assigned ${reg.fullName} to batch "${chosen.name || chosen.title}".`
+                                    : `Cleared batch assignment for ${reg.fullName}.`
+                                );
+                                setTimeout(() => setMockTimerToast(null), 3000);
+                              }}
+                              className={`text-[11px] font-bold px-2 py-1 rounded-lg border max-w-[170px] focus:outline-none cursor-pointer ${
+                                reg.batchId
+                                  ? 'bg-indigo-50 text-indigo-900 border-indigo-200'
+                                  : 'bg-slate-50 text-slate-600 border-slate-200'
+                              }`}
+                            >
+                              <option value="">-- Unassigned --</option>
+                              {studentGroups
+                                .slice()
+                                .sort((a, b) =>
+                                  a.courseSlug === reg.courseSlug ? -1 : b.courseSlug === reg.courseSlug ? 1 : 0
+                                )
+                                .map((g) => (
+                                  <option key={g.id} value={g.id}>
+                                    {g.name || g.title} ({g.shift})
+                                  </option>
+                                ))}
+                            </select>
                           </td>
                           <td className="py-3 px-4">
                             <div className="flex flex-wrap gap-1 max-w-xs">
@@ -5430,8 +5747,8 @@ export const AdminDashboardPage: React.FC = () => {
                             </button>
                           </td>
                         </tr>
-                      ))
-                    )}
+                      ));
+                    })()}
                   </tbody>
                 </table>
               </div>
@@ -6026,6 +6343,12 @@ export const AdminDashboardPage: React.FC = () => {
         <MockTestEditModal
           mockTest={editingMockTest}
           courses={courses}
+          studentGroups={studentGroups}
+          onQuickCreateBatch={(defaultCourseSlug, onCreated) => {
+            setQuickCreateBatchConfig({ defaultCourseSlug, onCreated });
+            setEditingGroup(null);
+            setIsGroupModalOpen(true);
+          }}
           onClose={() => setIsMockTestModalOpen(false)}
           onSave={(data) => {
             if (editingMockTest) {
@@ -6686,13 +7009,16 @@ const TeacherEditModal: React.FC<{
 // Notice Modal Subcomponent
 const NoticeEditModal: React.FC<{
   notice: Notice | null;
+  studentGroups: StudentGroup[];
+  onQuickCreateBatch?: (defaultCourseSlug: string, onCreated: (batch: StudentGroup) => void) => void;
   onClose: () => void;
   onSave: (data: Partial<Notice>) => void;
-}> = ({ notice, onClose, onSave }) => {
+}> = ({ notice, studentGroups, onQuickCreateBatch, onClose, onSave }) => {
   const [title, setTitle] = useState(notice?.title || '');
   const [category, setCategory] = useState(notice?.category || 'Admission');
   const [content, setContent] = useState(notice?.content || '');
   const [important, setImportant] = useState(notice?.important || false);
+  const [targetBatchId, setTargetBatchId] = useState(notice?.targetBatchId || 'ALL');
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
@@ -6734,6 +7060,38 @@ const NoticeEditModal: React.FC<{
           </div>
 
           <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block font-bold text-slate-700">Target Batch (Optional)</label>
+              {onQuickCreateBatch && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    onQuickCreateBatch('', (created) => {
+                      setTargetBatchId(created.id);
+                    })
+                  }
+                  className="text-[11px] font-bold text-indigo-700 hover:underline flex items-center gap-1 cursor-pointer"
+                >
+                  <Plus className="w-3 h-3" />
+                  <span>New Batch</span>
+                </button>
+              )}
+            </div>
+            <select
+              value={targetBatchId}
+              onChange={(e) => setTargetBatchId(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs"
+            >
+              <option value="ALL">All Students & Public Notice Board</option>
+              {studentGroups.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name || g.title} ({g.courseName} • {g.shift})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
             <label className="block font-bold text-slate-700 mb-1">Notice Full Content</label>
             <textarea
               rows={4}
@@ -6759,16 +7117,22 @@ const NoticeEditModal: React.FC<{
             Cancel
           </button>
           <button
-            onClick={() =>
+            onClick={() => {
+              const matchedBatch =
+                targetBatchId && targetBatchId !== 'ALL'
+                  ? studentGroups.find((g) => g.id === targetBatchId)
+                  : undefined;
               onSave({
                 title,
                 category: category as any,
                 content,
                 important,
+                targetBatchId: matchedBatch ? matchedBatch.id : 'ALL',
+                targetBatchName: matchedBatch ? matchedBatch.name || matchedBatch.title : undefined,
                 publishDate: new Date().toISOString().slice(0, 10),
                 published: true,
-              })
-            }
+              });
+            }}
             className="px-5 py-2 rounded-xl font-bold text-white bg-[#12315A]"
           >
             Publish Notice
@@ -7075,9 +7439,10 @@ const MaterialEditModal: React.FC<{
   courses: Course[];
   studentGroups: StudentGroup[];
   teachers: Teacher[];
+  onQuickCreateBatch?: (defaultCourseSlug: string, onCreated: (batch: StudentGroup) => void) => void;
   onClose: () => void;
   onSave: (data: Partial<StudyMaterial>) => void;
-}> = ({ material, courses, studentGroups, teachers, onClose, onSave }) => {
+}> = ({ material, courses, studentGroups, teachers, onQuickCreateBatch, onClose, onSave }) => {
   const [title, setTitle] = useState(material?.title || '');
   const [courseSlug, setCourseSlug] = useState(material?.courseSlug || courses[0]?.slug || '');
 
@@ -7423,7 +7788,23 @@ const MaterialEditModal: React.FC<{
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block font-bold text-slate-700 mb-1 text-xs">Target Batch</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block font-bold text-slate-700 text-xs">Target Batch</label>
+                  {onQuickCreateBatch && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onQuickCreateBatch(courseSlug, (created) => {
+                          handleBatchChange(created.id);
+                        })
+                      }
+                      className="text-[11px] font-bold text-indigo-700 hover:underline flex items-center gap-0.5 cursor-pointer"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>New Batch</span>
+                    </button>
+                  )}
+                </div>
                 <select
                   value={batchId}
                   onChange={(e) => handleBatchChange(e.target.value)}
@@ -7619,12 +8000,15 @@ const MaterialEditModal: React.FC<{
 const MockTestEditModal: React.FC<{
   mockTest: MockTest | null;
   courses: Course[];
+  studentGroups: StudentGroup[];
+  onQuickCreateBatch?: (defaultCourseSlug: string, onCreated: (batch: StudentGroup) => void) => void;
   onClose: () => void;
   onSave: (data: Partial<MockTest>) => void;
-}> = ({ mockTest, courses, onClose, onSave }) => {
+}> = ({ mockTest, courses, studentGroups, onQuickCreateBatch, onClose, onSave }) => {
   const [title, setTitle] = useState(mockTest?.title || '');
   const [courseSlug, setCourseSlug] = useState(mockTest?.courseSlug || courses[0]?.slug || '');
   const [courseType, setCourseType] = useState<CourseType>(mockTest?.courseType || 'New Course');
+  const [batchId, setBatchId] = useState<string>(mockTest?.batchId || 'ALL');
 
   const selectedCourse = useMemo(
     () => courses.find((c) => c.slug === courseSlug) || courses[0],
@@ -7677,6 +8061,15 @@ const MockTestEditModal: React.FC<{
   const effectiveSubject =
     selectedSubject === '__custom__' ? customSubject : selectedSubject;
 
+  const matchingCourseBatches = useMemo(
+    () => studentGroups.filter((g) => g.courseSlug === courseSlug),
+    [studentGroups, courseSlug]
+  );
+  const otherBatches = useMemo(
+    () => studentGroups.filter((g) => g.courseSlug !== courseSlug),
+    [studentGroups, courseSlug]
+  );
+
   // Handlers for dynamic dropdown cascade
   const handleCourseChange = (newSlug: string) => {
     setCourseSlug(newSlug);
@@ -7689,6 +8082,7 @@ const MockTestEditModal: React.FC<{
     const newSubs = getAvailableSubjectsForCourse(newCourse, defaultSem);
     setSelectedSubject(newSubs[0] || '');
     setCustomSubject('');
+    setBatchId('ALL');
   };
 
   const handleSemesterChange = (newSem: string) => {
@@ -7755,7 +8149,7 @@ const MockTestEditModal: React.FC<{
             <span>{mockTest ? 'Edit Mock Test Examination' : 'Upload Questions / Create Mock Test'}</span>
           </h3>
           <p className="text-xs text-slate-500 mt-0.5">
-            Select course and subject from dropdowns, set examination timers, and upload official question papers in PDF, Word, or image format.
+            Select course, subject, and target batch from dropdowns, set examination timers, and upload official question papers in PDF, Word, or image format.
           </p>
         </div>
 
@@ -7808,6 +8202,11 @@ const MockTestEditModal: React.FC<{
               return;
             }
 
+            const chosenBatch =
+              batchId && batchId !== 'ALL'
+                ? studentGroups.find((g) => g.id === batchId)
+                : undefined;
+
             onSave({
               title: title.trim(),
               courseSlug,
@@ -7815,6 +8214,8 @@ const MockTestEditModal: React.FC<{
               courseType,
               semesterOrYear: effectiveSemester.trim() || undefined,
               subject: effectiveSubject.trim(),
+              batchId: chosenBatch ? chosenBatch.id : 'ALL',
+              batchName: chosenBatch ? chosenBatch.name || chosenBatch.title : undefined,
               durationMinutes,
               fullMarks,
               passMarks,
@@ -7860,6 +8261,59 @@ const MockTestEditModal: React.FC<{
                   {c.title} ({c.board})
                 </option>
               ))}
+            </select>
+          </div>
+
+          {/* Target Batch Selection */}
+          <div className="p-3.5 rounded-2xl bg-indigo-50/70 border border-indigo-200 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-900 block">
+                  Target Academic Batch
+                </span>
+                <p className="text-[11px] text-indigo-700">
+                  Restrict this mock exam to a specific batch or publish to everyone in the course.
+                </p>
+              </div>
+              {onQuickCreateBatch && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    onQuickCreateBatch(courseSlug, (created) => {
+                      setBatchId(created.id);
+                    })
+                  }
+                  className="px-2.5 py-1 rounded-lg text-[11px] font-bold text-white bg-indigo-700 hover:bg-indigo-800 flex items-center gap-1 shrink-0 cursor-pointer"
+                >
+                  <Plus className="w-3 h-3" />
+                  <span>New Batch</span>
+                </button>
+              )}
+            </div>
+            <select
+              value={batchId}
+              onChange={(e) => setBatchId(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-indigo-200 bg-white font-medium text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="ALL">All Batches (Common Exam for Everyone)</option>
+              {matchingCourseBatches.length > 0 && (
+                <optgroup label="Batches for Selected Course">
+                  {matchingCourseBatches.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.name || g.title} ({g.shift})
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {otherBatches.length > 0 && (
+                <optgroup label="Other Academic Batches">
+                  {otherBatches.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.name || g.title} ({g.shift})
+                    </option>
+                  ))}
+                </optgroup>
+              )}
             </select>
           </div>
 
@@ -8089,13 +8543,16 @@ const GroupEditModal: React.FC<{
   group: StudentGroup | null;
   courses: Course[];
   teachers: Teacher[];
+  defaultCourseSlug?: string;
   onClose: () => void;
   onSave: (data: Partial<StudentGroup>) => void;
-}> = ({ group, courses, teachers, onClose, onSave }) => {
+}> = ({ group, courses, teachers, defaultCourseSlug, onClose, onSave }) => {
   const [name, setName] = useState(group?.name || group?.title || '');
   const [batchNumber, setBatchNumber] = useState(group?.batchNumber || '');
   const [code, setCode] = useState(group?.code || '');
-  const [courseSlug, setCourseSlug] = useState(group?.courseSlug || (courses[0]?.slug || ''));
+  const [courseSlug, setCourseSlug] = useState(
+    group?.courseSlug || defaultCourseSlug || (courses[0]?.slug || '')
+  );
   const selectedCourse = courses.find((c) => c.slug === courseSlug);
   const [courseType, setCourseType] = useState<CourseType>(
     group?.courseType || selectedCourse?.courseType || 'New Course'
@@ -8148,7 +8605,7 @@ const GroupEditModal: React.FC<{
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-fadeIn">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-fadeIn">
       <div className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200 relative max-h-[92vh] overflow-y-auto space-y-4 text-xs sm:text-sm">
         <button
           onClick={onClose}
@@ -8711,11 +9168,14 @@ ${broadcastText || 'Please check your student portal for class updates and sylla
 };
 
 // ==========================================
-// 3. GROUP MEMBERS MODAL (ADD / BULK / SYNC)
+// 3. GROUP MEMBERS MODAL (ADD / BULK / PICK / MOVE)
 // ==========================================
 const GroupMembersModal: React.FC<{
   group: StudentGroup;
+  allGroups: StudentGroup[];
   inquiries: any[];
+  mockRegistrations: MockTestRegistration[];
+  courses: Course[];
   onClose: () => void;
   onAddMember: (groupId: string, member: Omit<StudentGroupMember, 'id' | 'addedAt'>) => void;
   onBulkAddMembers: (
@@ -8724,17 +9184,28 @@ const GroupMembersModal: React.FC<{
   ) => void;
   onImportFromInquiries: (groupId: string) => number;
   onRemoveMember: (groupId: string, memberId: string) => void;
+  onMoveMember: (fromGroupId: string, memberId: string, toGroupId: string) => void;
+  onAssignInquiryToBatch: (inquiryId: string, batchId: string) => void;
+  onAssignRegToBatch: (regId: string, batchId: string) => void;
 }> = ({
   group,
+  allGroups,
   inquiries,
+  mockRegistrations,
+  courses,
   onClose,
   onAddMember,
   onBulkAddMembers,
   onImportFromInquiries,
   onRemoveMember,
+  onMoveMember,
+  onAssignInquiryToBatch,
+  onAssignRegToBatch,
 }) => {
-  const [activeTab, setActiveTab] = useState<'list' | 'single' | 'bulk'>('list');
+  const [activeTab, setActiveTab] = useState<'list' | 'pick' | 'single' | 'bulk'>('list');
   const [searchMember, setSearchMember] = useState('');
+  const [pickSearch, setPickSearch] = useState('');
+  const [pickCourseFilter, setPickCourseFilter] = useState<string>(group.courseSlug || 'ALL');
   const [singleName, setSingleName] = useState('');
   const [singlePhone, setSinglePhone] = useState('');
   const [singleRollNo, setSingleRollNo] = useState('');
@@ -8742,6 +9213,8 @@ const GroupMembersModal: React.FC<{
   const [bulkText, setBulkText] = useState('');
   const [bulkStatus, setBulkStatus] = useState<string | null>(null);
   const [importStatus, setImportStatus] = useState<string | null>(null);
+
+  const otherBatches = allGroups.filter((g) => g.id !== group.id);
 
   // Filter group members (sorted by addedAt newest first)
   const filteredMembers = sortByDate(
@@ -8758,6 +9231,74 @@ const GroupMembersModal: React.FC<{
     'desc',
     { getId: (m) => m.id }
   );
+
+  // Unified list of Inquiries & Registered Students to pick/assign into this batch
+  const pickCandidates = useMemo(() => {
+    type Candidate = {
+      kind: 'inquiry' | 'reg';
+      id: string;
+      fullName: string;
+      phone: string;
+      courseSlug: string;
+      courseName: string;
+      statusLabel: string;
+      batchId?: string;
+      batchName?: string;
+      ref: string;
+      createdAt: string;
+    };
+
+    const list: Candidate[] = [];
+    const seenKeys = new Set<string>();
+
+    inquiries.forEach((inq) => {
+      const key = `${(inq.phone || '').replace(/[^0-9]/g, '')}:${inq.courseSlug}`;
+      seenKeys.add(key);
+      list.push({
+        kind: 'inquiry',
+        id: inq.id,
+        fullName: inq.fullName,
+        phone: inq.phone,
+        courseSlug: inq.courseSlug,
+        courseName: inq.courseName,
+        statusLabel: inq.status || 'New',
+        batchId: inq.batchId,
+        batchName: inq.batchName,
+        ref: inq.referenceNumber,
+        createdAt: inq.createdAt,
+      });
+    });
+
+    mockRegistrations.forEach((reg) => {
+      const key = `${(reg.phone || '').replace(/[^0-9]/g, '')}:${reg.courseSlug}`;
+      if (seenKeys.has(key)) return;
+      list.push({
+        kind: 'reg',
+        id: reg.id,
+        fullName: reg.fullName,
+        phone: reg.phone,
+        courseSlug: reg.courseSlug,
+        courseName: reg.courseName,
+        statusLabel: `Mock Reg (${reg.status})`,
+        batchId: reg.batchId,
+        batchName: reg.batchName,
+        ref: reg.referenceNumber,
+        createdAt: reg.createdAt,
+      });
+    });
+
+    return list.filter((c) => {
+      if (pickCourseFilter !== 'ALL' && c.courseSlug !== pickCourseFilter) return false;
+      if (!pickSearch.trim()) return true;
+      const q = pickSearch.toLowerCase();
+      return (
+        c.fullName.toLowerCase().includes(q) ||
+        c.phone.includes(q) ||
+        c.ref.toLowerCase().includes(q) ||
+        c.courseName.toLowerCase().includes(q)
+      );
+    });
+  }, [inquiries, mockRegistrations, pickCourseFilter, pickSearch]);
 
   const handleSingleAdd = (e: React.FormEvent) => {
     e.preventDefault();
@@ -8781,13 +9322,11 @@ const GroupMembersModal: React.FC<{
     const parsed: Array<Omit<StudentGroupMember, 'id' | 'addedAt'>> = [];
 
     lines.forEach((line) => {
-      // Split by comma or tab or spaces
       const parts = line.split(/[,;\t]+/).map((p) => p.trim()).filter(Boolean);
       let name = '';
       let phone = '';
 
       if (parts.length >= 2) {
-        // e.g. "Ramesh Adhikari, 9841000000" or "9841000000, Ramesh Adhikari"
         if (/^\+?\d[\d\s-]{6,}$/.test(parts[0])) {
           phone = parts[0];
           name = parts.slice(1).join(' ');
@@ -8796,7 +9335,6 @@ const GroupMembersModal: React.FC<{
           phone = parts[1];
         }
       } else {
-        // single string, look for phone digits
         const phoneMatch = line.match(/\b(\+?977[- ]?)?[987]\d{7,9}\b/);
         if (phoneMatch) {
           phone = phoneMatch[0];
@@ -8852,11 +9390,13 @@ const GroupMembersModal: React.FC<{
           <div>
             <h3 className="text-lg font-bold text-[#12315A] flex items-center gap-2">
               <Users className="w-5 h-5 text-blue-600" />
-              <span>Manage Student Cohort: {group.name}</span>
+              <span>Manage Student Batch: {group.name || group.title}</span>
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Total Enrolled in Group: <strong>{group.members.length}</strong> students •{' '}
-              <span className="font-semibold text-blue-700">{group.courseType || 'New Course'}</span>
+              Total Enrolled in Batch: <strong>{group.members.length}</strong> students •{' '}
+              <span className="font-semibold text-blue-700">
+                {group.courseName} • {group.shift} Shift
+              </span>
             </p>
           </div>
 
@@ -8877,8 +9417,8 @@ const GroupMembersModal: React.FC<{
           </div>
         )}
 
-        {/* Tab switcher: Student List vs Add Single vs Bulk Paste */}
-        <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+        {/* Tab switcher: Student List vs Pick Students vs Add Single vs Bulk Paste */}
+        <div className="flex items-center gap-2 border-b border-slate-200 pb-2 flex-wrap">
           <button
             onClick={() => setActiveTab('list')}
             className={`px-3.5 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${
@@ -8888,6 +9428,16 @@ const GroupMembersModal: React.FC<{
             }`}
           >
             Enrolled Students ({group.members.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('pick')}
+            className={`px-3.5 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${
+              activeTab === 'pick'
+                ? 'bg-[#12315A] text-white shadow-xs'
+                : 'bg-indigo-50 text-indigo-800 hover:bg-indigo-100 border border-indigo-200'
+            }`}
+          >
+            Pick Students (Inquiries & Registered)
           </button>
           <button
             onClick={() => setActiveTab('single')}
@@ -8934,7 +9484,7 @@ const GroupMembersModal: React.FC<{
               <div className="p-8 text-center rounded-2xl bg-slate-50 border border-slate-200 text-slate-400 text-xs space-y-2">
                 <Users className="w-8 h-8 text-slate-300 mx-auto" />
                 <p className="font-semibold text-slate-600">No students found</p>
-                <p className="text-[11px]">Use "+ Add Single Student" or "Bulk Paste Numbers" above to add enrolled students.</p>
+                <p className="text-[11px]">Use "Pick Students", "+ Add Single Student", or "Bulk Paste Numbers" above to assign students to this batch.</p>
               </div>
             ) : (
               <div className="divide-y divide-slate-100 border border-slate-200 rounded-2xl overflow-hidden max-h-80 overflow-y-auto bg-white">
@@ -8944,26 +9494,53 @@ const GroupMembersModal: React.FC<{
                   return (
                     <div
                       key={m.id}
-                      className="p-3 hover:bg-slate-50/80 transition-colors flex items-center justify-between gap-3 text-xs"
+                      className="p-3 hover:bg-slate-50/80 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
                     >
                       <div className="space-y-0.5 min-w-0">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-bold text-slate-900 truncate">{m.fullName}</span>
                           {m.rollNumber && (
                             <span className="text-[10px] font-mono bg-blue-50 text-blue-700 px-1.5 py-0.2 rounded border border-blue-200">
                               {m.rollNumber}
                             </span>
                           )}
-                          <span className="text-[9px] uppercase px-1.5 py-0.2 rounded bg-slate-100 text-slate-500">
-                            {m.source}
-                          </span>
+                          {m.source && (
+                            <span className="text-[9px] uppercase px-1.5 py-0.2 rounded bg-slate-100 text-slate-500">
+                              {m.source}
+                            </span>
+                          )}
                         </div>
                         <p className="text-[11px] text-slate-500 font-mono">
                           {m.phone} • Added {m.addedAt}
                         </p>
                       </div>
 
-                      <div className="flex items-center gap-1.5 shrink-0">
+                      <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+                        {otherBatches.length > 0 && (
+                          <select
+                            value=""
+                            onChange={(e) => {
+                              const destId = e.target.value;
+                              if (!destId) return;
+                              const dest = otherBatches.find((b) => b.id === destId);
+                              onMoveMember(group.id, m.id, destId);
+                              setImportStatus(
+                                `Moved ${m.fullName} to batch "${dest?.name || dest?.title}".`
+                              );
+                              setTimeout(() => setImportStatus(null), 3000);
+                            }}
+                            className="px-2 py-1 rounded-lg text-[10px] font-bold text-indigo-800 bg-indigo-50 border border-indigo-200 max-w-[140px] cursor-pointer focus:outline-none"
+                            title="Transfer student to another batch"
+                          >
+                            <option value="">Move to batch...</option>
+                            {otherBatches.map((b) => (
+                              <option key={b.id} value={b.id}>
+                                {b.name || b.title}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+
                         <a
                           href={`https://wa.me/${waNumber}`}
                           target="_blank"
@@ -8986,12 +9563,12 @@ const GroupMembersModal: React.FC<{
 
                         <button
                           onClick={() => {
-                            if (confirm(`Remove ${m.fullName} from this group?`)) {
+                            if (confirm(`Remove ${m.fullName} from this batch?`)) {
                               onRemoveMember(group.id, m.id);
                             }
                           }}
                           className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
-                          title="Remove from group"
+                          title="Remove from batch"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -9004,11 +9581,124 @@ const GroupMembersModal: React.FC<{
           </div>
         )}
 
-        {/* SUBTAB 2: ADD SINGLE STUDENT */}
+        {/* SUBTAB 2: PICK STUDENTS FROM INQUIRIES & REGISTERED CANDIDATES */}
+        {activeTab === 'pick' && (
+          <div className="space-y-3">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Search inquiries or registered candidates by name, mobile, or ref..."
+                  value={pickSearch}
+                  onChange={(e) => setPickSearch(e.target.value)}
+                  className="w-full pl-9 pr-3 py-1.5 rounded-xl border border-slate-200 text-xs bg-slate-50/70"
+                />
+              </div>
+              <select
+                value={pickCourseFilter}
+                onChange={(e) => setPickCourseFilter(e.target.value)}
+                className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-medium bg-white text-slate-700"
+              >
+                <option value="ALL">All Programs</option>
+                {courses.map((c) => (
+                  <option key={c.id} value={c.slug}>
+                    {c.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {pickCandidates.length === 0 ? (
+              <div className="p-8 text-center rounded-2xl bg-slate-50 border border-slate-200 text-slate-400 text-xs">
+                No matching inquiries or registered students found for the selected course filter.
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-100 border border-slate-200 rounded-2xl overflow-hidden max-h-80 overflow-y-auto bg-white">
+                {pickCandidates.map((cand) => {
+                  const isInThisBatch =
+                    cand.batchId === group.id ||
+                    (group.members || []).some(
+                      (m) =>
+                        (m.referenceNumber && m.referenceNumber === cand.ref) ||
+                        (cand.phone &&
+                          m.phone &&
+                          m.phone.replace(/[^0-9]/g, '').slice(-10) ===
+                            cand.phone.replace(/[^0-9]/g, '').slice(-10))
+                    );
+
+                  return (
+                    <div
+                      key={`${cand.kind}-${cand.id}`}
+                      className="p-3 hover:bg-slate-50/80 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
+                    >
+                      <div className="space-y-0.5 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-bold text-slate-900">{cand.fullName}</span>
+                          <span className="text-[10px] font-mono bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded">
+                            {cand.phone}
+                          </span>
+                          <span
+                            className={`text-[9px] font-bold uppercase px-1.5 py-0.2 rounded ${
+                              cand.statusLabel.includes('Verified')
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-blue-50 text-blue-800'
+                            }`}
+                          >
+                            {cand.statusLabel}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500">
+                          {cand.courseName} • Ref: {cand.ref} •{' '}
+                          {cand.batchName ? (
+                            <span className="font-semibold text-indigo-700">
+                              Current Batch: {cand.batchName}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">Unassigned</span>
+                          )}
+                        </p>
+                      </div>
+
+                      <div className="shrink-0">
+                        {isInThisBatch ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>In This Batch</span>
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (cand.kind === 'inquiry') {
+                                onAssignInquiryToBatch(cand.id, group.id);
+                              } else {
+                                onAssignRegToBatch(cand.id, group.id);
+                              }
+                              setImportStatus(
+                                `${cand.fullName} assigned to "${group.name || group.title}".`
+                              );
+                              setTimeout(() => setImportStatus(null), 3000);
+                            }}
+                            className="px-3 py-1.5 rounded-lg text-[11px] font-bold text-white bg-[#12315A] hover:bg-blue-900 cursor-pointer shadow-2xs"
+                          >
+                            {cand.batchName ? 'Move Here' : 'Assign to Batch'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* SUBTAB 3: ADD SINGLE STUDENT */}
         {activeTab === 'single' && (
           <form onSubmit={handleSingleAdd} className="space-y-3.5 p-4 rounded-2xl bg-slate-50 border border-slate-200">
             <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider">
-              Add Enrolled Student to Group
+              Add Enrolled Student to Batch
             </h4>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -9072,13 +9762,13 @@ const GroupMembersModal: React.FC<{
                 type="submit"
                 className="px-5 py-2 rounded-xl font-bold text-white bg-blue-700 hover:bg-blue-800 shadow"
               >
-                Add Student to Group
+                Add Student to Batch
               </button>
             </div>
           </form>
         )}
 
-        {/* SUBTAB 3: BULK PASTE NUMBERS & NAMES */}
+        {/* SUBTAB 4: BULK PASTE NUMBERS & NAMES */}
         {activeTab === 'bulk' && (
           <div className="space-y-3.5 p-4 rounded-2xl bg-slate-50 border border-slate-200">
             <div>
