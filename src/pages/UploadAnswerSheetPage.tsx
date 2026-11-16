@@ -30,7 +30,7 @@ import {
   Info,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { Course, CourseType, MockTestSubmission } from '../types';
+import { Course, MockTestSubmission } from '../types';
 import { sortByDate } from '../utils/dateSort';
 import { mobileMatches } from '../utils/phone';
 
@@ -57,7 +57,6 @@ export const UploadAnswerSheetPage: React.FC = () => {
   const [selectedCourseSlug, setSelectedCourseSlug] = useState<string>(
     (currentUser?.role === 'student' && currentUser.enrolledCourseSlugs?.[0]) || preselectedCourse || 'bbs-tu'
   );
-  const [selectedCourseType, setSelectedCourseType] = useState<CourseType>('New Course');
   const [selectedYearOrSem, setSelectedYearOrSem] = useState<string>(preselectedYear || '1st Year');
   const [selectedSubject, setSelectedSubject] = useState<string>(preselectedSubject || '');
   const [customSubject, setCustomSubject] = useState<string>('');
@@ -109,25 +108,13 @@ export const UploadAnswerSheetPage: React.FC = () => {
   // Get active course metadata
   const currentCourse = courses.find((c) => c.slug === selectedCourseSlug);
 
-  // Sync course type and year when course changes
-  useEffect(() => {
-    if (!currentCourse) return;
-    if (currentCourse.courseType === 'Old Course' || currentCourse.slug.includes('3-year') || currentCourse.slug.includes('old')) {
-      setSelectedCourseType('Old Course');
-    }
-  }, [selectedCourseSlug, currentCourse]);
-
   // Derived available terms (years or semesters)
   const availableTerms = React.useMemo(() => {
     if (!currentCourse) return [];
-    const subjects = currentCourse.subjectsOffered || [];
-    const filtered = subjects.filter((s) => {
-      if (!s.courseType || s.courseType === 'Both') return true;
-      return s.courseType === selectedCourseType;
-    });
-    const terms = Array.from(new Set(filtered.map((s) => s.semesterOrYear).filter(Boolean))) as string[];
+    const subjects = (currentCourse.subjectsOffered || []).filter((s) => s.courseType !== 'Old Course');
+    const terms = Array.from(new Set(subjects.map((s) => s.semesterOrYear).filter(Boolean))) as string[];
     return terms.length > 0 ? terms : ['1st Year', '2nd Year', '3rd Year', '4th Year'];
-  }, [currentCourse, selectedCourseType]);
+  }, [currentCourse]);
 
   // Sync selected term
   useEffect(() => {
@@ -146,13 +133,13 @@ export const UploadAnswerSheetPage: React.FC = () => {
   const availableSubjects = React.useMemo(() => {
     if (!currentCourse) return [];
     return currentCourse.subjectsOffered.filter((s) => {
-      const matchType = !s.courseType || s.courseType === 'Both' || s.courseType === selectedCourseType;
+      if (s.courseType === 'Old Course') return false;
       const matchTerm = !selectedYearOrSem || s.semesterOrYear === selectedYearOrSem;
       const matchStudent =
         currentUser?.role !== 'student' || isStudentEnrolledInSubject(selectedCourseSlug, s.name);
-      return matchType && matchTerm && matchStudent;
+      return matchTerm && matchStudent;
     });
-  }, [currentCourse, selectedCourseType, selectedYearOrSem, currentUser, selectedCourseSlug, isStudentEnrolledInSubject]);
+  }, [currentCourse, selectedYearOrSem, currentUser, selectedCourseSlug, isStudentEnrolledInSubject]);
 
   // Auto-set subject when subjects change
   useEffect(() => {
@@ -319,7 +306,7 @@ export const UploadAnswerSheetPage: React.FC = () => {
         mockTestTitle: `${finalCourseName} – ${finalSubjectName} Answer Sheet (${submissionCategory})`,
         testTitle: `${finalCourseName} – ${finalSubjectName} Answer Sheet (${submissionCategory})`,
         courseSlug: selectedCourseSlug,
-        courseType: selectedCourseType,
+        courseType: 'New Course',
         subject: `${finalSubjectName} ${subjectCode ? `(${subjectCode})` : ''}`.trim(),
         studentId: currentUser?.id || studentRollNo.trim(),
         studentName: studentName.trim(),
@@ -537,37 +524,6 @@ export const UploadAnswerSheetPage: React.FC = () => {
                           </option>
                         ))}
                       </select>
-                    </div>
-
-                    {/* Syllabus Scheme Switcher */}
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        Curriculum Scheme *
-                      </label>
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedCourseType('New Course')}
-                          className={`py-2 px-3 rounded-xl text-xs font-bold text-center border cursor-pointer transition-all ${
-                            selectedCourseType === 'New Course'
-                              ? 'bg-[#12315A] text-white border-[#12315A] shadow-xs'
-                              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
-                          }`}
-                        >
-                          New Course
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedCourseType('Old Course')}
-                          className={`py-2 px-3 rounded-xl text-xs font-bold text-center border cursor-pointer transition-all ${
-                            selectedCourseType === 'Old Course'
-                              ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-xs'
-                              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
-                          }`}
-                        >
-                          Old Course (3-Year/Back)
-                        </button>
-                      </div>
                     </div>
 
                     {/* Academic Year / Semester */}
@@ -1025,7 +981,7 @@ export const UploadAnswerSheetPage: React.FC = () => {
                           <div>
                             <div className="flex flex-wrap items-center gap-2 mb-1">
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-blue-100 text-blue-900">
-                                {sub.courseType || 'Curriculum Scheme'}
+                                {courses.find((c) => c.slug === sub.courseSlug)?.title || testMeta?.courseName || sub.courseSlug || 'Academic Program'}
                               </span>
                               <span className="text-[11px] font-mono text-slate-400">
                                 Submitted {new Date(sub.submittedAt).toLocaleString()}

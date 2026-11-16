@@ -95,6 +95,8 @@ export interface AdmissionInquiry {
   verifiedBy?: string;
   verifiedAt?: string;
   assignedStudentId?: string;
+  batchId?: string;
+  batchName?: string;
   status: InquiryStatus;
   adminNotes: {
     date: string;
@@ -157,6 +159,10 @@ export interface StudyMaterial {
   fileName?: string;
   attachmentName?: string;
   fileType?: string;
+  batchId?: string;
+  batchName?: string;
+  teacherId?: string;
+  teacherName?: string;
   description: string;
   published: boolean;
 }
@@ -218,6 +224,16 @@ export interface UserProfile {
   studentId?: string;
   enrolledCourseSlugs?: string[];
   enrolledSubjects?: string[];
+  batchId?: string;
+  batchName?: string;
+  batchIds?: string[];
+  batchNames?: string[];
+}
+
+export interface BatchTeacherAssignment {
+  subject: string;
+  teacherId?: string;
+  teacherName: string;
 }
 
 export interface StudentGroupMember {
@@ -232,6 +248,8 @@ export interface StudentGroupMember {
   enrolledSubjects?: string[];
   semesterOrYear?: string;
   academicLevel?: string;
+  batchId?: string;
+  batchName?: string;
   source?: string;
   addedAt: string;
   notes?: string;
@@ -261,7 +279,11 @@ export interface StudentGroup {
   academicLevel: string;
   shift: 'Morning' | 'Day' | 'Evening' | 'All Shifts' | 'Flexible' | 'Online';
   batchYear: string;
+  batchNumber?: string; // Custom batch number defined by admin (e.g. "31st Batch", "5th Batch", "31")
   academicYearOrBatch?: string; // alias for batchYear
+  teacherId?: string; // Lead / default batch teacher
+  teacherName?: string;
+  subjectTeachers?: BatchTeacherAssignment[]; // Subject-specific teachers for this batch
   description?: string;
   whatsappGroupUrl?: string;
   whatsappGroupLink?: string; // alias for whatsappGroupUrl

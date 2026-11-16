@@ -58,8 +58,6 @@ export function App() {
               {/* Dedicated Course URLs */}
               <Route path="/courses/mbs-tu" element={<CourseDetailPage />} />
               <Route path="/courses/bbs-tu" element={<CourseDetailPage />} />
-              <Route path="/courses/3-year-bbs-tu" element={<CourseDetailPage />} />
-              <Route path="/courses/bbs-tu-old" element={<CourseDetailPage />} />
               <Route path="/courses/bba-tu" element={<CourseDetailPage />} />
               <Route path="/courses/bbm-tu" element={<CourseDetailPage />} />
               <Route path="/courses/bba-bbm-tu" element={<CourseDetailPage />} />

@@ -23,6 +23,9 @@ import {
   Pause,
   Eye,
   ArrowUpDown,
+  Users,
+  UserCheck,
+  Check,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { StudyMaterial, Course } from '../types';
@@ -34,20 +37,35 @@ export const StudyMaterialsPage: React.FC = () => {
   const {
     studyMaterials,
     courses,
+    studentGroups,
     currentUser,
     language,
     isStudentEnrolledInSubject,
+    isStudentAllowedMaterial,
+    isStudentBatchRestricted,
     subjectsMatch,
     resolveMaterialUrl,
   } = useApp();
 
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Applied filter states (used to render results)
   const [selectedCourse, setSelectedCourse] = useState('ALL');
-  const [selectedCourseType, setSelectedCourseType] = useState<'ALL' | 'New Course' | 'Old Course'>('ALL');
   const [selectedYearOrSemester, setSelectedYearOrSemester] = useState('ALL');
+  const [selectedBatch, setSelectedBatch] = useState('ALL');
   const [selectedSubject, setSelectedSubject] = useState('ALL');
   const [selectedType, setSelectedType] = useState('ALL');
   const [selectedAccess, setSelectedAccess] = useState('ALL');
+
+  // Draft filter states inside the filter bar (committed when clicking OK)
+  const [draftCourse, setDraftCourse] = useState('ALL');
+  const [draftYearOrSemester, setDraftYearOrSemester] = useState('ALL');
+  const [draftBatch, setDraftBatch] = useState('ALL');
+  const [draftSubject, setDraftSubject] = useState('ALL');
+  const [draftType, setDraftType] = useState('ALL');
+  const [draftAccess, setDraftAccess] = useState('ALL');
+  const [hasConfirmedFilters, setHasConfirmedFilters] = useState(false);
+
   const [filterEnrolledOnly, setFilterEnrolledOnly] = useState(false);
   const [dateSortOrder, setDateSortOrder] = useState<DateSortOrder>('desc');
   const [activeVideoModal, setActiveVideoModal] = useState<StudyMaterial | null>(null);
@@ -122,41 +140,41 @@ export const StudyMaterialsPage: React.FC = () => {
     }
   };
 
-  // Label for the Year / Semester filter column
+  // Label for the Year / Semester filter column (responds live to draftCourse in the dropdown)
   const yearOrSemesterLabel = useMemo(() => {
-    if (selectedCourse.startsWith('loksewa') || selectedCourse.includes('tsc')) return 'Paper / Exam Level';
-    if (selectedCourse === 'bbs-tu') return 'Year (BBS)';
-    if (selectedCourse === 'mbs-tu') return 'Semester (MBS)';
-    if (selectedCourse === 'bba-tu') return 'Semester (BBA)';
-    if (selectedCourse === 'bbm-tu') return 'Semester (BBM)';
-    if (selectedCourse === 'bba-bbm-tu' || selectedCourse === 'bba-pokhara-university') return 'Semester';
-    if (selectedCourse.startsWith('plus-two')) return 'Grade / Year';
+    if (draftCourse.startsWith('loksewa') || draftCourse.includes('tsc')) return 'Paper / Exam Level';
+    if (draftCourse === 'bbs-tu') return 'Year (BBS)';
+    if (draftCourse === 'mbs-tu') return 'Semester (MBS)';
+    if (draftCourse === 'bba-tu') return 'Semester (BBA)';
+    if (draftCourse === 'bbm-tu') return 'Semester (BBM)';
+    if (draftCourse === 'bba-bbm-tu' || draftCourse === 'bba-pokhara-university') return 'Semester';
+    if (draftCourse.startsWith('plus-two')) return 'Grade / Year';
     return 'Year / Semester';
-  }, [selectedCourse]);
+  }, [draftCourse]);
 
-  // Dynamic Year or Semester options strictly as per the selected course
+  // Dynamic Year or Semester options strictly as per the draftCourse dropdown
   const availableYearsOrSemesters = useMemo(() => {
-    if (selectedCourse.startsWith('loksewa') || selectedCourse.includes('tsc')) {
-      const targetCourse = courses.find((c) => c.slug === selectedCourse);
+    if (draftCourse.startsWith('loksewa') || draftCourse.includes('tsc')) {
+      const targetCourse = courses.find((c) => c.slug === draftCourse);
       const terms = Array.from(new Set(targetCourse?.subjectsOffered?.map((s) => s.semesterOrYear).filter(Boolean))) as string[];
       return terms.length > 0 ? terms : ['1st Paper (Objective - 100 Marks)', '2nd Paper (Subjective - 100 Marks)'];
     }
-    if (selectedCourse === 'bbs-tu') {
+    if (draftCourse === 'bbs-tu') {
       return ['1st Year', '2nd Year', '3rd Year', '4th Year'];
     }
-    if (selectedCourse === 'mbs-tu') {
+    if (draftCourse === 'mbs-tu') {
       return ['1st Semester', '2nd Semester', '3rd Semester', '4th Semester'];
     }
-    if (selectedCourse === 'bba-tu' || selectedCourse === 'bbm-tu' || selectedCourse === 'bba-bbm-tu') {
+    if (draftCourse === 'bba-tu' || draftCourse === 'bbm-tu' || draftCourse === 'bba-bbm-tu') {
       return [
         '1st Semester', '2nd Semester', '3rd Semester', '4th Semester',
         '5th Semester', '6th Semester', '7th Semester', '8th Semester'
       ];
     }
-    if (selectedCourse === 'plus-two-science' || selectedCourse === 'plus-two-management') {
+    if (draftCourse === 'plus-two-science' || draftCourse === 'plus-two-management') {
       return ['Grade 11', 'Grade 12'];
     }
-    if (selectedCourse === 'bba-pokhara-university') {
+    if (draftCourse === 'bba-pokhara-university') {
       return [
         '1st Semester', '2nd Semester', '3rd Semester', '4th Semester',
         '5th Semester', '6th Semester', '7th Semester', '8th Semester'
@@ -170,7 +188,7 @@ export const StudyMaterialsPage: React.FC = () => {
       'Grade 11', 'Grade 12',
       '1st Paper (Objective - 100 Marks)', '2nd Paper (Subjective - 100 Marks)'
     ];
-  }, [selectedCourse, courses]);
+  }, [draftCourse, courses]);
 
   // Flexible matcher between material/subject semester/year and target filter
   const matchesYearOrSemester = (itemYearOrSem?: string, target?: string) => {
@@ -204,26 +222,99 @@ export const StudyMaterialsPage: React.FC = () => {
     return false;
   };
 
-  // Dynamic Subjects as per selected Course, Syllabus Type, and Year/Semester (plus any uploaded materials' subjects)
+  // Available batches matching draft Course + Year/Semester, plus any batch tagged on published materials
+  const availableBatches = useMemo(() => {
+    const map = new Map<
+      string,
+      { id: string; name: string; shift?: string; teacherDisplay?: string; isOwnBatch?: boolean }
+    >();
+
+    const studentBatchIds = new Set(currentUser?.batchIds || (currentUser?.batchId ? [currentUser.batchId] : []));
+
+    studentGroups.forEach((g) => {
+      const courseMatch = draftCourse === 'ALL' || g.courseSlug === draftCourse;
+      const yearMatch =
+        draftYearOrSemester === 'ALL' ||
+        !g.academicLevel ||
+        matchesYearOrSemester(g.academicLevel, draftYearOrSemester);
+      if (!courseMatch || !yearMatch) return;
+
+      let teacherDisplay = g.teacherName || '';
+      if (draftSubject !== 'ALL' && g.subjectTeachers && g.subjectTeachers.length > 0) {
+        const subAssign = g.subjectTeachers.find((st) => subjectsMatch(st.subject, draftSubject));
+        if (subAssign?.teacherName) {
+          teacherDisplay = subAssign.teacherName;
+        }
+      }
+
+      const baseName = g.title || g.name || 'Academic Batch';
+      const batchNoSuffix =
+        g.batchNumber && !baseName.toLowerCase().includes(g.batchNumber.toLowerCase())
+          ? ` (Batch ${g.batchNumber})`
+          : '';
+
+      map.set(g.id, {
+        id: g.id,
+        name: `${baseName}${batchNoSuffix}`,
+        shift: g.shift,
+        teacherDisplay,
+        isOwnBatch: studentBatchIds.has(g.id),
+      });
+    });
+
+    studyMaterials.forEach((m) => {
+      if (!m.published || !m.batchId || m.batchId === 'ALL' || !m.batchName) return;
+      const courseMatch = draftCourse === 'ALL' || m.courseSlug === draftCourse;
+      const yearMatch =
+        draftYearOrSemester === 'ALL' || matchesYearOrSemester(m.semesterOrYear, draftYearOrSemester);
+      if (!courseMatch || !yearMatch) return;
+      if (!map.has(m.batchId)) {
+        map.set(m.batchId, {
+          id: m.batchId,
+          name: m.batchName,
+          teacherDisplay: m.teacherName,
+          isOwnBatch: studentBatchIds.has(m.batchId),
+        });
+      }
+    });
+
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [studentGroups, studyMaterials, draftCourse, draftYearOrSemester, draftSubject, currentUser, subjectsMatch]);
+
+  const getBatchDisplayLabel = (batchKey: string) => {
+    if (batchKey === 'COMMON') return 'Common (All Batches)';
+    const fromGroup = studentGroups.find((g) => g.id === batchKey);
+    if (fromGroup) {
+      const baseName = fromGroup.title || fromGroup.name || batchKey;
+      const numSuffix =
+        fromGroup.batchNumber && !baseName.toLowerCase().includes(fromGroup.batchNumber.toLowerCase())
+          ? ` (Batch ${fromGroup.batchNumber})`
+          : '';
+      return `${baseName}${numSuffix}`;
+    }
+    const fromMat = studyMaterials.find((m) => m.batchId === batchKey);
+    return fromMat?.batchName || batchKey;
+  };
+
+  // Dynamic Subjects as per draft Course, Syllabus Type, and Year/Semester (plus any uploaded materials' subjects)
   const availableSubjects = useMemo(() => {
     const set = new Set<string>();
 
     const targetCourses =
-      selectedCourse === 'ALL'
-        ? currentUser?.role === 'student'
+      draftCourse === 'ALL'
+        ? filterEnrolledOnly && currentUser?.role === 'student'
           ? courses.filter((c) => currentUser.enrolledCourseSlugs?.includes(c.slug))
           : courses
-        : courses.filter((c) => c.slug === selectedCourse);
+        : courses.filter((c) => c.slug === draftCourse);
 
     targetCourses.forEach((c) => {
       c.subjectsOffered.forEach((s) => {
-        const typeMatch =
-          selectedCourseType === 'ALL' || !s.courseType || s.courseType === selectedCourseType;
+        if (s.courseType === 'Old Course') return;
         const yearMatch =
-          selectedYearOrSemester === 'ALL' ||
-          matchesYearOrSemester(s.semesterOrYear, selectedYearOrSemester);
-        if (typeMatch && yearMatch) {
-          if (currentUser?.role !== 'student' || isStudentEnrolledInSubject(c.slug, s.name)) {
+          draftYearOrSemester === 'ALL' ||
+          matchesYearOrSemester(s.semesterOrYear, draftYearOrSemester);
+        if (yearMatch) {
+          if (!filterEnrolledOnly || currentUser?.role !== 'student' || isStudentEnrolledInSubject(c.slug, s.name)) {
             set.add(s.name);
           }
         }
@@ -233,14 +324,12 @@ export const StudyMaterialsPage: React.FC = () => {
     // Also include published admin-uploaded materials' subject names matching active filters
     studyMaterials.forEach((m) => {
       if (!m.published) return;
-      const courseMatch = selectedCourse === 'ALL' || m.courseSlug === selectedCourse;
-      const typeMatch =
-        selectedCourseType === 'ALL' || (m.courseType || 'New Course') === selectedCourseType;
+      const courseMatch = draftCourse === 'ALL' || m.courseSlug === draftCourse;
       const yearMatch =
-        selectedYearOrSemester === 'ALL' ||
-        matchesYearOrSemester(m.semesterOrYear, selectedYearOrSemester);
-      if (courseMatch && typeMatch && yearMatch && m.subject) {
-        if (currentUser?.role !== 'student' || isStudentEnrolledInSubject(m.courseSlug, m.subject)) {
+        draftYearOrSemester === 'ALL' ||
+        matchesYearOrSemester(m.semesterOrYear, draftYearOrSemester);
+      if (courseMatch && yearMatch && m.subject) {
+        if (!filterEnrolledOnly || currentUser?.role !== 'student' || isStudentEnrolledInSubject(m.courseSlug, m.subject)) {
           set.add(m.subject);
         }
       }
@@ -250,27 +339,56 @@ export const StudyMaterialsPage: React.FC = () => {
   }, [
     courses,
     studyMaterials,
-    selectedCourse,
-    selectedCourseType,
-    selectedYearOrSemester,
+    draftCourse,
+    draftYearOrSemester,
+    filterEnrolledOnly,
     currentUser,
     isStudentEnrolledInSubject,
   ]);
 
-  // Handler when Course changes: resets downstream Year/Semester and Subject
-  const handleCourseChange = (newCourse: string) => {
-    setSelectedCourse(newCourse);
-    setSelectedYearOrSemester('ALL');
-    setSelectedSubject('ALL');
+  const matchesBatchFilter = (m: StudyMaterial, batchKey: string) => {
+    if (batchKey === 'ALL') return true;
+    if (batchKey === 'COMMON') return !m.batchId || m.batchId === 'ALL';
+    if (m.batchId === batchKey) return true;
+    // Also include common materials shared across all batches for the course/subject
+    return !m.batchId || m.batchId === 'ALL';
   };
 
-  // Handler when Year/Semester changes: resets downstream Subject
-  const handleYearOrSemesterChange = (newYearOrSem: string) => {
-    setSelectedYearOrSemester(newYearOrSem);
-    setSelectedSubject('ALL');
+  // Handler when Course dropdown changes: resets downstream Year/Semester, Batch, and Subject in draft
+  const handleDraftCourseChange = (newCourse: string) => {
+    setDraftCourse(newCourse);
+    setDraftYearOrSemester('ALL');
+    setDraftBatch('ALL');
+    setDraftSubject('ALL');
   };
 
-  // Filtered study materials matching all active criteria (sorted by upload date)
+  // Handler when Year/Semester dropdown changes: resets downstream Batch and Subject in draft
+  const handleDraftYearOrSemesterChange = (newYearOrSem: string) => {
+    setDraftYearOrSemester(newYearOrSem);
+    setDraftBatch('ALL');
+    setDraftSubject('ALL');
+  };
+
+  // Commit draft filters when user clicks OK
+  const handleApplyFilters = () => {
+    setSelectedCourse(draftCourse);
+    setSelectedYearOrSemester(draftYearOrSemester);
+    setSelectedBatch(draftBatch);
+    setSelectedSubject(draftSubject);
+    setSelectedType(draftType);
+    setSelectedAccess(draftAccess);
+    setHasConfirmedFilters(true);
+  };
+
+  const hasPendingFilterChanges =
+    draftCourse !== selectedCourse ||
+    draftYearOrSemester !== selectedYearOrSemester ||
+    draftBatch !== selectedBatch ||
+    draftSubject !== selectedSubject ||
+    draftType !== selectedType ||
+    draftAccess !== selectedAccess;
+
+  // Filtered study materials matching all APPLIED criteria (sorted by upload date)
   const filteredMaterials = useMemo(() => {
     const filtered = studyMaterials
       .filter((m) => m.published)
@@ -281,7 +399,9 @@ export const StudyMaterialsPage: React.FC = () => {
           m.title.toLowerCase().includes(q) ||
           m.subject.toLowerCase().includes(q) ||
           m.courseName.toLowerCase().includes(q) ||
-          m.description.toLowerCase().includes(q)
+          m.description.toLowerCase().includes(q) ||
+          (m.teacherName && m.teacherName.toLowerCase().includes(q)) ||
+          (m.batchName && m.batchName.toLowerCase().includes(q))
         );
       })
       .filter((m) => {
@@ -289,13 +409,10 @@ export const StudyMaterialsPage: React.FC = () => {
         return m.courseSlug === selectedCourse;
       })
       .filter((m) => {
-        if (selectedCourseType === 'ALL') return true;
-        return (m.courseType || 'New Course') === selectedCourseType;
-      })
-      .filter((m) => {
         if (selectedYearOrSemester === 'ALL') return true;
         return matchesYearOrSemester(m.semesterOrYear, selectedYearOrSemester);
       })
+      .filter((m) => matchesBatchFilter(m, selectedBatch))
       .filter((m) => {
         if (selectedSubject === 'ALL') return true;
         return subjectsMatch(m.subject, selectedSubject);
@@ -309,22 +426,30 @@ export const StudyMaterialsPage: React.FC = () => {
         return m.accessLevel === selectedAccess;
       })
       .filter((m) => {
-        if (currentUser?.role === 'student') {
-          return isStudentEnrolledInSubject(m.courseSlug, m.subject);
-        }
-        return true;
-      })
-      .filter((m) => {
         if (!filterEnrolledOnly) return true;
         if (currentUser?.role === 'student') {
-          return isStudentEnrolledInSubject(m.courseSlug, m.subject);
+          return isStudentAllowedMaterial(m);
         }
         return true;
       });
     return sortByDate(filtered, (m) => m.uploadDate, dateSortOrder, { getId: (m) => m.id });
-  }, [studyMaterials, searchQuery, selectedCourse, selectedCourseType, selectedYearOrSemester, selectedSubject, selectedType, selectedAccess, filterEnrolledOnly, currentUser, isStudentEnrolledInSubject, subjectsMatch, dateSortOrder]);
+  }, [
+    studyMaterials,
+    searchQuery,
+    selectedCourse,
+    selectedYearOrSemester,
+    selectedBatch,
+    selectedSubject,
+    selectedType,
+    selectedAccess,
+    filterEnrolledOnly,
+    currentUser,
+    isStudentAllowedMaterial,
+    subjectsMatch,
+    dateSortOrder,
+  ]);
 
-  // Dynamic counts for each resource type based on current Course + Year/Semester + Subject filters
+  // Dynamic counts for each resource type based on live DRAFT filters (so counts update as dropdowns change)
   const resourceCountsByType = useMemo(() => {
     const counts: Record<string, number> = {};
     resourceTypes.forEach((t) => {
@@ -334,8 +459,8 @@ export const StudyMaterialsPage: React.FC = () => {
     studyMaterials
       .filter((m) => m.published)
       .filter((m) => {
-        if (currentUser?.role === 'student') {
-          return isStudentEnrolledInSubject(m.courseSlug, m.subject);
+        if (filterEnrolledOnly && currentUser?.role === 'student') {
+          return isStudentAllowedMaterial(m);
         }
         return true;
       })
@@ -346,14 +471,16 @@ export const StudyMaterialsPage: React.FC = () => {
           m.title.toLowerCase().includes(q) ||
           m.subject.toLowerCase().includes(q) ||
           m.courseName.toLowerCase().includes(q) ||
-          m.description.toLowerCase().includes(q)
+          m.description.toLowerCase().includes(q) ||
+          (m.teacherName && m.teacherName.toLowerCase().includes(q)) ||
+          (m.batchName && m.batchName.toLowerCase().includes(q))
         );
       })
-      .filter((m) => selectedCourse === 'ALL' || m.courseSlug === selectedCourse)
-      .filter((m) => selectedCourseType === 'ALL' || (m.courseType || 'New Course') === selectedCourseType)
-      .filter((m) => selectedYearOrSemester === 'ALL' || matchesYearOrSemester(m.semesterOrYear, selectedYearOrSemester))
-      .filter((m) => selectedSubject === 'ALL' || subjectsMatch(m.subject, selectedSubject))
-      .filter((m) => selectedAccess === 'ALL' || m.accessLevel === selectedAccess)
+      .filter((m) => draftCourse === 'ALL' || m.courseSlug === draftCourse)
+      .filter((m) => draftYearOrSemester === 'ALL' || matchesYearOrSemester(m.semesterOrYear, draftYearOrSemester))
+      .filter((m) => matchesBatchFilter(m, draftBatch))
+      .filter((m) => draftSubject === 'ALL' || subjectsMatch(m.subject, draftSubject))
+      .filter((m) => draftAccess === 'ALL' || m.accessLevel === draftAccess)
       .forEach((m) => {
         if (counts[m.resourceType] !== undefined) {
           counts[m.resourceType]++;
@@ -361,23 +488,39 @@ export const StudyMaterialsPage: React.FC = () => {
       });
 
     return counts;
-  }, [studyMaterials, resourceTypes, searchQuery, selectedCourse, selectedCourseType, selectedYearOrSemester, selectedSubject, selectedAccess, currentUser, isStudentEnrolledInSubject, subjectsMatch]);
+  }, [
+    studyMaterials,
+    resourceTypes,
+    searchQuery,
+    draftCourse,
+    draftYearOrSemester,
+    draftBatch,
+    draftSubject,
+    draftAccess,
+    currentUser,
+    isStudentEnrolledInSubject,
+    subjectsMatch,
+  ]);
 
   const recordedVideosTotalCount = useMemo(() => {
     return studyMaterials.filter(
       (m) =>
         m.published &&
         m.resourceType === 'Recorded Videos' &&
-        (currentUser?.role !== 'student' || isStudentEnrolledInSubject(m.courseSlug, m.subject))
+        (!filterEnrolledOnly || currentUser?.role !== 'student' || isStudentAllowedMaterial(m))
     ).length;
-  }, [studyMaterials, currentUser, isStudentEnrolledInSubject]);
+  }, [studyMaterials, filterEnrolledOnly, currentUser, isStudentAllowedMaterial]);
+
+  const isMaterialAccessibleToUser = (material: StudyMaterial) => {
+    if (currentUser?.role === 'admin') return true;
+    if (material.accessLevel === 'Public') return true;
+    return isStudentAllowedMaterial(material);
+  };
 
   const handleDownload = (material: StudyMaterial) => {
-    const isEnrolled =
-      currentUser?.role === 'admin' ||
-      (currentUser?.role === 'student' && isStudentEnrolledInSubject(material.courseSlug, material.subject));
+    const isAllowed = isMaterialAccessibleToUser(material);
 
-    if (!isEnrolled) {
+    if (!isAllowed) {
       setRestrictedMaterial(material);
       return;
     }
@@ -385,11 +528,9 @@ export const StudyMaterialsPage: React.FC = () => {
   };
 
   const handlePreviewMaterial = async (material: StudyMaterial) => {
-    const isEnrolled =
-      currentUser?.role === 'admin' ||
-      (currentUser?.role === 'student' && isStudentEnrolledInSubject(material.courseSlug, material.subject));
+    const isAllowed = isMaterialAccessibleToUser(material);
 
-    if (!isEnrolled) {
+    if (!isAllowed) {
       setRestrictedMaterial(material);
       return;
     }
@@ -407,11 +548,9 @@ export const StudyMaterialsPage: React.FC = () => {
   };
 
   const handleOpenVideo = (material: StudyMaterial) => {
-    const isEnrolled =
-      currentUser?.role === 'admin' ||
-      (currentUser?.role === 'student' && isStudentEnrolledInSubject(material.courseSlug, material.subject));
+    const isAllowed = isMaterialAccessibleToUser(material);
 
-    if (!isEnrolled) {
+    if (!isAllowed) {
       setRestrictedMaterial(material);
       return;
     }
@@ -422,22 +561,38 @@ export const StudyMaterialsPage: React.FC = () => {
   const resetAllFilters = () => {
     setSearchQuery('');
     setSelectedCourse('ALL');
-    setSelectedCourseType('ALL');
     setSelectedYearOrSemester('ALL');
+    setSelectedBatch('ALL');
     setSelectedSubject('ALL');
     setSelectedType('ALL');
     setSelectedAccess('ALL');
+    setDraftCourse('ALL');
+    setDraftYearOrSemester('ALL');
+    setDraftBatch('ALL');
+    setDraftSubject('ALL');
+    setDraftType('ALL');
+    setDraftAccess('ALL');
+    setHasConfirmedFilters(false);
     setFilterEnrolledOnly(false);
   };
 
   const isAnyFilterActive =
     searchQuery !== '' ||
     selectedCourse !== 'ALL' ||
-    selectedCourseType !== 'ALL' ||
     selectedYearOrSemester !== 'ALL' ||
+    selectedBatch !== 'ALL' ||
     selectedSubject !== 'ALL' ||
     selectedType !== 'ALL' ||
     selectedAccess !== 'ALL';
+
+  const isAnyDraftOrActiveFilter =
+    isAnyFilterActive ||
+    draftCourse !== 'ALL' ||
+    draftYearOrSemester !== 'ALL' ||
+    draftBatch !== 'ALL' ||
+    draftSubject !== 'ALL' ||
+    draftType !== 'ALL' ||
+    draftAccess !== 'ALL';
 
   return (
     <div className="py-12 sm:py-16 space-y-10">
@@ -454,42 +609,8 @@ export const StudyMaterialsPage: React.FC = () => {
           Access structured notes, previous TU board question solutions, model answers, and recorded video lectures categorized by course, year/semester, and subject.
         </p>
 
-        {/* Quick Filter: Recorded Videos, Enrolled Materials, and Course Type Buttons */}
+        {/* Quick Filter: Recorded Videos and Enrolled Materials */}
         <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
-          {/* Syllabus Category Toggle */}
-          <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
-            <button
-              onClick={() => setSelectedCourseType('ALL')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                selectedCourseType === 'ALL'
-                  ? 'bg-white text-[#12315A] shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              All Syllabi
-            </button>
-            <button
-              onClick={() => setSelectedCourseType('New Course')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                selectedCourseType === 'New Course'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-blue-700'
-              }`}
-            >
-              New Course (Regular)
-            </button>
-            <button
-              onClick={() => setSelectedCourseType('Old Course')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                selectedCourseType === 'Old Course'
-                  ? 'bg-amber-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-amber-800'
-              }`}
-            >
-              Old Course (Backpaper Prep)
-            </button>
-          </div>
-
           {currentUser?.role === 'student' && (
             <button
               onClick={() => setFilterEnrolledOnly(!filterEnrolledOnly)}
@@ -509,7 +630,10 @@ export const StudyMaterialsPage: React.FC = () => {
 
           <button
             onClick={() => {
-              setSelectedType(selectedType === 'Recorded Videos' ? 'ALL' : 'Recorded Videos');
+              const nextType = selectedType === 'Recorded Videos' ? 'ALL' : 'Recorded Videos';
+              setSelectedType(nextType);
+              setDraftType(nextType);
+              if (nextType !== 'ALL') setHasConfirmedFilters(true);
             }}
             className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm ${
               selectedType === 'Recorded Videos'
@@ -525,7 +649,12 @@ export const StudyMaterialsPage: React.FC = () => {
           </button>
 
           <button
-            onClick={() => setSelectedType(selectedType === 'PDF Notes' ? 'ALL' : 'PDF Notes')}
+            onClick={() => {
+              const nextType = selectedType === 'PDF Notes' ? 'ALL' : 'PDF Notes';
+              setSelectedType(nextType);
+              setDraftType(nextType);
+              if (nextType !== 'ALL') setHasConfirmedFilters(true);
+            }}
             className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm ${
               selectedType === 'PDF Notes'
                 ? 'bg-blue-600 text-white ring-2 ring-blue-400'
@@ -549,7 +678,7 @@ export const StudyMaterialsPage: React.FC = () => {
               <div className="space-y-1.5">
                 <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="font-bold text-sm text-[#12315A]">
-                    Student Portal: {currentUser.name} ({currentUser.studentId || 'Authenticated'})
+                    Student Portal: {currentUser.name} ({currentUser.phone || currentUser.studentId || 'Authenticated'})
                   </h3>
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-300">
                     Enrolled Access Verified
@@ -573,6 +702,27 @@ export const StudyMaterialsPage: React.FC = () => {
                     })
                   ) : (
                     <span className="text-xs text-rose-600 font-semibold">No active program</span>
+                  )}
+
+                  {((currentUser.batchNames && currentUser.batchNames.length > 0) || currentUser.batchName) && (
+                    <>
+                      <span className="text-slate-400">|</span>
+                      <span className="text-slate-600 font-medium">Batch:</span>
+                      {(currentUser.batchNames && currentUser.batchNames.length > 0
+                        ? currentUser.batchNames
+                        : currentUser.batchName
+                        ? [currentUser.batchName]
+                        : []
+                      ).map((bName) => (
+                        <span
+                          key={bName}
+                          className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-xs font-bold bg-indigo-100 text-indigo-900 border border-indigo-300 shadow-2xs"
+                        >
+                          <Users className="w-3 h-3 text-indigo-700" />
+                          <span>{bName}</span>
+                        </span>
+                      ))}
+                    </>
                   )}
 
                   <span className="text-slate-400">|</span>
@@ -661,22 +811,28 @@ export const StudyMaterialsPage: React.FC = () => {
               <Search className="w-5 h-5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="Search by topic, subject code, or keyword (e.g. Strategic Management, Cost Accounting, FIN 687, MKT 511)..."
+                placeholder="Search by topic, subject, batch, teacher, or keyword (e.g. Financial Accounting, Ganesh Das, Morning Batch)..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleApplyFilters();
+                  }
+                }}
                 className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50/50"
               />
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-600 font-bold"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-600 font-bold cursor-pointer"
                 >
                   Clear
                 </button>
               )}
             </div>
 
-            {isAnyFilterActive && (
+            {isAnyDraftOrActiveFilter && (
               <button
                 onClick={resetAllFilters}
                 className="px-4 py-2.5 rounded-xl text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 transition-colors shrink-0 flex items-center gap-1.5 cursor-pointer"
@@ -688,42 +844,58 @@ export const StudyMaterialsPage: React.FC = () => {
           </div>
 
           {/* Cascading Filter Columns:
-              1. Filter by Course (Concise names: BBS-TU, MBS-TU, etc.)
-              2. Years or Semester (Strictly as per selected course)
-              3. Subjects (Strictly as per selected course and year/semester)
-              4. Resource Type (Strictly as per course, year/semester, and subject)
-              5. Access Level
+              1. Filter by Course
+              2. Year / Semester
+              3. Batch / Assigned Teacher
+              4. Subjects
+              5. Resource Type
+              6. Access Level
           */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 pt-3 border-t border-slate-100 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 pt-3 border-t border-slate-100 text-xs">
             {/* 1. Filter: Course */}
             <div>
               <label className="block text-slate-500 font-bold uppercase tracking-wider text-[10px] mb-1">
                 Filter by Course
               </label>
               <select
-                value={selectedCourse}
-                onChange={(e) => handleCourseChange(e.target.value)}
+                value={draftCourse}
+                onChange={(e) => handleDraftCourseChange(e.target.value)}
                 className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs font-semibold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="ALL">All Academic Courses</option>
-                {(currentUser?.role === 'student'
-                  ? courses.filter((c) => currentUser.enrolledCourseSlugs?.includes(c.slug))
-                  : courses
-                ).map((c) => (
-                  <option key={c.slug} value={c.slug}>
-                    {getCourseDisplayName(c)}
-                  </option>
-                ))}
+                <option value="ALL">All Academic Courses ({courses.filter((c) => c.published !== false).length})</option>
+                {courses
+                  .filter((c) => c.published !== false)
+                  .slice()
+                  .sort((a, b) => {
+                    if (currentUser?.role === 'student') {
+                      const aEnrolled = currentUser.enrolledCourseSlugs?.includes(a.slug) ? 1 : 0;
+                      const bEnrolled = currentUser.enrolledCourseSlugs?.includes(b.slug) ? 1 : 0;
+                      if (aEnrolled !== bEnrolled) return bEnrolled - aEnrolled;
+                    }
+                    return 0;
+                  })
+                  .map((c) => {
+                    const isEnrolled =
+                      currentUser?.role === 'student' &&
+                      currentUser.enrolledCourseSlugs?.includes(c.slug);
+                    return (
+                      <option key={c.slug} value={c.slug}>
+                        {getCourseDisplayName(c)}
+                        {isEnrolled ? ' ★ Enrolled' : ''}
+                      </option>
+                    );
+                  })}
               </select>
             </div>
 
-            {/* 2. Filter: Years or Semester (Column on the right of Course) */}
+            {/* 2. Filter: Years or Semester */}
             <div>
               <label className="block text-slate-500 font-bold uppercase tracking-wider text-[10px] mb-1 flex items-center justify-between">
                 <span>{yearOrSemesterLabel}</span>
-                {selectedYearOrSemester !== 'ALL' && (
+                {draftYearOrSemester !== 'ALL' && (
                   <button
-                    onClick={() => handleYearOrSemesterChange('ALL')}
+                    type="button"
+                    onClick={() => handleDraftYearOrSemesterChange('ALL')}
                     className="text-[10px] text-blue-600 hover:underline font-normal cursor-pointer"
                   >
                     Reset
@@ -731,16 +903,16 @@ export const StudyMaterialsPage: React.FC = () => {
                 )}
               </label>
               <select
-                value={selectedYearOrSemester}
-                onChange={(e) => handleYearOrSemesterChange(e.target.value)}
+                value={draftYearOrSemester}
+                onChange={(e) => handleDraftYearOrSemesterChange(e.target.value)}
                 className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs font-medium bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="ALL">
-                  {selectedCourse === 'bbs-tu'
+                  {draftCourse === 'bbs-tu'
                     ? 'All Years (BBS)'
-                    : selectedCourse === 'mbs-tu'
+                    : draftCourse === 'mbs-tu'
                     ? 'All Semesters (MBS)'
-                    : selectedCourse.startsWith('plus-two')
+                    : draftCourse.startsWith('plus-two')
                     ? 'All Grades'
                     : 'All Years / Semesters'}
                 </option>
@@ -752,13 +924,14 @@ export const StudyMaterialsPage: React.FC = () => {
               </select>
             </div>
 
-            {/* 3. Filter: Subjects (Column on the right of Years/Semester) */}
+            {/* 3. Filter: Batch / Assigned Teacher */}
             <div>
               <label className="block text-slate-500 font-bold uppercase tracking-wider text-[10px] mb-1 flex items-center justify-between">
-                <span>Subjects ({availableSubjects.length})</span>
-                {selectedSubject !== 'ALL' && (
+                <span>Batch ({availableBatches.length})</span>
+                {draftBatch !== 'ALL' && (
                   <button
-                    onClick={() => setSelectedSubject('ALL')}
+                    type="button"
+                    onClick={() => setDraftBatch('ALL')}
                     className="text-[10px] text-blue-600 hover:underline font-normal cursor-pointer"
                   >
                     Reset
@@ -766,8 +939,39 @@ export const StudyMaterialsPage: React.FC = () => {
                 )}
               </label>
               <select
-                value={selectedSubject}
-                onChange={(e) => setSelectedSubject(e.target.value)}
+                value={draftBatch}
+                onChange={(e) => setDraftBatch(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs font-medium bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="ALL">All Batches ({availableBatches.length})</option>
+                <option value="COMMON">Common (All Batches)</option>
+                {availableBatches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                    {b.isOwnBatch ? ' ★ Your Batch' : ''}
+                    {b.teacherDisplay ? ` — ${b.teacherDisplay}` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* 4. Filter: Subjects */}
+            <div>
+              <label className="block text-slate-500 font-bold uppercase tracking-wider text-[10px] mb-1 flex items-center justify-between">
+                <span>Subjects ({availableSubjects.length})</span>
+                {draftSubject !== 'ALL' && (
+                  <button
+                    type="button"
+                    onClick={() => setDraftSubject('ALL')}
+                    className="text-[10px] text-blue-600 hover:underline font-normal cursor-pointer"
+                  >
+                    Reset
+                  </button>
+                )}
+              </label>
+              <select
+                value={draftSubject}
+                onChange={(e) => setDraftSubject(e.target.value)}
                 className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs font-medium bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="ALL">All Subjects ({availableSubjects.length})</option>
@@ -779,13 +983,14 @@ export const StudyMaterialsPage: React.FC = () => {
               </select>
             </div>
 
-            {/* 4. Filter: Resource Type (Column on the right of Subjects) */}
+            {/* 5. Filter: Resource Type */}
             <div>
               <label className="block text-slate-500 font-bold uppercase tracking-wider text-[10px] mb-1 flex items-center justify-between">
                 <span>Resource Type</span>
-                {selectedType !== 'ALL' && (
+                {draftType !== 'ALL' && (
                   <button
-                    onClick={() => setSelectedType('ALL')}
+                    type="button"
+                    onClick={() => setDraftType('ALL')}
                     className="text-[10px] text-blue-600 hover:underline font-normal cursor-pointer"
                   >
                     Reset
@@ -793,8 +998,8 @@ export const StudyMaterialsPage: React.FC = () => {
                 )}
               </label>
               <select
-                value={selectedType}
-                onChange={(e) => setSelectedType(e.target.value)}
+                value={draftType}
+                onChange={(e) => setDraftType(e.target.value)}
                 className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs font-medium bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="ALL">All Resource Types</option>
@@ -809,13 +1014,14 @@ export const StudyMaterialsPage: React.FC = () => {
               </select>
             </div>
 
-            {/* 5. Filter: Access Level */}
+            {/* 6. Filter: Access Level */}
             <div>
               <label className="block text-slate-500 font-bold uppercase tracking-wider text-[10px] mb-1 flex items-center justify-between">
                 <span>Access Level</span>
-                {selectedAccess !== 'ALL' && (
+                {draftAccess !== 'ALL' && (
                   <button
-                    onClick={() => setSelectedAccess('ALL')}
+                    type="button"
+                    onClick={() => setDraftAccess('ALL')}
                     className="text-[10px] text-blue-600 hover:underline font-normal cursor-pointer"
                   >
                     Reset
@@ -823,8 +1029,8 @@ export const StudyMaterialsPage: React.FC = () => {
                 )}
               </label>
               <select
-                value={selectedAccess}
-                onChange={(e) => setSelectedAccess(e.target.value)}
+                value={draftAccess}
+                onChange={(e) => setDraftAccess(e.target.value)}
                 className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs font-medium bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="ALL">All Access Levels</option>
@@ -834,85 +1040,167 @@ export const StudyMaterialsPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Active Filter Chips / Pills */}
-          {isAnyFilterActive && (
-            <div className="flex flex-wrap items-center gap-2 pt-2 text-[11px] border-t border-slate-100">
-              <span className="text-slate-400 font-semibold">Active Filters:</span>
+          {/* Active Filter Chips + Explicit OK Button */}
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-3 text-[11px] border-t border-slate-100">
+            <div className="flex flex-wrap items-center gap-2 min-w-0">
+              {isAnyFilterActive ? (
+                <>
+                  <span className="text-slate-400 font-semibold">Active Filters:</span>
 
-              {selectedCourse !== 'ALL' && (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 text-blue-800 font-semibold border border-blue-200">
-                  <span>Course: {getCourseDisplayName(courses.find((c) => c.slug === selectedCourse)!)}</span>
-                  <button
-                    onClick={() => handleCourseChange('ALL')}
-                    className="hover:text-blue-900 cursor-pointer"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
+                  {selectedCourse !== 'ALL' && (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 text-blue-800 font-semibold border border-blue-200">
+                      <span>
+                        Course:{' '}
+                        {courses.find((c) => c.slug === selectedCourse)
+                          ? getCourseDisplayName(courses.find((c) => c.slug === selectedCourse)!)
+                          : selectedCourse}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedCourse('ALL');
+                          setDraftCourse('ALL');
+                          setSelectedYearOrSemester('ALL');
+                          setDraftYearOrSemester('ALL');
+                          setSelectedBatch('ALL');
+                          setDraftBatch('ALL');
+                          setSelectedSubject('ALL');
+                          setDraftSubject('ALL');
+                        }}
+                        className="hover:text-blue-900 cursor-pointer"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  )}
+
+                  {selectedYearOrSemester !== 'ALL' && (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 font-semibold border border-amber-200">
+                      <span>{yearOrSemesterLabel}: {selectedYearOrSemester}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedYearOrSemester('ALL');
+                          setDraftYearOrSemester('ALL');
+                          setSelectedBatch('ALL');
+                          setDraftBatch('ALL');
+                          setSelectedSubject('ALL');
+                          setDraftSubject('ALL');
+                        }}
+                        className="hover:text-amber-900 cursor-pointer"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  )}
+
+                  {selectedBatch !== 'ALL' && (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-800 font-semibold border border-indigo-200">
+                      <span>Batch: {getBatchDisplayLabel(selectedBatch)}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedBatch('ALL');
+                          setDraftBatch('ALL');
+                        }}
+                        className="hover:text-indigo-900 cursor-pointer"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  )}
+
+                  {selectedSubject !== 'ALL' && (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 font-semibold border border-emerald-200">
+                      <span>Subject: {selectedSubject}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedSubject('ALL');
+                          setDraftSubject('ALL');
+                        }}
+                        className="hover:text-emerald-900 cursor-pointer"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  )}
+
+                  {selectedType !== 'ALL' && (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-50 text-rose-800 font-semibold border border-rose-200">
+                      <span>Resource: {selectedType}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedType('ALL');
+                          setDraftType('ALL');
+                        }}
+                        className="hover:text-rose-900 cursor-pointer"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  )}
+
+                  {selectedAccess !== 'ALL' && (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 text-slate-800 font-semibold border border-slate-200">
+                      <span>Access: {selectedAccess}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedAccess('ALL');
+                          setDraftAccess('ALL');
+                        }}
+                        className="hover:text-slate-900 cursor-pointer"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  )}
+                </>
+              ) : (
+                <span className="text-slate-400 font-medium">
+                  Select course, year/semester, batch, subject, or resource filters above and click OK to view matching materials.
                 </span>
               )}
 
-              {selectedYearOrSemester !== 'ALL' && (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 font-semibold border border-amber-200">
-                  <span>{yearOrSemesterLabel}: {selectedYearOrSemester}</span>
-                  <button
-                    onClick={() => handleYearOrSemesterChange('ALL')}
-                    className="hover:text-amber-900 cursor-pointer"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
+              {hasPendingFilterChanges && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-100 text-amber-900 font-bold border border-amber-300">
+                  Selection updated — click OK to apply
                 </span>
               )}
+            </div>
 
-              {selectedSubject !== 'ALL' && (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 font-semibold border border-emerald-200">
-                  <span>Subject: {selectedSubject}</span>
-                  <button
-                    onClick={() => setSelectedSubject('ALL')}
-                    className="hover:text-emerald-900 cursor-pointer"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </span>
+            <div className="flex items-center gap-3 shrink-0 ml-auto">
+              {isAnyDraftOrActiveFilter && (
+                <button
+                  type="button"
+                  onClick={resetAllFilters}
+                  className="text-xs text-rose-600 hover:underline font-semibold cursor-pointer"
+                >
+                  Clear all
+                </button>
               )}
-
-              {selectedType !== 'ALL' && (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-50 text-rose-800 font-semibold border border-rose-200">
-                  <span>Resource: {selectedType}</span>
-                  <button
-                    onClick={() => setSelectedType('ALL')}
-                    className="hover:text-rose-900 cursor-pointer"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </span>
-              )}
-
-              {selectedAccess !== 'ALL' && (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 text-slate-800 font-semibold border border-slate-200">
-                  <span>Access: {selectedAccess}</span>
-                  <button
-                    onClick={() => setSelectedAccess('ALL')}
-                    className="hover:text-slate-900 cursor-pointer"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </span>
-              )}
-
               <button
-                onClick={resetAllFilters}
-                className="text-xs text-rose-600 hover:underline font-semibold ml-auto cursor-pointer"
+                type="button"
+                onClick={handleApplyFilters}
+                className={`px-5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm ${
+                  hasPendingFilterChanges
+                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white ring-2 ring-emerald-300'
+                    : 'bg-[#12315A] hover:bg-blue-900 text-white'
+                }`}
               >
-                Clear all
+                <Check className="w-3.5 h-3.5" />
+                <span>OK</span>
               </button>
             </div>
-          )}
+          </div>
         </div>
       </div>
 
       {/* Materials List */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
-        {selectedSubject === 'ALL' && selectedType === 'ALL' && !searchQuery.trim() ? (
+        {!hasConfirmedFilters && selectedSubject === 'ALL' && selectedType === 'ALL' && selectedBatch === 'ALL' && !searchQuery.trim() ? (
           <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 space-y-5 shadow-xs">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
@@ -920,7 +1208,7 @@ export const StudyMaterialsPage: React.FC = () => {
                   Select a Subject to View Resources
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Click the specific subject you want to study. Only materials for your selected subject will be displayed.
+                  Click the specific subject you want to study, or set your filters above and click <strong>OK</strong>.
                 </p>
               </div>
               {!currentUser && (
@@ -940,7 +1228,7 @@ export const StudyMaterialsPage: React.FC = () => {
                 <p className="font-bold text-slate-700">
                   {studyMaterials.length === 0
                     ? 'No study resources have been uploaded by the administrator yet.'
-                    : 'No uploaded resources match the selected course, semester, or enrollment criteria.'}
+                    : 'No uploaded resources match the selected course, semester, batch, or enrollment criteria.'}
                 </p>
               </div>
             ) : (
@@ -953,7 +1241,16 @@ export const StudyMaterialsPage: React.FC = () => {
                     <button
                       key={sub}
                       type="button"
-                      onClick={() => setSelectedSubject(sub)}
+                      onClick={() => {
+                        setSelectedCourse(draftCourse);
+                        setSelectedYearOrSemester(draftYearOrSemester);
+                        setSelectedBatch(draftBatch);
+                        setSelectedType(draftType);
+                        setSelectedAccess(draftAccess);
+                        setSelectedSubject(sub);
+                        setDraftSubject(sub);
+                        setHasConfirmedFilters(true);
+                      }}
                       className="p-4 rounded-2xl border border-slate-200 bg-slate-50/70 hover:bg-blue-50/70 hover:border-blue-300 text-left transition-all cursor-pointer flex items-center justify-between gap-3 group"
                     >
                       <div className="min-w-0">
@@ -975,10 +1272,14 @@ export const StudyMaterialsPage: React.FC = () => {
           <>
             <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
               <div className="flex items-center gap-3 flex-wrap">
-                {selectedSubject !== 'ALL' && (
+                {(selectedSubject !== 'ALL' || hasConfirmedFilters) && (
                   <button
                     type="button"
-                    onClick={() => setSelectedSubject('ALL')}
+                    onClick={() => {
+                      setSelectedSubject('ALL');
+                      setDraftSubject('ALL');
+                      setHasConfirmedFilters(false);
+                    }}
                     className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-100 transition-colors cursor-pointer"
                   >
                     &larr; All Subjects
@@ -1036,9 +1337,17 @@ export const StudyMaterialsPage: React.FC = () => {
                     currentUser?.role === 'admin' ||
                     isStudentEnrolledInSubject(mat.courseSlug, mat.subject);
 
-                  const hasAccess = isCourseEnrolled && isSubjectAllowed;
+                  const isBatchRestricted =
+                    mat.accessLevel !== 'Public' &&
+                    currentUser?.role === 'student' &&
+                    isStudentBatchRestricted(mat);
+
+                  const hasAccess = isMaterialAccessibleToUser(mat);
                   const isSubjectRestricted =
-                    currentUser?.role === 'student' && isCourseEnrolled && !isSubjectAllowed;
+                    mat.accessLevel !== 'Public' &&
+                    currentUser?.role === 'student' &&
+                    isCourseEnrolled &&
+                    !isSubjectAllowed;
 
                   return (
                     <div
@@ -1048,6 +1357,8 @@ export const StudyMaterialsPage: React.FC = () => {
                           ? mat.resourceType === 'Recorded Videos'
                             ? 'hover:bg-rose-50/30'
                             : 'hover:bg-blue-50/30'
+                          : isBatchRestricted
+                          ? 'bg-indigo-50/30'
                           : isSubjectRestricted
                           ? 'bg-amber-50/30'
                           : 'bg-slate-50/40'
@@ -1080,24 +1391,28 @@ export const StudyMaterialsPage: React.FC = () => {
                               <span>{mat.resourceType}</span>
                             </span>
 
-                            <span
-                              className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                                mat.courseType === 'Old Course'
-                                  ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                                  : 'bg-slate-100 text-slate-700 border border-slate-200'
-                              }`}
-                            >
-                              {mat.courseType || 'New Course'}
-                            </span>
-
                             <span className="text-[10px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded">
                               {mat.semesterOrYear}
                             </span>
+
+                            <span className="text-[10px] font-bold text-indigo-800 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200 inline-flex items-center gap-1">
+                              <Users className="w-3 h-3 text-indigo-600" />
+                              <span>{mat.batchId && mat.batchId !== 'ALL' && mat.batchName ? mat.batchName : 'All Batches'}</span>
+                            </span>
+
+                            {mat.teacherName && (
+                              <span className="text-[10px] font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded border border-teal-200 inline-flex items-center gap-1">
+                                <UserCheck className="w-3 h-3 text-teal-600" />
+                                <span>{mat.teacherName}</span>
+                              </span>
+                            )}
 
                             <span
                               className={`text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1 ${
                                 hasAccess
                                   ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                                  : isBatchRestricted
+                                  ? 'bg-indigo-100 text-indigo-900 border border-indigo-300 font-bold'
                                   : isSubjectRestricted
                                   ? 'bg-amber-100 text-amber-900 border border-amber-300 font-bold'
                                   : currentUser
@@ -1109,6 +1424,11 @@ export const StudyMaterialsPage: React.FC = () => {
                                 <>
                                   <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                                   <span>Unlocked</span>
+                                </>
+                              ) : isBatchRestricted ? (
+                                <>
+                                  <Lock className="w-3 h-3 text-indigo-700" />
+                                  <span>Batch Restricted</span>
                                 </>
                               ) : isSubjectRestricted ? (
                                 <>
@@ -1142,6 +1462,14 @@ export const StudyMaterialsPage: React.FC = () => {
                                 {mat.subject}
                               </span>
                             </span>
+                            {mat.teacherName && (
+                              <>
+                                <span>•</span>
+                                <span>
+                                  <strong>Teacher:</strong> {mat.teacherName}
+                                </span>
+                              </>
+                            )}
                             {(mat.fileName || mat.attachmentName) && mat.resourceType !== 'Recorded Videos' && (
                               <>
                                 <span>•</span>
@@ -1156,6 +1484,17 @@ export const StudyMaterialsPage: React.FC = () => {
                             <p className="text-xs text-slate-600 leading-relaxed line-clamp-1">
                               {mat.description}
                             </p>
+                          )}
+
+                          {isBatchRestricted && (
+                            <div className="p-2 rounded-xl bg-indigo-50 border border-indigo-200 text-[11px] text-indigo-900 flex items-center gap-2">
+                              <AlertCircle className="w-4 h-4 text-indigo-700 shrink-0" />
+                              <span>
+                                Assigned exclusively to <strong>{mat.batchName || 'another batch'}</strong>
+                                {mat.teacherName ? ` (Faculty: ${mat.teacherName})` : ''}. Your enrollment is in{' '}
+                                <strong>{currentUser?.batchNames?.join(', ') || currentUser?.batchName || 'another batch'}</strong>.
+                              </span>
+                            </div>
                           )}
 
                           {isSubjectRestricted && (
@@ -1204,6 +1543,14 @@ export const StudyMaterialsPage: React.FC = () => {
                               </button>
                             </div>
                           )
+                        ) : isBatchRestricted ? (
+                          <button
+                            onClick={() => setRestrictedMaterial(mat)}
+                            className="px-3 py-2 rounded-xl text-xs font-bold text-indigo-950 bg-indigo-100 hover:bg-indigo-200 border border-indigo-300 transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+                          >
+                            <Lock className="w-3.5 h-3.5 text-indigo-700" />
+                            <span>Batch Restricted</span>
+                          </button>
                         ) : isSubjectRestricted ? (
                           <button
                             onClick={() => setRestrictedMaterial(mat)}
@@ -1384,6 +1731,16 @@ export const StudyMaterialsPage: React.FC = () => {
                 <span className="bg-white px-2.5 py-1 rounded-lg border border-slate-200 font-medium">
                   <strong>Subject:</strong> {restrictedMaterial.subject}
                 </span>
+                {restrictedMaterial.batchName && (
+                  <span className="bg-indigo-50 text-indigo-800 px-2 py-0.5 rounded font-semibold">
+                    <strong>Batch:</strong> {restrictedMaterial.batchName}
+                  </span>
+                )}
+                {restrictedMaterial.teacherName && (
+                  <span className="bg-teal-50 text-teal-800 px-2 py-0.5 rounded font-semibold">
+                    <strong>Teacher:</strong> {restrictedMaterial.teacherName}
+                  </span>
+                )}
                 <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-semibold">
                   {restrictedMaterial.semesterOrYear}
                 </span>
@@ -1395,12 +1752,38 @@ export const StudyMaterialsPage: React.FC = () => {
                 (() => {
                   const isCourseEnrolled = currentUser.enrolledCourseSlugs?.includes(restrictedMaterial.courseSlug);
                   const isSubjectAllowed = isStudentEnrolledInSubject(restrictedMaterial.courseSlug, restrictedMaterial.subject);
+                  const isBatchBlocked = isStudentBatchRestricted(restrictedMaterial);
+
+                  if (isBatchBlocked) {
+                    return (
+                      <>
+                        <p>
+                          You are logged in as <strong>{currentUser.name}</strong> ({currentUser.phone || currentUser.studentId}), enrolled in{' '}
+                          <strong>{currentUser.batchNames?.join(', ') || currentUser.batchName || 'your assigned batch'}</strong>.
+                        </p>
+                        <div className="text-indigo-950 font-medium bg-indigo-50 p-3.5 rounded-xl border border-indigo-200 space-y-2">
+                          <p className="font-bold flex items-center gap-1.5 text-indigo-900">
+                            <Users className="w-4 h-4 text-indigo-700 shrink-0" />
+                            <span>Batch-Specific Faculty Resource</span>
+                          </p>
+                          <p>
+                            This resource is published specifically for{' '}
+                            <strong>{restrictedMaterial.batchName || 'another batch'}</strong>
+                            {restrictedMaterial.teacherName ? ` taught by ${restrictedMaterial.teacherName}` : ''}.
+                          </p>
+                          <p className="text-[11px] text-indigo-800">
+                            Different teachers handle separate batches, so batch-specific materials are unlocked only for students enrolled in that batch.
+                          </p>
+                        </div>
+                      </>
+                    );
+                  }
 
                   if (isCourseEnrolled && !isSubjectAllowed) {
                     return (
                       <>
                         <p>
-                          You are logged in as <strong>{currentUser.name}</strong> ({currentUser.studentId}), enrolled in <strong>{restrictedMaterial.courseName}</strong>.
+                          You are logged in as <strong>{currentUser.name}</strong> ({currentUser.phone || currentUser.studentId}), enrolled in <strong>{restrictedMaterial.courseName}</strong>.
                         </p>
                         <div className="text-amber-950 font-medium bg-amber-50 p-3.5 rounded-xl border border-amber-300 space-y-2">
                           <p className="font-bold flex items-center gap-1.5 text-amber-900">
@@ -1426,7 +1809,7 @@ export const StudyMaterialsPage: React.FC = () => {
                   return (
                     <>
                       <p>
-                        You are logged in as <strong>{currentUser.name}</strong> ({currentUser.studentId}), currently enrolled in:{' '}
+                        You are logged in as <strong>{currentUser.name}</strong> ({currentUser.phone || currentUser.studentId}), currently enrolled in:{' '}
                         <span className="font-semibold text-blue-700">
                           {currentUser.enrolledCourseSlugs && currentUser.enrolledCourseSlugs.length > 0
                             ? currentUser.enrolledCourseSlugs.map((s) => courses.find((c) => c.slug === s)?.title || s).join(', ')

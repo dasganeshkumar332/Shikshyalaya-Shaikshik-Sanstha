@@ -15,6 +15,8 @@ import {
   CheckCircle2,
   Phone,
   Send,
+  Plus,
+  X,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { ClassMode } from '../types';
@@ -37,6 +39,15 @@ export const HomePage: React.FC = () => {
 
   const publishedTeachers = teachers.filter((t) => t.published);
 
+  const publishedCourses = courses.filter((c) => c.published !== false);
+  const academicCoursesList = publishedCourses.filter((c) => c.category !== 'loksewa');
+  const bankingCoursesList = publishedCourses.filter(
+    (c) => c.category === 'loksewa' && (c.slug.includes('rbb') || c.slug.includes('nbl') || c.slug.includes('bank'))
+  );
+  const civilLoksewaCoursesList = publishedCourses.filter(
+    (c) => c.category === 'loksewa' && !(c.slug.includes('rbb') || c.slug.includes('nbl') || c.slug.includes('bank'))
+  );
+
   // Unified Login state (handles both Student & Admin automatically)
   const [loginId, setLoginId] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -50,22 +61,63 @@ export const HomePage: React.FC = () => {
   const [applyPhone, setApplyPhone] = useState('');
   const [applyEmail, setApplyEmail] = useState('');
   const [applyCourseSlug, setApplyCourseSlug] = useState('bbs-tu');
+  const [applyExtraCourseSlugs, setApplyExtraCourseSlugs] = useState<string[]>([]);
+  const [applyTermFilter, setApplyTermFilter] = useState<string>('ALL');
   const [applySelectedSubjects, setApplySelectedSubjects] = useState<string[]>([]);
+  const [applyCustomSubject, setApplyCustomSubject] = useState('');
+  const [applyBatchId, setApplyBatchId] = useState('');
   const [applyMode, setApplyMode] = useState<ClassMode>('Offline');
   const [applyShift, setApplyShift] = useState<'Morning' | 'Day' | 'Evening' | 'Flexible'>('Morning');
   const [applySubmitting, setApplySubmitting] = useState(false);
   const [applyError, setApplyError] = useState('');
   const [applySuccessRef, setApplySuccessRef] = useState<string | null>(null);
 
-  const selectedApplyCourse = courses.find((c) => c.slug === applyCourseSlug) || courses[0];
+  const selectedApplyCourse = publishedCourses.find((c) => c.slug === applyCourseSlug) || publishedCourses[0];
+  const activeApplyCourses = [
+    ...(selectedApplyCourse ? [selectedApplyCourse] : []),
+    ...applyExtraCourseSlugs
+      .filter((slug) => slug !== applyCourseSlug)
+      .map((slug) => publishedCourses.find((c) => c.slug === slug))
+      .filter((c): c is NonNullable<typeof c> => Boolean(c)),
+  ];
+
+  const applyAvailableTerms = Array.from(
+    new Set(
+      activeApplyCourses
+        .flatMap((c) => c.subjectsOffered || [])
+        .map((s) => s.semesterOrYear)
+        .filter((t): t is string => Boolean(t))
+    )
+  );
+
   const applyCourseSubjectOptions = Array.from(
-    new Set((selectedApplyCourse?.subjectsOffered || []).map((s) => s.name).filter(Boolean))
+    new Set([
+      ...activeApplyCourses
+        .flatMap((c) => c.subjectsOffered || [])
+        .filter((s) => applyTermFilter === 'ALL' || s.semesterOrYear === applyTermFilter)
+        .map((s) => s.name)
+        .filter(Boolean),
+      ...applySelectedSubjects,
+    ])
+  );
+
+  const availableApplyBatches = studentGroups.filter((g) =>
+    activeApplyCourses.some((c) => c.slug === g.courseSlug)
   );
 
   const toggleApplySubject = (subjectName: string) => {
     setApplySelectedSubjects((prev) =>
       prev.includes(subjectName) ? prev.filter((s) => s !== subjectName) : [...prev, subjectName]
     );
+  };
+
+  const handleAddCustomSubject = () => {
+    const trimmed = applyCustomSubject.trim();
+    if (!trimmed) return;
+    if (!applySelectedSubjects.includes(trimmed)) {
+      setApplySelectedSubjects((prev) => [...prev, trimmed]);
+    }
+    setApplyCustomSubject('');
   };
 
   const handleUnifiedLogin = (e: React.FormEvent) => {
@@ -244,11 +296,17 @@ export const HomePage: React.FC = () => {
       return;
     }
 
-    const selectedCourse = courses.find((c) => c.slug === applyCourseSlug) || courses[0];
+    const selectedCourse = publishedCourses.find((c) => c.slug === applyCourseSlug) || publishedCourses[0];
     if (!selectedCourse) {
       setApplyError('Please select a valid academic program.');
       return;
     }
+
+    const extraCourseTitles = applyExtraCourseSlugs
+      .filter((s) => s !== selectedCourse.slug)
+      .map((s) => publishedCourses.find((c) => c.slug === s)?.title)
+      .filter((t): t is string => Boolean(t));
+    const chosenBatch = availableApplyBatches.find((g) => g.id === applyBatchId);
 
     setApplySubmitting(true);
     try {
@@ -257,25 +315,38 @@ export const HomePage: React.FC = () => {
         email: applyEmail.trim() || 'not-provided@shikshyalaya.edu.np',
         phone: applyPhone.trim(),
         courseSlug: selectedCourse.slug,
-        courseName: selectedCourse.title,
+        courseName:
+          extraCourseTitles.length > 0
+            ? `${selectedCourse.title} (+ ${extraCourseTitles.join(', ')})`
+            : selectedCourse.title,
         courseType: selectedCourse.courseType || 'New Course',
         board: selectedCourse.board,
-        academicLevel: selectedCourse.level,
+        academicLevel:
+          applyTermFilter !== 'ALL' ? applyTermFilter : selectedCourse.level,
         subjectsOfInterest:
           applySelectedSubjects.length > 0
             ? applySelectedSubjects.join(', ')
             : undefined,
         enrolledSubjects:
           applySelectedSubjects.length > 0 ? applySelectedSubjects : undefined,
+        batchId: chosenBatch?.id,
+        batchName: chosenBatch ? chosenBatch.name || chosenBatch.title : undefined,
         preferredMode: applyMode,
         preferredShift: applyShift,
-        message: 'Submitted via Home Page Admission Form',
+        message:
+          extraCourseTitles.length > 0
+            ? `Submitted via Home Page Admission Form (Additional Courses: ${extraCourseTitles.join(', ')})`
+            : 'Submitted via Home Page Admission Form',
       });
       setApplySuccessRef(ref);
       setApplyName('');
       setApplyPhone('');
       setApplyEmail('');
+      setApplyExtraCourseSlugs([]);
+      setApplyTermFilter('ALL');
       setApplySelectedSubjects([]);
+      setApplyCustomSubject('');
+      setApplyBatchId('');
     } catch {
       setApplyError('Unable to submit admission request right now. Please try the full admission page.');
     } finally {
@@ -509,11 +580,27 @@ export const HomePage: React.FC = () => {
                       onChange={(e) => setLoginCourseSlug(e.target.value)}
                       className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all font-medium"
                     >
-                      {courses.map((c) => (
-                        <option key={c.slug} value={c.slug}>
-                          {c.title}
-                        </option>
-                      ))}
+                      <optgroup label="Academic Degree Programs (TU, PU, NEB)">
+                        {academicCoursesList.map((c) => (
+                          <option key={c.slug} value={c.slug}>
+                            {c.title}
+                          </option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="Loksewa Banking Preparation (RBB, NBL, NRB)">
+                        {bankingCoursesList.map((c) => (
+                          <option key={c.slug} value={c.slug}>
+                            {c.title}
+                          </option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="Loksewa Civil & Teaching Services (TSC)">
+                        {civilLoksewaCoursesList.map((c) => (
+                          <option key={c.slug} value={c.slug}>
+                            {c.title}
+                          </option>
+                        ))}
+                      </optgroup>
                     </select>
                   </div>
 
@@ -668,24 +755,44 @@ export const HomePage: React.FC = () => {
                     <div className="sm:col-span-6">
                       <label
                         htmlFor="home-apply-course"
-                        className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1"
+                        className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1 flex items-center justify-between"
                       >
-                        Academic Program *
+                        <span>Academic Program *</span>
+                        <span className="text-[10px] text-blue-700 font-semibold normal-case">
+                          {publishedCourses.length} courses
+                        </span>
                       </label>
                       <select
                         id="home-apply-course"
                         value={applyCourseSlug}
                         onChange={(e) => {
                           setApplyCourseSlug(e.target.value);
-                          setApplySelectedSubjects([]);
+                          setApplyTermFilter('ALL');
+                          setApplyBatchId('');
                         }}
                         className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white transition-all font-medium"
                       >
-                        {courses.map((c) => (
-                          <option key={c.slug} value={c.slug}>
-                            {c.title}
-                          </option>
-                        ))}
+                        <optgroup label="Academic Degree Programs (TU, PU, NEB)">
+                          {academicCoursesList.map((c) => (
+                            <option key={c.slug} value={c.slug}>
+                              {c.title} ({c.board})
+                            </option>
+                          ))}
+                        </optgroup>
+                        <optgroup label="Loksewa Banking Preparation (RBB, NBL, NRB)">
+                          {bankingCoursesList.map((c) => (
+                            <option key={c.slug} value={c.slug}>
+                              {c.title}
+                            </option>
+                          ))}
+                        </optgroup>
+                        <optgroup label="Loksewa Civil & Teaching Services (TSC)">
+                          {civilLoksewaCoursesList.map((c) => (
+                            <option key={c.slug} value={c.slug}>
+                              {c.title}
+                            </option>
+                          ))}
+                        </optgroup>
                       </select>
                     </div>
 
@@ -729,12 +836,142 @@ export const HomePage: React.FC = () => {
                     </div>
                   </div>
 
-                  {applyCourseSubjectOptions.length > 0 && (
-                    <div className="space-y-1.5">
+                  {/* Add Additional Course (Optional) & Preferred Batch */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label
+                        htmlFor="home-apply-extra-course"
+                        className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1"
+                      >
+                        + Add Another Course (Optional)
+                      </label>
+                      <select
+                        id="home-apply-extra-course"
+                        value=""
+                        onChange={(e) => {
+                          const slug = e.target.value;
+                          if (slug && slug !== applyCourseSlug && !applyExtraCourseSlugs.includes(slug)) {
+                            setApplyExtraCourseSlugs((prev) => [...prev, slug]);
+                          }
+                        }}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white font-medium"
+                      >
+                        <option value="">-- Add extra course to application --</option>
+                        {publishedCourses
+                          .filter((c) => c.slug !== applyCourseSlug && !applyExtraCourseSlugs.includes(c.slug))
+                          .map((c) => (
+                            <option key={c.slug} value={c.slug}>
+                              {c.title}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+
+                    {availableApplyBatches.length > 0 && (
+                      <div>
+                        <label
+                          htmlFor="home-apply-batch"
+                          className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1"
+                        >
+                          Preferred Batch (Optional)
+                        </label>
+                        <select
+                          id="home-apply-batch"
+                          value={applyBatchId}
+                          onChange={(e) => setApplyBatchId(e.target.value)}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white font-medium"
+                        >
+                          <option value="">Assign Best Available Batch</option>
+                          {availableApplyBatches.map((g) => {
+                            const baseName = g.title || g.name || 'Academic Batch';
+                            const numSuffix =
+                              g.batchNumber && !baseName.toLowerCase().includes(g.batchNumber.toLowerCase())
+                                ? ` • Batch ${g.batchNumber}`
+                                : '';
+                            return (
+                              <option key={g.id} value={g.id}>
+                                {baseName}
+                                {numSuffix} ({g.shift})
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+
+                  {applyExtraCourseSlugs.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {applyExtraCourseSlugs.map((slug) => {
+                        const cObj = publishedCourses.find((c) => c.slug === slug);
+                        return (
+                          <span
+                            key={slug}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-300 text-amber-900 text-[11px] font-bold"
+                          >
+                            <span>+ {cObj?.title || slug}</span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setApplyExtraCourseSlugs((prev) => prev.filter((s) => s !== slug))
+                              }
+                              className="text-amber-700 hover:text-rose-600 cursor-pointer"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <div className="space-y-2 p-3 rounded-2xl bg-slate-50 border border-slate-200">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                       <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
                         Select Specific Subjects You Want (Optional)
                       </label>
-                      <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {applyAvailableTerms.length > 1 && (
+                          <select
+                            value={applyTermFilter}
+                            onChange={(e) => setApplyTermFilter(e.target.value)}
+                            className="px-2 py-1 rounded-lg border border-slate-200 bg-white text-[11px] font-semibold text-slate-700"
+                          >
+                            <option value="ALL">All Years / Terms</option>
+                            {applyAvailableTerms.map((term) => (
+                              <option key={term} value={term}>
+                                {term}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                        {applyCourseSubjectOptions.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setApplySelectedSubjects((prev) =>
+                                Array.from(new Set([...prev, ...applyCourseSubjectOptions]))
+                              )
+                            }
+                            className="px-2 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-[10px] font-bold cursor-pointer"
+                          >
+                            Select All ({applyCourseSubjectOptions.length})
+                          </button>
+                        )}
+                        {applySelectedSubjects.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setApplySelectedSubjects([])}
+                            className="px-2 py-1 rounded-lg bg-white hover:bg-rose-50 text-rose-600 border border-slate-200 text-[10px] font-bold cursor-pointer"
+                          >
+                            Clear ({applySelectedSubjects.length})
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {applyCourseSubjectOptions.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto pt-1">
                         {applyCourseSubjectOptions.map((subj) => {
                           const isSelected = applySelectedSubjects.includes(subj);
                           return (
@@ -744,17 +981,43 @@ export const HomePage: React.FC = () => {
                               onClick={() => toggleApplySubject(subj)}
                               className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer border ${
                                 isSelected
-                                  ? 'bg-[#12315A] text-white border-[#12315A]'
+                                  ? 'bg-[#12315A] text-white border-[#12315A] shadow-2xs'
                                   : 'bg-white text-slate-700 border-slate-200 hover:border-blue-300'
                               }`}
                             >
+                              {isSelected ? '✓ ' : ''}
                               {subj}
                             </button>
                           );
                         })}
                       </div>
+                    )}
+
+                    {/* Custom Subject / Back-Paper Input */}
+                    <div className="flex gap-1.5 pt-1">
+                      <input
+                        type="text"
+                        placeholder="Add custom subject or back-paper (e.g. Taxation, Business Stats)..."
+                        value={applyCustomSubject}
+                        onChange={(e) => setApplyCustomSubject(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleAddCustomSubject();
+                          }
+                        }}
+                        className="flex-1 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddCustomSubject}
+                        className="px-3 py-1.5 rounded-lg bg-[#12315A] hover:bg-blue-900 text-white text-xs font-bold inline-flex items-center gap-1 shrink-0 cursor-pointer"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Add</span>
+                      </button>
                     </div>
-                  )}
+                  </div>
 
                   <button
                     type="submit"

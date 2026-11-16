@@ -34,7 +34,15 @@ import { ClassMode, CourseType } from '../types';
 
 export const AdmissionPage: React.FC = () => {
   const [searchParams] = useSearchParams();
-  const { courses, submitAdmissionInquiry, attachPaymentProofToInquiry, inquiries, settings, language } = useApp();
+  const {
+    courses,
+    studentGroups,
+    submitAdmissionInquiry,
+    attachPaymentProofToInquiry,
+    inquiries,
+    settings,
+    language,
+  } = useApp();
 
   const preselectedCourse = searchParams.get('course') || '';
   const preselectedMode = searchParams.get('mode') || '';
@@ -72,8 +80,18 @@ export const AdmissionPage: React.FC = () => {
   const [customSubjectText, setCustomSubjectText] = useState('');
   const [preferredMode, setPreferredMode] = useState<ClassMode>((preselectedMode as ClassMode) || 'Offline');
   const [preferredShift, setPreferredShift] = useState<'Morning' | 'Day' | 'Evening' | 'Flexible'>('Morning');
+  const [preferredBatchId, setPreferredBatchId] = useState<string>('');
   const [message, setMessage] = useState('');
   const [consentPrivacy, setConsentPrivacy] = useState(true);
+
+  const availableBatchesForCourse = React.useMemo(
+    () => studentGroups.filter((g) => g.courseSlug === selectedCourseSlug),
+    [studentGroups, selectedCourseSlug]
+  );
+
+  useEffect(() => {
+    setPreferredBatchId('');
+  }, [selectedCourseSlug]);
 
   // Payment Proof States
   const [hasPaymentProof, setHasPaymentProof] = useState(false);
@@ -333,6 +351,8 @@ export const AdmissionPage: React.FC = () => {
         finalSubjectsList = `All subjects under ${selectedTerm || 'Core Curriculum'}`;
       }
 
+      const selectedBatchObj = studentGroups.find((g) => g.id === preferredBatchId);
+
       const refNumber = await submitAdmissionInquiry({
         fullName,
         email: email || 'not-provided@example.com',
@@ -342,13 +362,12 @@ export const AdmissionPage: React.FC = () => {
         courseName: courseObj?.title || selectedCourseSlug,
         board: courseObj?.board || 'Academic Board',
         academicLevel: selectedTerm || courseObj?.level || 'Standard',
-        courseType,
-        syllabusVersion:
-          courseType === 'Old Course'
-            ? courseObj?.syllabusVersion || 'Old Annual/Semester Syllabus (Backpaper Exam Prep)'
-            : courseObj?.syllabusVersion || 'New Regular CBCS Syllabus',
+        courseType: 'New Course',
+        syllabusVersion: courseObj?.syllabusVersion || 'Standard Regular Syllabus',
         subjectsOfInterest: finalSubjectsList,
         enrolledSubjects: selectedSubjects.length > 0 ? selectedSubjects : undefined,
+        batchId: selectedBatchObj?.id,
+        batchName: selectedBatchObj ? (selectedBatchObj.title || selectedBatchObj.name) : undefined,
         preferredMode,
         preferredShift,
         message,
@@ -400,6 +419,7 @@ export const AdmissionPage: React.FC = () => {
     setAddress('');
     setSelectedSubjects([]);
     setCustomSubjectText('');
+    setPreferredBatchId('');
     setMessage('');
     handleRemovePaymentProof();
     setPaymentAmount('');
@@ -946,74 +966,8 @@ export const AdmissionPage: React.FC = () => {
                   <span className="text-[11px] text-slate-400 font-normal">Step 2 of 4</span>
                 </h3>
 
-                {/* Syllabus / Course Type Selector (Shown only for Academic Courses with Old/New variants) */}
-                {currentCourse?.category !== 'loksewa' ? (
-                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <label className="block font-bold text-slate-800 text-xs">
-                        Curriculum / Syllabus Category <span className="text-rose-500">*</span>
-                      </label>
-                      <span className="text-[10px] font-semibold text-slate-500">
-                        Regular Semester or Backpaper Exam
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCourseType('New Course');
-                          if (selectedCourseSlug.endsWith('-old')) {
-                            const regularSlug = selectedCourseSlug.replace('-old', '');
-                            if (courses.some((c) => c.slug === regularSlug)) {
-                              setSelectedCourseSlug(regularSlug);
-                            }
-                          }
-                        }}
-                        className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                          courseType === 'New Course'
-                            ? 'border-blue-600 bg-blue-50/60 ring-2 ring-blue-500/20'
-                            : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-600'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-xs text-[#12315A]">New Course</span>
-                          {courseType === 'New Course' && (
-                            <span className="w-2 h-2 rounded-full bg-blue-600" />
-                          )}
-                        </div>
-                        <p className="text-[11px] text-slate-500 mt-0.5">
-                          Regular Current Semester / CBCS Annual Syllabus
-                        </p>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCourseType('Old Course');
-                          const oldSlug = `${selectedCourseSlug}-old`;
-                          if (courses.some((c) => c.slug === oldSlug)) {
-                            setSelectedCourseSlug(oldSlug);
-                          }
-                        }}
-                        className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                          courseType === 'Old Course'
-                            ? 'border-amber-600 bg-amber-50/60 ring-2 ring-amber-500/20'
-                            : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-600'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-xs text-amber-900">Old Course (Backpaper Prep)</span>
-                          {courseType === 'Old Course' && (
-                            <span className="w-2 h-2 rounded-full bg-amber-600" />
-                          )}
-                        </div>
-                        <p className="text-[11px] text-slate-500 mt-0.5">
-                          Annual / Prior Syllabus for Backlog & Chance Exams
-                        </p>
-                      </button>
-                    </div>
-                  </div>
-                ) : (
+                {/* Loksewa PSC banner for government service exams */}
+                {currentCourse?.category === 'loksewa' && (
                   <div className="bg-amber-50/80 border border-amber-300 rounded-2xl p-3.5 space-y-1">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5 font-bold text-xs text-amber-950">
@@ -1034,17 +988,9 @@ export const AdmissionPage: React.FC = () => {
                   <div>
                     <label className="block font-bold text-slate-700 mb-1.5 flex items-center justify-between">
                       <span>{currentCourse?.category === 'loksewa' ? 'Target Loksewa Examination' : 'Target Academic Course'} <span className="text-rose-500">*</span></span>
-                      {currentCourse?.category === 'loksewa' ? (
+                      {currentCourse?.category === 'loksewa' && (
                         <span className="text-[10px] font-bold px-2 py-0.2 rounded bg-amber-100 text-amber-900 border border-amber-200">
                           {currentCourse.level}
-                        </span>
-                      ) : currentCourse?.courseType && (
-                        <span className={`text-[10px] font-bold px-2 py-0.2 rounded ${
-                          currentCourse.courseType === 'Old Course'
-                            ? 'bg-amber-100 text-amber-800'
-                            : 'bg-blue-100 text-blue-800'
-                        }`}>
-                          {currentCourse.courseType}
                         </span>
                       )}
                     </label>
@@ -1077,7 +1023,7 @@ export const AdmissionPage: React.FC = () => {
                       <optgroup label="Academic Degree Programs (TU, PU, NEB)">
                         {courses.filter((c) => c.category !== 'loksewa').map((course) => (
                           <option key={course.slug} value={course.slug}>
-                            {course.title} ({course.board}) {course.courseType ? `[${course.courseType}]` : ''}
+                            {course.title} ({course.board})
                           </option>
                         ))}
                       </optgroup>
@@ -1272,6 +1218,44 @@ export const AdmissionPage: React.FC = () => {
                     </select>
                   </div>
                 </div>
+
+                {availableBatchesForCourse.length > 0 && (
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1.5">
+                      Preferred Academic Batch &amp; Assigned Faculty (Optional)
+                    </label>
+                    <select
+                      value={preferredBatchId}
+                      onChange={(e) => {
+                        const nextBatchId = e.target.value;
+                        setPreferredBatchId(nextBatchId);
+                        const grp = availableBatchesForCourse.find((g) => g.id === nextBatchId);
+                        if (grp?.shift && ['Morning', 'Day', 'Evening', 'Flexible'].includes(grp.shift)) {
+                          setPreferredShift(grp.shift as 'Morning' | 'Day' | 'Evening' | 'Flexible');
+                        }
+                      }}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm bg-white font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Assign Best Available Batch at Admission</option>
+                      {availableBatchesForCourse.map((g) => {
+                        const baseName = g.title || g.name || 'Academic Batch';
+                        const numSuffix =
+                          g.batchNumber && !baseName.toLowerCase().includes(g.batchNumber.toLowerCase())
+                            ? ` • Batch ${g.batchNumber}`
+                            : '';
+                        return (
+                          <option key={g.id} value={g.id}>
+                            {baseName}
+                            {numSuffix} ({g.shift} Shift{g.teacherName ? ` • Faculty: ${g.teacherName}` : ''})
+                          </option>
+                        );
+                      })}
+                    </select>
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      Resources and subject faculty are organized by batch so you receive notes tailored to your batch&apos;s teacher.
+                    </p>
+                  </div>
+                )}
 
                 <div>
                   <label className="block font-bold text-slate-700 mb-1.5">

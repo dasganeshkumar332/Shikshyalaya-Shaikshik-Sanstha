@@ -14,8 +14,6 @@ import {
   ArrowRight,
   FileText,
   AlertCircle,
-  Sparkles,
-  History,
   BookmarkCheck,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
@@ -41,19 +39,19 @@ export const CourseDetailPage: React.FC = () => {
     // BBS variants
     'bbs': 'bbs-tu',
     'tu-bbs': 'bbs-tu',
-    '3-year-bbs-tu': '3-year-bbs-tu',
-    '3-year-bbs': '3-year-bbs-tu',
-    'bbs-3yr': '3-year-bbs-tu',
-    'bbs-old': '3-year-bbs-tu',
-    'bbs-tu-old': '3-year-bbs-tu',
-    'bbs-old-course': '3-year-bbs-tu',
+    '3-year-bbs-tu': 'bbs-tu',
+    '3-year-bbs': 'bbs-tu',
+    'bbs-3yr': 'bbs-tu',
+    'bbs-old': 'bbs-tu',
+    'bbs-tu-old': 'bbs-tu',
+    'bbs-old-course': 'bbs-tu',
 
     // MBS variants
     'mbs': 'mbs-tu',
     'tu-mbs': 'mbs-tu',
-    'mbs-old': 'mbs-tu-old',
-    'mbs-tu-old': 'mbs-tu-old',
-    'mbs-annual': 'mbs-tu-old',
+    'mbs-old': 'mbs-tu',
+    'mbs-tu-old': 'mbs-tu',
+    'mbs-annual': 'mbs-tu',
 
     // +2 variants
     'plus-two-science': 'plus-two-science',
@@ -61,8 +59,8 @@ export const CourseDetailPage: React.FC = () => {
     'plus-two-management': 'plus-two-management',
     '+2-science': 'plus-two-science',
     '+2-management': 'plus-two-management',
-    'plus-two-old': 'plus-two-old',
-    '+2-old': 'plus-two-old',
+    'plus-two-old': 'plus-two-management',
+    '+2-old': 'plus-two-management',
 
     // Pokhara University
     'bba-pu': 'bba-pokhara-university',
@@ -116,21 +114,10 @@ export const CourseDetailPage: React.FC = () => {
   const [submitSuccessRef, setSubmitSuccessRef] = useState<string | null>(null);
   const [formError, setFormError] = useState('');
   const [selectedTerm, setSelectedTerm] = useState('ALL');
-  const [selectedCourseType, setSelectedCourseType] = useState<'All' | 'New Course' | 'Old Course'>(() => {
-    if (course?.courseType === 'Old Course' || slug?.includes('3-year') || slug?.includes('old')) {
-      return 'Old Course';
-    }
-    return 'New Course';
-  });
 
   useEffect(() => {
-    if (course?.courseType === 'Old Course' || slug?.includes('3-year') || slug?.includes('old')) {
-      setSelectedCourseType('Old Course');
-    } else {
-      setSelectedCourseType('New Course');
-    }
     setSelectedTerm('ALL');
-  }, [course?.courseType, slug]);
+  }, [slug]);
 
   if (!course) {
     return (
@@ -247,16 +234,11 @@ export const CourseDetailPage: React.FC = () => {
               <span className="px-3 py-1 rounded-full bg-amber-400 text-slate-950 font-bold text-xs uppercase tracking-wide">
                 {course.board}
               </span>
-              <span
-                className={`px-3 py-1 rounded-full text-xs font-bold ${
-                  course.courseType === 'Old Course'
-                    ? 'bg-amber-300 text-slate-950 shadow-xs'
-                    : 'bg-white/20 text-blue-100 border border-white/20'
-                }`}
-              >
-                {course.courseType || 'New Course'}
-                {course.syllabusVersion ? ` • ${course.syllabusVersion}` : ''}
-              </span>
+              {course.syllabusVersion && (
+                <span className="px-3 py-1 rounded-full text-xs font-bold bg-white/20 text-blue-100 border border-white/20">
+                  {course.syllabusVersion}
+                </span>
+              )}
               <span className="px-3 py-1 rounded-full bg-white/10 text-blue-200 text-xs font-semibold">
                 {course.level}
               </span>
@@ -353,104 +335,24 @@ export const CourseDetailPage: React.FC = () => {
                     <span>Subjects & Curriculum Modules Offered</span>
                   </h2>
                   <p className="text-xs text-slate-500 mt-1">
-                    Tuition modules offered according to official university / board curriculum and institute schedule ({course.subjectsOffered.length} total subjects across New & Old courses).
+                    Tuition modules offered according to official university / board curriculum and institute schedule ({course.subjectsOffered.filter((s) => s.courseType !== 'Old Course').length} total subjects).
                   </p>
                 </div>
               </div>
 
-              {/* Syllabus Switcher: New Course vs Old Course */}
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-3.5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div>
-                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block">
-                      Curriculum Scheme Selection
-                    </span>
-                    <h3 className="text-sm font-bold text-slate-900">
-                      Select Course Syllabus Format
-                    </h3>
-                  </div>
-
-                  <div className="flex items-center gap-1.5 bg-white p-1 rounded-xl border border-slate-200 shadow-xs">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedCourseType('New Course');
-                        setSelectedTerm('ALL');
-                      }}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                        selectedCourseType === 'New Course'
-                          ? 'bg-[#12315A] text-white shadow-xs'
-                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                      }`}
-                    >
-                      <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                      <span>New Course</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedCourseType('Old Course');
-                        setSelectedTerm('ALL');
-                      }}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                        selectedCourseType === 'Old Course'
-                          ? 'bg-amber-500 text-slate-950 shadow-xs'
-                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                      }`}
-                    >
-                      <History className="w-3.5 h-3.5" />
-                      <span>Old Course (Backpaper)</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedCourseType('All');
-                        setSelectedTerm('ALL');
-                      }}
-                      className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                        selectedCourseType === 'All'
-                          ? 'bg-slate-800 text-white'
-                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                      }`}
-                    >
-                      All Subjects
-                    </button>
-                  </div>
+              {course.newCourseNotes && (
+                <div className="text-xs text-blue-900 bg-blue-50/90 border border-blue-200/80 rounded-xl p-3.5 leading-relaxed">
+                  <strong className="font-semibold text-blue-950">Curriculum Overview: </strong>
+                  {course.newCourseNotes}
                 </div>
+              )}
 
-                {/* Helpful contextual curriculum notes */}
-                {selectedCourseType === 'New Course' && course.newCourseNotes && (
-                  <div className="text-xs text-blue-900 bg-blue-50/90 border border-blue-200/80 rounded-xl p-3 flex items-start gap-2.5">
-                    <Sparkles className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                    <div className="leading-relaxed">
-                      <strong className="font-semibold text-blue-950">New Course Syllabus: </strong>
-                      {course.newCourseNotes}
-                    </div>
-                  </div>
-                )}
-
-                {selectedCourseType === 'Old Course' && course.oldCourseNotes && (
-                  <div className="text-xs text-amber-950 bg-amber-50 border border-amber-300/80 rounded-xl p-3 flex items-start gap-2.5">
-                    <History className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-                    <div className="leading-relaxed">
-                      <strong className="font-semibold text-amber-950">Old Course / Backpaper Support: </strong>
-                      {course.oldCourseNotes}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Semester / Year Filter Tabs filtered for the active course type */}
+              {/* Semester / Year Filter Tabs */}
               {(() => {
-                const availableForType = course.subjectsOffered.filter((s) => {
-                  if (selectedCourseType === 'All') return true;
-                  return !s.courseType || s.courseType === 'Both' || s.courseType === selectedCourseType;
-                });
+                const availableSubjects = course.subjectsOffered.filter((s) => s.courseType !== 'Old Course');
 
                 const distinctTerms = Array.from(
-                  new Set(availableForType.map((s) => s.semesterOrYear).filter(Boolean))
+                  new Set(availableSubjects.map((s) => s.semesterOrYear).filter(Boolean))
                 ) as string[];
 
                 if (distinctTerms.length <= 1) return null;
@@ -466,10 +368,10 @@ export const CourseDetailPage: React.FC = () => {
                           : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                       }`}
                     >
-                      All ({availableForType.length})
+                      All ({availableSubjects.length})
                     </button>
                     {distinctTerms.map((term) => {
-                      const count = availableForType.filter((s) => s.semesterOrYear === term).length;
+                      const count = availableSubjects.filter((s) => s.semesterOrYear === term).length;
                       return (
                         <button
                           key={term}
@@ -493,9 +395,7 @@ export const CourseDetailPage: React.FC = () => {
               <div className="space-y-3.5">
                 {(() => {
                   const matchingSubjects = course.subjectsOffered.filter((s) => {
-                    if (selectedCourseType !== 'All' && s.courseType && s.courseType !== 'Both' && s.courseType !== selectedCourseType) {
-                      return false;
-                    }
+                    if (s.courseType === 'Old Course') return false;
                     if (selectedTerm !== 'ALL' && s.semesterOrYear !== selectedTerm) {
                       return false;
                     }
@@ -507,7 +407,7 @@ export const CourseDetailPage: React.FC = () => {
                       <div className="p-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-300 space-y-2">
                         <FileText className="w-8 h-8 text-slate-400 mx-auto" />
                         <p className="text-sm font-semibold text-slate-700">No subjects listed for the chosen selection.</p>
-                        <p className="text-xs text-slate-500">Try switching to &quot;All Subjects&quot; or choosing another academic term.</p>
+                        <p className="text-xs text-slate-500">Try choosing another academic term.</p>
                       </div>
                     );
                   }
@@ -526,22 +426,11 @@ export const CourseDetailPage: React.FC = () => {
                             </span>
                           )}
                         </h4>
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                              subj.courseType === 'Old Course'
-                                ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                                : 'bg-blue-50 text-blue-800 border border-blue-200'
-                            }`}
-                          >
-                            {subj.courseType === 'Old Course' ? '📜 Old Course' : '✨ New Course'}
+                        {subj.semesterOrYear && (
+                          <span className="text-[11px] font-semibold text-slate-700 bg-slate-200/80 px-2 py-0.5 rounded">
+                            {subj.semesterOrYear}
                           </span>
-                          {subj.semesterOrYear && (
-                            <span className="text-[11px] font-semibold text-slate-700 bg-slate-200/80 px-2 py-0.5 rounded">
-                              {subj.semesterOrYear}
-                            </span>
-                          )}
-                        </div>
+                        )}
                       </div>
                       <p className="text-xs text-slate-600 leading-relaxed">{subj.description}</p>
                     </div>

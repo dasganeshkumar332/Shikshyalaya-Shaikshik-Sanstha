@@ -25,7 +25,6 @@ export const CoursesPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
-  const [selectedCourseType, setSelectedCourseType] = useState<string>(searchParams.get('type') || 'ALL');
   const [selectedCategory, setSelectedCategory] = useState<string>(searchParams.get('category') || 'ALL');
   const [selectedBoard, setSelectedBoard] = useState<string>(searchParams.get('board') || 'ALL');
   const [selectedMode, setSelectedMode] = useState<string>(searchParams.get('mode') || 'ALL');
@@ -36,24 +35,6 @@ export const CoursesPage: React.FC = () => {
     return courses
       .filter((c) => c.published)
       .filter((c) => {
-        if (selectedCourseType === 'ALL') return true;
-        if (selectedCourseType === 'Old Course') {
-          return (
-            c.courseType === 'Old Course' ||
-            c.hasOldCourseOption === true ||
-            c.subjectsOffered.some((s) => s.courseType === 'Old Course' || s.courseType === 'Both')
-          );
-        }
-        if (selectedCourseType === 'New Course') {
-          return (
-            !c.courseType ||
-            c.hasOldCourseOption === true ||
-            c.subjectsOffered.some((s) => s.courseType === 'New Course' || s.courseType === 'Both')
-          );
-        }
-        return true;
-      })
-      .filter((c) => {
         if (!searchQuery.trim()) return true;
         const q = searchQuery.toLowerCase();
         return (
@@ -61,7 +42,6 @@ export const CoursesPage: React.FC = () => {
           c.shortDescription.toLowerCase().includes(q) ||
           c.subjectsOffered.some((s) => s.name.toLowerCase().includes(q)) ||
           c.board.toLowerCase().includes(q) ||
-          (c.courseType && c.courseType.toLowerCase().includes(q)) ||
           (c.syllabusVersion && c.syllabusVersion.toLowerCase().includes(q))
         );
       })
@@ -86,11 +66,10 @@ export const CoursesPage: React.FC = () => {
         }
         return a.level.localeCompare(b.level);
       });
-  }, [courses, searchQuery, selectedCourseType, selectedCategory, selectedBoard, selectedMode, sortBy]);
+  }, [courses, searchQuery, selectedCategory, selectedBoard, selectedMode, sortBy]);
 
   const clearFilters = () => {
     setSearchQuery('');
-    setSelectedCourseType('ALL');
     setSelectedCategory('ALL');
     setSelectedBoard('ALL');
     setSelectedMode('ALL');
@@ -100,7 +79,6 @@ export const CoursesPage: React.FC = () => {
 
   const isFiltered =
     searchQuery !== '' ||
-    selectedCourseType !== 'ALL' ||
     selectedCategory !== 'ALL' ||
     selectedBoard !== 'ALL' ||
     selectedMode !== 'ALL';
@@ -170,46 +148,8 @@ export const CoursesPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Quick Syllabus Type Tabs: New Course vs Old Course */}
-          <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl text-xs font-bold w-fit overflow-x-auto">
-            {[
-              { id: 'ALL', label: 'All Courses' },
-              { id: 'New Course', label: 'New Course (Regular Syllabus)' },
-              { id: 'Old Course', label: 'Old Course (Backpaper Prep)' },
-            ].map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setSelectedCourseType(t.id)}
-                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
-                  selectedCourseType === t.id
-                    ? t.id === 'Old Course'
-                      ? 'bg-amber-400 text-slate-950 shadow-xs'
-                      : 'bg-[#12315A] text-white shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-
           {/* Filter Pills */}
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-2 border-t border-slate-100 text-xs">
-            {/* Course Type / Syllabus */}
-            <div>
-              <label className="block text-slate-500 font-bold uppercase tracking-wider text-[10px] mb-1">
-                Syllabus Type
-              </label>
-              <select
-                value={selectedCourseType}
-                onChange={(e) => setSelectedCourseType(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs font-medium bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="ALL">All Syllabi (New & Old)</option>
-                <option value="New Course">New Course (Current Regular)</option>
-                <option value="Old Course">Old Course (Backpaper / Pre-revision)</option>
-              </select>
-            </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-100 text-xs">
 
             {/* Category */}
             <div>
@@ -301,8 +241,6 @@ export const CoursesPage: React.FC = () => {
                 }
                 switch (slug) {
                   case 'bbs-tu':
-                  case '3-year-bbs-tu':
-                  case 'bbs-tu-old':
                     return { icon: Award, bg: 'bg-gradient-to-br from-amber-500 to-amber-600 text-white' };
                   case 'bba-tu':
                     return { icon: TrendingUp, bg: 'bg-gradient-to-br from-blue-600 to-blue-700 text-white' };
@@ -352,21 +290,13 @@ export const CoursesPage: React.FC = () => {
                         </p>
                       )}
 
-                      <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-200">
-                          New Course
-                        </span>
-                        {course.hasOldCourseOption && (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-900 border border-amber-300">
-                            Old Course Available
-                          </span>
-                        )}
-                        {course.syllabusVersion && (
+                      {course.syllabusVersion && (
+                        <div className="mt-2">
                           <span className="text-[10px] text-slate-500 font-medium">
                             {course.syllabusVersion}
                           </span>
-                        )}
-                      </div>
+                        </div>
+                      )}
                     </div>
 
                   <div className="p-6 pt-4 space-y-4">

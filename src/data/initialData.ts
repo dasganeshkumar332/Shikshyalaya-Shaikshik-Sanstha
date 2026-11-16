@@ -20,7 +20,7 @@ export const INITIAL_SETTINGS: SiteSettings = {
   facebookUrl: 'https://www.facebook.com/profile.php?id=61559336878917',
   instagramUrl: 'https://instagram.com',
   youtubeUrl: 'https://www.youtube.com/@ShikshyalayaShaikshik/videos',
-  noticeMarqueeText: 'Feel the magic of learning. Admissions Open for Academic & Competitive Programs: Loksewa Aayog (Nayab Subba, Section Officer, Kharidar, Banking), 4-Year BBS - TU, 3-Year BBS (TU Old Course), MBS - TU, BBA - TU, BBM - TU, +2 Science, +2 Management, and BBA Pokhara University. Contact: +977 9767648342',
+  noticeMarqueeText: 'Feel the magic of learning. Admissions Open for Academic & Competitive Programs: Loksewa Aayog (Nayab Subba, Section Officer, Kharidar, Banking), 4-Year BBS - TU, MBS - TU, BBA - TU, BBM - TU, +2 Science, +2 Management, and BBA Pokhara University. Contact: +977 9767648342',
   isNoticeMarqueeActive: true,
   onlineClassesEnabled: true,
   registrationOpen: true,
@@ -66,18 +66,16 @@ export const INITIAL_COURSES: Course[] = [
     devanagariTitle: '४ वर्षे BBS – त्रिभुवन विश्वविद्यालय',
     courseType: 'New Course',
     syllabusVersion: 'Revised 4-Year BBS Annual Curriculum (2076 & onwards)',
-    hasOldCourseOption: true,
+    hasOldCourseOption: false,
     newCourseNotes: 'Revised 4-Year annual curriculum featuring updated Financial Accounting, Micro/Macroeconomics for Business, modern Business Communication, and 4th-year specializations in Finance, Accounting, Marketing, or Management.',
-    oldCourseNotes: 'TU 3-Year BBS Program (Legacy Annual System & Backpaper Scheme): Full curriculum support for 1st Year (5 compulsory papers), 2nd Year (5 compulsory papers), and 3rd Year (4 Compulsory Core papers + 4 Specialization groups in Finance, Accounting, Marketing, or Management). Ideal for chance/backpaper clearance and annual examinations.',
-    shortDescription: 'Structured academic support for the 4 Years Program on BBS under Tribhuvan University (both New Course and Old Course / Backpaper options), including subject-wise tuition, concept clarification, practice questions, and examination preparation.',
-    longDescription: 'Tribhuvan University’s BBS program demands steady practice across accounting, finance, taxation, economics, and business law. Shikshyalaya Shaikshik Sanstha delivers targeted tuition for both New Course (Revised 4-Year Curriculum) and Old Course (Annual & Backpaper Candidates), helping students tackle tough numericals, understand conceptual frameworks, and prepare thoroughly for final board examinations.',
+    shortDescription: 'Structured academic support for the 4 Years Program on BBS under Tribhuvan University, including subject-wise tuition, concept clarification, practice questions, and examination preparation.',
+    longDescription: 'Tribhuvan University’s 4-Year BBS program demands steady practice across accounting, finance, taxation, economics, and business law. Shikshyalaya Shaikshik Sanstha delivers targeted tuition for all four years of the curriculum, helping students tackle tough numericals, understand conceptual frameworks, and prepare thoroughly for final board examinations.',
     category: 'bachelor',
     board: 'Tribhuvan University (TU)',
     duration: '4 Years',
     level: 'Bachelor’s Degree — 4 Years Program (TU Affiliated Syllabus Support)',
     eligibleStudents: [
-      'Students enrolled in BBS 1st, 2nd, 3rd, or 4th Year under TU (New Course)',
-      'Students appearing in TU BBS Old Course Annual Backpaper examinations',
+      'Students enrolled in 4-Year BBS (1st, 2nd, 3rd, or 4th Year) under Tribhuvan University',
       'Learners needing intensive support in Accounting, Finance, Statistics, or Taxation',
     ],
     subjectsOffered: [
@@ -120,47 +118,6 @@ export const INITIAL_COURSES: Course[] = [
       { name: 'Customer Relationship Management', code: 'MKT 251', semesterOrYear: '4th Year', courseType: 'New Course', description: 'Customer acquisition, retention economics, CRM technology platforms, and customer lifetime value.' },
       { name: 'Leadership and Organizational Behavior', code: 'MGT 250', semesterOrYear: '4th Year', courseType: 'New Course', description: 'Leadership styles, team dynamics, workplace motivation, organizational change, and interpersonal relations.' },
       { name: 'Strategic Management', code: 'MGT 252', semesterOrYear: '4th Year', courseType: 'New Course', description: 'Strategic analysis, SWOT matrix, BCG matrix, strategy execution, and competitive advantage.' },
-
-      // --- TU 3-YEAR BBS PROGRAM (LEGACY ANNUAL SYSTEM & BACKPAPER SCHEME) ---
-      // 1st Year (3-Year BBS) [5 Compulsory Papers - 500 Marks]
-      { name: 'Business English', code: 'ENG 201', semesterOrYear: '1st Year (3-Year BBS)', courseType: 'Old Course', description: 'Comprehensive business English (100 Marks): technical comprehension, functional business grammar, expository compositions, and formal business letters.' },
-      { name: 'Business Statistics', code: 'MGT 202', semesterOrYear: '1st Year (3-Year BBS)', courseType: 'Old Course', description: 'Measures of central tendency, dispersion, classical probability, theoretical probability distributions (Binomial, Poisson, Normal), correlation, linear regression, index numbers, and time series analysis (100 Marks).' },
-      { name: 'Accounting for Financial Analysis and Planning', code: 'ACC 211', semesterOrYear: '1st Year (3-Year BBS)', courseType: 'Old Course', description: 'Double-entry accounting cycle, trial balance, preparation of manufacturing accounts, balance sheet, funds flow statement, cash flow statement, and financial ratio analysis (100 Marks).' },
-      { name: 'Business Economics (Microeconomics)', code: 'ECO 203', semesterOrYear: '1st Year (3-Year BBS)', courseType: 'Old Course', description: 'Cardinal and ordinal utility theory, indifference curve analysis, demand & supply elasticity, production function, cost-revenue curves, and price determination under monopoly and oligopoly (100 Marks).' },
-      { name: 'Principles of Management', code: 'MGT 201', semesterOrYear: '1st Year (3-Year BBS)', courseType: 'Old Course', description: 'Classical, behavioral, and modern management theories; planning hierarchies, organizational structure designs, authority delegation, motivation, and control systems (100 Marks).' },
-
-      // 2nd Year (3-Year BBS) [5 Compulsory Papers - 500 Marks]
-      { name: 'Business Communication', code: 'ENG 205', semesterOrYear: '2nd Year (3-Year BBS)', courseType: 'Old Course', description: 'Formal business communications (100 Marks): executive memoranda, sales letters, circulars, meeting notices, minutes recording, press releases, and analytical business reports.' },
-      { name: 'Cost and Management Accounting', code: 'ACC 212 / MGT 212', semesterOrYear: '2nd Year (3-Year BBS)', courseType: 'Old Course', description: 'Cost classification, store ledgers (FIFO, LIFO, Weighted Average), labor remuneration schemes, overhead allocation, traditional cost sheet, flexible budgeting, marginal costing, CVP analysis, and reconciliation statements (100 Marks).' },
-      { name: 'Macroeconomics for Business', code: 'ECO 204', semesterOrYear: '2nd Year (3-Year BBS)', courseType: 'Old Course', description: 'National income accounting, classical vs. Keynesian macro models, consumption and investment functions, fiscal and monetary policies in Nepal, inflation, and foreign trade balance (100 Marks).' },
-      { name: 'Fundamentals of Marketing', code: 'MKT 214', semesterOrYear: '2nd Year (3-Year BBS)', courseType: 'Old Course', description: 'Core marketing philosophies, marketing environment in Nepal, market segmentation, targeting & positioning (STP), product lifecycle, pricing policies, distribution channels, and sales promotion mix (100 Marks).' },
-      { name: 'Fundamentals of Financial Management', code: 'FIN 215 / MGT 215', semesterOrYear: '2nd Year (3-Year BBS)', courseType: 'Old Course', description: 'Financial environment, financial statement analysis, time value of money, risk and return trade-off, bond and stock valuation, capital budgeting decisions (Payback, ARR, NPV, IRR), and working capital management (100 Marks).' },
-
-      // 3rd Year (3-Year BBS) [4 Compulsory Core Papers - 400 Marks]
-      { name: 'Business Law', code: 'LAW 204 / MGT 204', semesterOrYear: '3rd Year (Compulsory)', courseType: 'Old Course', description: 'Law of contract: formation, consideration, capacity, free consent, legality, discharge and remedies for breach; contract of agency, contract of sale of goods, negotiable instruments, and arbitration in Nepal (100 Marks).' },
-      { name: 'Business Environment & Strategic Management', code: 'MGT 217', semesterOrYear: '3rd Year (Compulsory)', courseType: 'Old Course', description: 'Socio-economic, political-legal, and technological environment of Nepal; industrial policy, WTO implications, strategic management concepts, environmental appraisal, strategy formulation, and SWOT analysis (100 Marks).' },
-      { name: 'Taxation and Auditing in Nepal', code: 'ACC 214 / MGT 214', semesterOrYear: '3rd Year (Compulsory)', courseType: 'Old Course', description: 'Income Tax Act 2058 provisions: assessable income from business, employment, and investment; allowable deductions, previous tax slabs, Value Added Tax (VAT) procedures; audit planning, voucher verification, and auditor duties (100 Marks).' },
-      { name: 'Organizational Behavior', code: 'MGT 223', semesterOrYear: '3rd Year (Compulsory)', courseType: 'Old Course', description: 'Foundations of individual behavior, personality, perception, attitudes, values, work motivation theories (Maslow, Herzberg, Vroom), group dynamics, leadership styles, organizational conflict, and change management (100 Marks).' },
-
-      // 3rd Year (3-Year BBS) [Concentration Group 1: Finance - 300 Marks]
-      { name: 'Financial Markets and Institutions', code: 'FIN 252', semesterOrYear: '3rd Year (Finance)', courseType: 'Old Course', description: 'Structure of the Nepalese financial system, money market instruments (Treasury Bills, Commercial Paper), capital markets, NEPSE trading mechanisms, mutual funds, insurance sector, and NRB/SEBON regulations (100 Marks).' },
-      { name: 'Fundamentals of Investment', code: 'FIN 253', semesterOrYear: '3rd Year (Finance)', courseType: 'Old Course', description: 'Investment process, risk-return measurement of securities, Markowitz portfolio selection, Capital Asset Pricing Model (CAPM), fundamental and technical analysis, bond valuation, and portfolio performance evaluation (100 Marks).' },
-      { name: 'Commercial Bank Management', code: 'FIN 251', semesterOrYear: '3rd Year (Finance)', courseType: 'Old Course', description: 'Commercial banking operations in Nepal, asset-liability management, liquidity management (CRR, SLR), credit risk assessment, loan syndication, bank capital adequacy framework, and NRB prudential norms (100 Marks).' },
-
-      // 3rd Year (3-Year BBS) [Concentration Group 2: Accounting - 300 Marks]
-      { name: 'Advanced Accounting', code: 'ACC 250', semesterOrYear: '3rd Year (Accounting)', courseType: 'Old Course', description: 'Specialized accounting: Partnership accounts (admission, retirement, death, dissolution, piecemeal distribution), joint ventures, consignment accounts, branch and departmental accounts, and hire-purchase installment systems (100 Marks).' },
-      { name: 'Auditing Practice', code: 'ACC 252', semesterOrYear: '3rd Year (Accounting)', courseType: 'Old Course', description: 'Internal check and internal control systems, vouching of cash and trading transactions, verification and valuation of assets and liabilities, statutory rights and liabilities of company auditors, and audit reporting (100 Marks).' },
-      { name: 'Corporate Taxation in Nepal', code: 'ACC 253', semesterOrYear: '3rd Year (Accounting)', courseType: 'Old Course', description: 'Corporate taxation under Income Tax Act 2058: computation of assessable business income, tax depreciation schedules, carry-forward of losses, withholding taxes (TDS), advance tax, and tax assessment and appeals procedures (100 Marks).' },
-
-      // 3rd Year (3-Year BBS) [Concentration Group 3: Marketing - 300 Marks]
-      { name: 'Fundamentals of Selling', code: 'MKT 250', semesterOrYear: '3rd Year (Marketing)', courseType: 'Old Course', description: 'Salesmanship principles, personal selling process: prospecting, pre-approach, sales presentation and demonstration, handling sales objections, closing techniques, and sales territory management (100 Marks).' },
-      { name: 'Advertising & Public Relations', code: 'MKT 251', semesterOrYear: '3rd Year (Marketing)', courseType: 'Old Course', description: 'Role of advertising in modern commerce, advertisement copy creation, print and electronic media planning, public relations tools, corporate publicity campaigns, and advertising ethics in Nepal (100 Marks).' },
-      { name: 'Distribution Management', code: 'MKT 252', semesterOrYear: '3rd Year (Marketing)', courseType: 'Old Course', description: 'Channel design decisions, channel participant selection, wholesaling and retailing institutions in Nepal, physical distribution logistics, inventory control, warehousing, and channel conflict management (100 Marks).' },
-
-      // 3rd Year (3-Year BBS) [Concentration Group 4: Management - 300 Marks]
-      { name: 'Small Business Management', code: 'MGT 250', semesterOrYear: '3rd Year (Management)', courseType: 'Old Course', description: 'Nature and importance of small enterprises in Nepal, entrepreneurship characteristics, business idea generation, project feasibility study, business plan preparation, micro-financing, and SME growth challenges (100 Marks).' },
-      { name: 'Human Resource Management', code: 'MGT 251', semesterOrYear: '3rd Year (Management)', courseType: 'Old Course', description: 'HR planning, job analysis, employee recruitment and selection procedures, training and development techniques, performance appraisal systems, wage and salary administration, and industrial relations in Nepal (100 Marks).' },
-      { name: 'Production and Operations Management', code: 'MGT 252', semesterOrYear: '3rd Year (Management)', courseType: 'Old Course', description: 'Operations strategy, facility location and plant layout design, product design, aggregate planning, materials management (EOQ, safety stock), total quality management (TQM), and maintenance management (100 Marks).' },
     ],
     classModes: ['Online', 'Offline', 'Hybrid'],
     schedule: 'Morning Class (5:00 AM – 8:00 AM) | Evening Class (7:00 PM – 10:00 PM)',
@@ -184,18 +141,16 @@ export const INITIAL_COURSES: Course[] = [
     devanagariTitle: 'BBA – त्रिभुवन विश्वविद्यालय',
     courseType: 'New Course',
     syllabusVersion: 'TU 8-Semester Professional Curriculum',
-    hasOldCourseOption: true,
+    hasOldCourseOption: false,
     newCourseNotes: 'Current TU 8-Semester system with 40% internal evaluation and 60% board finals, featuring Digital Marketing, Advanced Financial Modeling, and Capstone Internship.',
-    oldCourseNotes: 'Legacy TU BBA syllabus backpaper coaching and problem solving for students appearing in older scheme back/chance exams.',
-    shortDescription: 'Comprehensive semester-wise coaching and exam preparation for Bachelor of Business Administration (BBA) students under Tribhuvan University across all 8 Semesters (New Course & Old Course backpaper options).',
-    longDescription: 'The Bachelor of Business Administration (BBA) under Tribhuvan University is an intensive 8-semester professional program designed to develop competent business leaders and executives. Shikshyalaya provides comprehensive conceptual tuition, numerical problem-solving workshops, case study analysis, and board exam revision tailored to both New Course and Old Course backpaper students.',
+    shortDescription: 'Comprehensive semester-wise coaching and exam preparation for Bachelor of Business Administration (BBA) students under Tribhuvan University across all 8 Semesters.',
+    longDescription: 'The Bachelor of Business Administration (BBA) under Tribhuvan University is an intensive 8-semester professional program designed to develop competent business leaders and executives. Shikshyalaya provides comprehensive conceptual tuition, numerical problem-solving workshops, case study analysis, and board exam revision across all 8 semesters.',
     category: 'bachelor',
     board: 'Tribhuvan University (TU)',
     duration: '8 Semesters',
     level: 'Undergraduate (TU)',
     eligibleStudents: [
-      'BBA students under TU (Semesters 1 through 8 - New Course)',
-      'Students appearing in TU BBA legacy / old syllabus backpaper examinations',
+      'BBA students under TU (Semesters 1 through 8)',
       'Students looking for clarity in Business Mathematics and Financial Modeling',
     ],
     subjectsOffered: [
@@ -247,14 +202,6 @@ export const INITIAL_COURSES: Course[] = [
       { name: 'Digital Marketing', code: 'MKT 245', semesterOrYear: '7th Semester', courseType: 'New Course', description: 'Search engine optimization (SEO), social media marketing, PPC advertising, content strategy, email campaigns, and analytics.' },
       { name: 'Supply Chain Management', code: 'MGT 240', semesterOrYear: '8th Semester', courseType: 'New Course', description: 'Logistics network design, procurement strategies, bullwhip effect mitigation, vendor evaluation, and reverse logistics.' },
       { name: 'Advanced Financial Modeling', code: 'ELC 251', semesterOrYear: '8th Semester', courseType: 'New Course', description: 'Spreadsheet-based financial modeling, DCF valuation models, sensitivity and scenario analysis, and LBO modeling.' },
-
-      // --- BBA OLD COURSE (TU Pre-Revision Curriculum / Backpaper Support) ---
-      { name: 'Business Mathematics & Statistics (Old Syllabus)', code: 'MTH 101-OLD', semesterOrYear: 'Semester 1 & 2 (Old)', courseType: 'Old Course', description: 'Pre-revision combined calculus, probability distributions, and statistical estimation under legacy BBA TU format.' },
-      { name: 'Financial Accounting & Analysis (Old Syllabus)', code: 'ACC 101-OLD', semesterOrYear: 'Semester 1 & 2 (Old)', courseType: 'Old Course', description: 'Traditional journalizing, ledger accounts, worksheet preparation, and single-entry conversion problems.' },
-      { name: 'Managerial Economics & Costing (Old Syllabus)', code: 'ECO 201-OLD', semesterOrYear: 'Semester 3 & 4 (Old)', courseType: 'Old Course', description: 'Traditional cost behavior, break-even graphs, price discrimination, and economic forecasting in Nepal.' },
-      { name: 'Corporate Financial Management (Old Scheme)', code: 'FIN 202-OLD', semesterOrYear: 'Semester 4 & 5 (Old)', courseType: 'Old Course', description: 'Traditional capital structure theories (Net Income, NOI, MM hypotheses), dividend policy, and credit management.' },
-      { name: 'Business Law & Corporate Regulations (Old Scheme)', code: 'LAW 201-OLD', semesterOrYear: 'Semester 5 & 6 (Old)', courseType: 'Old Course', description: 'Company Act 2063, Contract Act 2056, industrial relations, and arbitration procedures.' },
-      { name: 'Strategic Management & Business Policy (Old Scheme)', code: 'MGT 205-OLD', semesterOrYear: 'Semester 7 & 8 (Old)', courseType: 'Old Course', description: 'Classic case analysis, generic strategies, strategic control, and corporate turnaround management.' },
     ],
     classModes: ['Online', 'Offline', 'Hybrid'],
     schedule: 'Morning Class (5:00 AM – 8:00 AM) | Evening Class (7:00 PM – 10:00 PM)',
@@ -426,18 +373,16 @@ export const INITIAL_COURSES: Course[] = [
     devanagariTitle: '४ सेमेस्टर MBS – त्रिभुवन विश्वविद्यालय',
     courseType: 'New Course',
     syllabusVersion: '4-Semester CBCS System (TU FOM)',
-    hasOldCourseOption: true,
+    hasOldCourseOption: false,
     newCourseNotes: 'TU 4-Semester CBCS curriculum focusing on managerial economics, financial modeling, strategic marketing, and empirical thesis defense.',
-    oldCourseNotes: 'TU MBS Old Annual System (Part 1 & Part 2) backpaper & chance exam preparation solving traditional 10-year question banks.',
-    shortDescription: 'Academic tuition and examination preparation support for students pursuing the 4 Semester on MBS program under Tribhuvan University (both New Semester Course and Old Annual Course / Backpaper options).',
-    longDescription: 'The MBS program under Tribhuvan University requires deep analytical competence, strategic thinking, and rigorous mastery of managerial finance, marketing, and accounting principles. At Shikshyalaya Shaikshik Sanstha, our academic tuition provides structured coaching for both New Course (4 Semesters) and Old Course (Annual Scheme Part 1 & Part 2), previous TU board question solution sessions, and intensive numerical coaching designed to assist university students achieve distinction.',
+    shortDescription: 'Academic tuition and examination preparation support for students pursuing the 4 Semester on MBS program under Tribhuvan University.',
+    longDescription: 'The MBS program under Tribhuvan University requires deep analytical competence, strategic thinking, and rigorous mastery of managerial finance, marketing, and accounting principles. At Shikshyalaya Shaikshik Sanstha, our academic tuition provides structured coaching across all 4 Semesters, previous TU board question solution sessions, and intensive numerical coaching designed to assist university students achieve distinction.',
     category: 'master',
     board: 'Tribhuvan University (TU)',
     duration: '4 Semesters',
     level: 'Master’s Degree — 4 Semesters (TU Affiliated Syllabus Support)',
     eligibleStudents: [
-      'Students enrolled in TU MBS Semester 1, 2, 3, or 4 (New Course)',
-      'Students appearing in TU MBS Annual Back / Chance Examinations (Old Course)',
+      'Students enrolled in TU MBS Semester 1, 2, 3, or 4',
       'Working professionals seeking morning/evening tuition batches',
     ],
     subjectsOffered: [
@@ -468,21 +413,6 @@ export const INITIAL_COURSES: Course[] = [
       { name: 'Corporate Finance', code: 'FIN 688', semesterOrYear: '4th Semester', courseType: 'New Course', description: 'Advanced corporate valuation, mergers and acquisitions, capital restructuring, and dividend decisions.' },
       { name: 'Investment Management', code: 'FIN 689', semesterOrYear: '4th Semester', courseType: 'New Course', description: 'Modern portfolio theory, CAPM, Arbitrage Pricing Theory, and security analysis.' },
       { name: 'Corporate Taxation', code: 'ACC 685', semesterOrYear: '4th Semester', courseType: 'New Course', description: 'Corporate income tax computations, tax planning, transfer pricing, and VAT under Nepal Inland Revenue rules.' },
-
-      // --- MBS OLD COURSE (TU Pre-Semester Annual System - Part 1 & Part 2) ---
-      // Part 1 (Old Annual Scheme)
-      { name: 'Accounting for Financial Analysis & Control (Old Scheme)', code: 'MBS 501-OLD', semesterOrYear: 'Part 1 (Old)', courseType: 'Old Course', description: 'Funds flow and cash flow analysis, corporate published accounts, cost-volume-profit relationships, and standard costing.' },
-      { name: 'Business Statistics & Quantitative Techniques (Old Scheme)', code: 'MBS 502-OLD', semesterOrYear: 'Part 1 (Old)', courseType: 'Old Course', description: 'Multiple regression, partial correlation, binomial & Poisson distributions, hypothesis testing (t, z, F, chi-square), and time series.' },
-      { name: 'Managerial Economics (Old Annual Scheme)', code: 'MBS 503-OLD', semesterOrYear: 'Part 1 (Old)', courseType: 'Old Course', description: 'Demand estimation, production optimization, classical cost functions, oligopoly price leadership, and macroeconomic aggregates.' },
-      { name: 'Organizational Behavior and Human Resources (Old Scheme)', code: 'MBS 504-OLD', semesterOrYear: 'Part 1 (Old)', courseType: 'Old Course', description: 'Classic behavioral theories, perceptual errors, group dynamics, organizational development, and industrial disputes.' },
-      { name: 'Marketing Management (Old Annual Scheme)', code: 'MBS 505-OLD', semesterOrYear: 'Part 1 (Old)', courseType: 'Old Course', description: 'Marketing concept, market segmentation, product life cycle strategies, pricing techniques, and advertising campaigns in Nepal.' },
-
-      // Part 2 (Old Annual Scheme)
-      { name: 'Advanced Financial Management (Old Scheme)', code: 'MBS 601-OLD', semesterOrYear: 'Part 2 (Old)', courseType: 'Old Course', description: 'Valuation of equity & debt, risk analysis in capital budgeting, lease financing, dividend theories, and corporate restructuring.' },
-      { name: 'Strategic Management & Business Policy (Old Scheme)', code: 'MBS 602-OLD', semesterOrYear: 'Part 2 (Old)', courseType: 'Old Course', description: 'SWOT analysis, corporate growth strategies, grand strategy selection, strategy implementation, and corporate governance.' },
-      { name: 'Management Information Systems (Old Scheme)', code: 'MBS 603-OLD', semesterOrYear: 'Part 2 (Old)', courseType: 'Old Course', description: 'Role of MIS, system development life cycle (SDLC), decision support systems, database management, and enterprise IT.' },
-      { name: 'Research Methodology and Statistical Methods (Old Scheme)', code: 'MBS 604-OLD', semesterOrYear: 'Part 2 (Old)', courseType: 'Old Course', description: 'Formulation of research problems, hypothesis testing, sampling methods, scaling techniques, and thesis draft preparations.' },
-      { name: 'Financial Institutions and Capital Markets (Old Scheme)', code: 'MBS 605-OLD', semesterOrYear: 'Part 2 (Old)', courseType: 'Old Course', description: 'Money market operations, NRB prudential regulations, primary & secondary stock market trading, and merchant banking in Nepal.' },
     ],
     classModes: ['Online', 'Offline', 'Hybrid'],
     schedule: 'Morning Class (5:00 AM – 8:00 AM) | Evening Class (7:00 PM – 10:00 PM)',
@@ -508,17 +438,15 @@ export const INITIAL_COURSES: Course[] = [
     longDescription: 'National Examinations Board (NEB) Grade 11 and Grade 12 Science demands rock-solid conceptual mastery in Physics, Chemistry, Mathematics, and Biology. Shikshyalaya Shaikshik Sanstha offers meticulous academic tuition led by experienced science educators who break down complex derivations, solve numericals systematically, and prepare students for high scores in NEB board exams as well as competitive university entrance requirements.',
     courseType: 'New Course',
     syllabusVersion: 'National Examinations Board (NEB) CDC Grid',
-    hasOldCourseOption: true,
+    hasOldCourseOption: false,
     newCourseNotes: 'Current NEB curriculum with modern CDC specification grid featuring Group A MCQs, Group B conceptual questions, and Group C comprehensive numerical problems and derivations.',
-    oldCourseNotes: 'Pre-2077 NEB Old Scheme partial / chance examination tuition covering traditional 75-mark format in Physics, Chemistry, and Biology, and 100-mark Mathematics.',
     category: '+2',
     board: 'National Examinations Board (NEB)',
     duration: '2 Years (Grade 11 & Grade 12)',
     level: 'Higher Secondary (+2 NEB)',
     eligibleStudents: [
-      'Grade 11 and Grade 12 Science students under NEB (New Course)',
+      'Grade 11 and Grade 12 Science students under NEB',
       'Students preparing for NEB board examinations and internal send-up exams',
-      'Old course students clearing single or multiple back subjects (Pre-2077 NEB Old Scheme)',
       'Students preparing early foundations for Engineering (IOE) and Medical (CEE) tests',
     ],
     subjectsOffered: [
@@ -539,13 +467,6 @@ export const INITIAL_COURSES: Course[] = [
       { name: 'Computer Science (Grade 12)', code: 'Com. 1052', semesterOrYear: 'Grade 12', courseType: 'New Course', description: 'Database Management Systems (DBMS/SQL), Data Communications & Networking, Object-Oriented Programming (C++/OOP), and Software Engineering.' },
       { name: 'Compulsory English (Grade 12)', code: 'Eng. 0032', semesterOrYear: 'Grade 12', courseType: 'New Course', description: 'Critical literary analysis, technical reports, argumentative essays, formal letters, and oral presentation skills per NEB specifications.' },
       { name: 'Compulsory Nepali (Grade 12)', code: 'Nep. 0012', semesterOrYear: 'Grade 12', courseType: 'New Course', description: 'Nepali literature, applied grammar, official letter writing, summary writing, and thematic essays aligned with NEB board examinations.' },
-
-      // --- +2 Science OLD COURSE (Pre-2077 NEB 75-Mark Scheme & Chance Exam) ---
-      { name: 'Physics (NEB Old Syllabus - 75 Marks)', code: 'PHY-OLD', semesterOrYear: 'Grade 11 & 12 (Old)', courseType: 'Old Course', description: 'Classical mechanics, thermodynamics, geometric optics, wave theory, magnetism, and atomic physics under traditional 75-mark theory format.' },
-      { name: 'Chemistry (NEB Old Syllabus - 75 Marks)', code: 'CHEM-OLD', semesterOrYear: 'Grade 11 & 12 (Old)', courseType: 'Old Course', description: 'Stoichiometry, volumetric analysis, chemical equilibrium, organic conversions, coordination compounds, and metallurgy.' },
-      { name: 'Mathematics (NEB Old Syllabus - 100 Marks)', code: 'MATH-OLD', semesterOrYear: 'Grade 11 & 12 (Old)', courseType: 'Old Course', description: '100-mark classical mathematics covering calculus, coordinate geometry, trigonometry, vectors, and complex numbers.' },
-      { name: 'Biology - Botany & Zoology (NEB Old Syllabus)', code: 'BIO-OLD', semesterOrYear: 'Grade 11 & 12 (Old)', courseType: 'Old Course', description: 'Traditional plant anatomy, physiological cycles, human anatomy, embryology, and evolutionary diagrams according to older scheme.' },
-      { name: 'Compulsory English (NEB Old Format)', code: 'ENG-OLD', semesterOrYear: 'Grade 11 & 12 (Old)', courseType: 'Old Course', description: 'Classic NEB textbook comprehension, critical summaries, formal grammar rules, and expository essay compositions.' },
     ],
     classModes: ['Online', 'Offline', 'Hybrid'],
     schedule: 'Morning Class (5:00 AM – 8:00 AM) | Evening Class (7:00 PM – 10:00 PM)',
@@ -571,16 +492,14 @@ export const INITIAL_COURSES: Course[] = [
     longDescription: 'NEB Grade 11 and Grade 12 Management is the gateway to careers in business, chartered accountancy, banking, and management. Shikshyalaya Shaikshik Sanstha equips students with crystal-clear clarity in Financial Accounting, Principles of Economics, Business Studies, and Hotel Management. We focus on proper ledger presentation, economic curve analysis, and structured answer-writing techniques.',
     courseType: 'New Course',
     syllabusVersion: 'National Examinations Board (NEB) Management Grid',
-    hasOldCourseOption: true,
+    hasOldCourseOption: false,
     newCourseNotes: 'Current NEB Management curriculum featuring modern computerized accounting concepts, micro and macro economics graphs, and business math.',
-    oldCourseNotes: 'Pre-2077 NEB Old Scheme partial / chance exam coaching focusing on traditional 10-column worksheets, trading profit & loss accounts, and classic economic curves.',
     category: '+2',
     board: 'National Examinations Board (NEB)',
     duration: '2 Years (Grade 11 & Grade 12)',
     level: 'Higher Secondary (+2 NEB)',
     eligibleStudents: [
-      'Grade 11 and Grade 12 Management students under NEB (New Course)',
-      'Students appearing in NEB partial / chance examinations (Pre-2077 Old Course)',
+      'Grade 11 and Grade 12 Management students under NEB',
       'Students wanting to score A/A+ in Accountancy and Economics',
       'Learners aiming for university business admissions (BBA, BBM, BBS)',
     ],
@@ -606,13 +525,6 @@ export const INITIAL_COURSES: Course[] = [
       { name: 'Computer Science II', code: 'Com. 1052', semesterOrYear: 'Grade 12', courseType: 'New Course', description: 'Relational Database Management Systems (RDBMS/SQL), financial spreadsheet modeling, computerized accounting, and cyber law.' },
       { name: 'Compulsory English (Grade 12)', code: 'Eng. 0032', semesterOrYear: 'Grade 12', courseType: 'New Course', description: 'Advanced comprehension, executive correspondence, report writing, argumentative essays, and communicative English.' },
       { name: 'Compulsory Nepali (Grade 12)', code: 'Nep. 0012', semesterOrYear: 'Grade 12', courseType: 'New Course', description: 'Nepali literature, applied grammar, official memo drafts, summary writing, and essays aligned with NEB board examinations.' },
-
-      // --- +2 Management OLD COURSE (Pre-2077 NEB Old Scheme & Chance Exam) ---
-      { name: 'Principles of Accounting (Old Syllabus - 100 Marks)', code: 'ACC-OLD', semesterOrYear: 'Grade 11 & 12 (Old)', courseType: 'Old Course', description: 'Traditional final accounts, adjustment entries, 10-column worksheet, accounting for shares & debentures under previous NEB marks distribution.' },
-      { name: 'Economics (Micro & Macro - Old Syllabus)', code: 'ECO-OLD', semesterOrYear: 'Grade 11 & 12 (Old)', courseType: 'Old Course', description: 'Consumer behavior curves, price elasticity formulas, national income determination, and commercial banking under old format.' },
-      { name: 'Business Mathematics (Old 100 Marks Format)', code: 'BMATH-OLD', semesterOrYear: 'Grade 11 & 12 (Old)', courseType: 'Old Course', description: 'Classic financial arithmetic, annuities, differentiation, integration, and matrices according to pre-2077 NEB exam patterns.' },
-      { name: 'Business Studies & Office Practice (Old Format)', code: 'BST-OLD', semesterOrYear: 'Grade 11 & 12 (Old)', courseType: 'Old Course', description: 'Sole proprietorship, partnership deed, company formation, office filing, and business indexing under older curriculum.' },
-      { name: 'Hotel Management (Old Syllabus)', code: 'HM-OLD', semesterOrYear: 'Grade 11 & 12 (Old)', courseType: 'Old Course', description: 'Hospitality concepts, front office operations, table setting layouts, housekeeping, and classic menu planning.' },
     ],
     classModes: ['Online', 'Offline', 'Hybrid'],
     schedule: 'Morning Class (5:00 AM – 8:00 AM) | Evening Class (7:00 PM – 10:00 PM)',
@@ -638,16 +550,14 @@ export const INITIAL_COURSES: Course[] = [
     longDescription: 'Pokhara University (PU) follows a rigorous 8-semester grading system with a distinctive examination structure, grading scale, and curriculum requirements. Shikshyalaya Shaikshik Sanstha provides dedicated tuition specifically aligned with Pokhara University’s 8 Semester BBA syllabus, ensuring students understand PU course expectations, master complex numerical problems, and prepare effectively for semester end-term examinations.',
     courseType: 'New Course',
     syllabusVersion: 'Pokhara University (PU) 8-Semester Curriculum',
-    hasOldCourseOption: true,
+    hasOldCourseOption: false,
     newCourseNotes: 'PU Semester System following absolute/relative grading scheme, internal sessional marks (40%), and end-term university examinations (60%).',
-    oldCourseNotes: 'Pokhara University Old Syllabus / Backpaper batches covering earlier semester subject frameworks and chance examination numericals.',
     category: 'bachelor',
     board: 'Pokhara University (PU)',
     duration: '8 Semesters Program',
     level: 'Undergraduate 8 Semesters Program (PU)',
     eligibleStudents: [
-      'Students enrolled in BBA under Pokhara University affiliated colleges (New Course)',
-      'Students preparing for PU end-term examinations and back-paper clearance (Old Course)',
+      'Students enrolled in BBA under Pokhara University affiliated colleges',
       'Students needing subject support across Semesters 1 to 8',
     ],
     subjectsOffered: [
@@ -678,13 +588,6 @@ export const INITIAL_COURSES: Course[] = [
       { name: 'Security Analysis and Portfolio Management', code: 'FIN 312', semesterOrYear: '6th Semester', courseType: 'New Course', description: 'Investment environment, fundamental and technical analysis, portfolio diversification, CAPM, and portfolio performance evaluation.' },
       { name: 'Financial Institutions and Markets', code: 'FIN 313', semesterOrYear: '7th Semester', courseType: 'New Course', description: 'Financial intermediaries, commercial banking regulations, Nepal Rastra Bank directives, and securities market operations.' },
       { name: 'Commercial Bank Management', code: 'FIN 314', semesterOrYear: '8th Semester', courseType: 'New Course', description: 'Commercial bank structure, asset-liability management, credit risk evaluation, liquidity management, and NRB prudential norms.' },
-
-      // --- BBA Pokhara University OLD COURSE (PU Legacy Syllabus & Backpaper) ---
-      { name: 'Business Mathematics & Calculus (PU Old Scheme)', code: 'MTH 101-PU-OLD', semesterOrYear: 'Semesters 1 & 2 (Old)', courseType: 'Old Course', description: 'Classical PU mathematical foundation, differentiation, integration techniques, and linear equations.' },
-      { name: 'Financial Accounting & Reporting (PU Old Scheme)', code: 'ACC 101-PU-OLD', semesterOrYear: 'Semesters 1 & 2 (Old)', courseType: 'Old Course', description: 'Traditional journal entries, ledger accounts, trial balance, and single-entry adjustments under older PU format.' },
-      { name: 'Business Statistics & Probability (PU Old Scheme)', code: 'STT 201-PU-OLD', semesterOrYear: 'Semesters 3 & 4 (Old)', courseType: 'Old Course', description: 'Probability laws, normal distributions, sampling methods, and hypothesis tests tailored to older PU exam questions.' },
-      { name: 'Managerial Finance & Capital Budgeting (PU Old)', code: 'FIN 201-PU-OLD', semesterOrYear: 'Semesters 3 & 4 (Old)', courseType: 'Old Course', description: 'Discounted cash flow, NPV, IRR, WACC calculations, and operating/financial leverage under PU old scheme.' },
-      { name: 'Strategic Management & Policy (PU Old Scheme)', code: 'MGT 301-PU-OLD', semesterOrYear: 'Semesters 5 & 6 (Old)', courseType: 'Old Course', description: 'Classic strategy formulation, industry analysis, corporate portfolio matrices, and organizational leadership.' },
     ],
     classModes: ['Online', 'Offline', 'Hybrid'],
     schedule: 'Morning Class (5:00 AM – 8:00 AM) | Evening Class (7:00 PM – 10:00 PM)',
@@ -700,155 +603,6 @@ export const INITIAL_COURSES: Course[] = [
       'Specialized crash course and revision before PU semester finals',
     ],
     metaDescription: 'BBA Pokhara University tuition and coaching classes at Shikshyalaya Shaikshik Sanstha. Math, Accounting, Stats, and Finance tuition.',
-  },
-  {
-    id: 'course-bbs-3yr',
-    slug: '3-year-bbs-tu',
-    title: '3 Years Program on BBS (TU)',
-    devanagariTitle: '३ वर्षे BBS – त्रिभुवन विश्वविद्यालय',
-    courseType: 'Old Course',
-    syllabusVersion: 'Official TU 3-Year BBS Annual Curriculum (Backpaper, Chance Exam & Legacy Annual Scheme)',
-    hasOldCourseOption: true,
-    oldCourseNotes: 'Official Tribhuvan University 3-Year BBS Annual System: Complete tuition and past 10-year question solving for 1st Year (5 papers), 2nd Year (5 papers), and 3rd Year (4 Compulsory Core papers + 4 Specialization Concentration Groups).',
-    shortDescription: 'Comprehensive academic tuition, numerical problem workshops, and 10-year TU model question bank drills for students enrolled in the 3 Years Program on BBS under Tribhuvan University (Old Annual Course / Chance & Backpaper exams).',
-    longDescription: 'The 3-Year Bachelor of Business Studies (BBS) program was the classic annual undergraduate management degree under Tribhuvan University. Thousands of candidates still sit for annual backpaper and chance examinations (मौका परीक्षा) to clear their graduation. Shikshyalaya Shaikshik Sanstha offers dedicated coaching for all 3 years of the legacy BBS curriculum — from 1st Year Business Statistics and Accounting, to 2nd Year Cost Accounting and Finance, to 3rd Year Business Law, Taxation & Auditing, and all four Specialization Concentration Groups (Finance, Accounting, Marketing, and Management).',
-    category: 'bachelor',
-    board: 'Tribhuvan University (TU)',
-    duration: '3 Years',
-    level: 'Bachelor’s Degree — 3 Years Program (TU Legacy Annual Curriculum)',
-    eligibleStudents: [
-      'Students appearing in TU 3-Year BBS annual backpaper or chance examinations (मौका परीक्षा)',
-      'Undergraduate students needing step-by-step problem solving in Business Statistics, Cost Accounting, or Financial Management',
-      'Candidates preparing for 3rd Year Compulsory papers or Specialization groups (Finance, Accounting, Marketing, or Management)',
-      'Learners seeking past 10-year TU solved question papers and model answer drafting techniques',
-    ],
-    subjectsOffered: [
-      // 1st Year (3-Year BBS) [5 Compulsory Papers - 500 Marks]
-      { name: 'Business English', code: 'ENG 201', semesterOrYear: '1st Year (3-Year BBS)', courseType: 'Old Course', description: 'Comprehensive business English (100 Marks): technical comprehension, functional business grammar, expository compositions, and formal business letters.' },
-      { name: 'Business Statistics', code: 'MGT 202', semesterOrYear: '1st Year (3-Year BBS)', courseType: 'Old Course', description: 'Measures of central tendency, dispersion, classical probability, theoretical probability distributions (Binomial, Poisson, Normal), correlation, linear regression, index numbers, and time series analysis (100 Marks).' },
-      { name: 'Accounting for Financial Analysis and Planning', code: 'ACC 211', semesterOrYear: '1st Year (3-Year BBS)', courseType: 'Old Course', description: 'Double-entry accounting cycle, trial balance, preparation of manufacturing accounts, balance sheet, funds flow statement, cash flow statement, and financial ratio analysis (100 Marks).' },
-      { name: 'Business Economics (Microeconomics)', code: 'ECO 203', semesterOrYear: '1st Year (3-Year BBS)', courseType: 'Old Course', description: 'Cardinal and ordinal utility theory, indifference curve analysis, demand & supply elasticity, production function, cost-revenue curves, and price determination under monopoly and oligopoly (100 Marks).' },
-      { name: 'Principles of Management', code: 'MGT 201', semesterOrYear: '1st Year (3-Year BBS)', courseType: 'Old Course', description: 'Classical, behavioral, and modern management theories; planning hierarchies, organizational structure designs, authority delegation, motivation, and control systems (100 Marks).' },
-
-      // 2nd Year (3-Year BBS) [5 Compulsory Papers - 500 Marks]
-      { name: 'Business Communication', code: 'ENG 205', semesterOrYear: '2nd Year (3-Year BBS)', courseType: 'Old Course', description: 'Formal business communications (100 Marks): executive memoranda, sales letters, circulars, meeting notices, minutes recording, press releases, and analytical business reports.' },
-      { name: 'Cost and Management Accounting', code: 'ACC 212 / MGT 212', semesterOrYear: '2nd Year (3-Year BBS)', courseType: 'Old Course', description: 'Cost classification, store ledgers (FIFO, LIFO, Weighted Average), labor remuneration schemes, overhead allocation, traditional cost sheet, flexible budgeting, marginal costing, CVP analysis, and reconciliation statements (100 Marks).' },
-      { name: 'Macroeconomics for Business', code: 'ECO 204', semesterOrYear: '2nd Year (3-Year BBS)', courseType: 'Old Course', description: 'National income accounting, classical vs. Keynesian macro models, consumption and investment functions, fiscal and monetary policies in Nepal, inflation, and foreign trade balance (100 Marks).' },
-      { name: 'Fundamentals of Marketing', code: 'MKT 214', semesterOrYear: '2nd Year (3-Year BBS)', courseType: 'Old Course', description: 'Core marketing philosophies, marketing environment in Nepal, market segmentation, targeting & positioning (STP), product lifecycle, pricing policies, distribution channels, and sales promotion mix (100 Marks).' },
-      { name: 'Fundamentals of Financial Management', code: 'FIN 215 / MGT 215', semesterOrYear: '2nd Year (3-Year BBS)', courseType: 'Old Course', description: 'Financial environment, financial statement analysis, time value of money, risk and return trade-off, bond and stock valuation, capital budgeting decisions (Payback, ARR, NPV, IRR), and working capital management (100 Marks).' },
-
-      // 3rd Year (3-Year BBS) [4 Compulsory Core Papers - 400 Marks]
-      { name: 'Business Law', code: 'LAW 204 / MGT 204', semesterOrYear: '3rd Year (Compulsory)', courseType: 'Old Course', description: 'Law of contract: formation, consideration, capacity, free consent, legality, discharge and remedies for breach; contract of agency, contract of sale of goods, negotiable instruments, and arbitration in Nepal (100 Marks).' },
-      { name: 'Business Environment & Strategic Management', code: 'MGT 217', semesterOrYear: '3rd Year (Compulsory)', courseType: 'Old Course', description: 'Socio-economic, political-legal, and technological environment of Nepal; industrial policy, WTO implications, strategic management concepts, environmental appraisal, strategy formulation, and SWOT analysis (100 Marks).' },
-      { name: 'Taxation and Auditing in Nepal', code: 'ACC 214 / MGT 214', semesterOrYear: '3rd Year (Compulsory)', courseType: 'Old Course', description: 'Income Tax Act 2058 provisions: assessable income from business, employment, and investment; allowable deductions, previous tax slabs, Value Added Tax (VAT) procedures; audit planning, voucher verification, and auditor duties (100 Marks).' },
-      { name: 'Organizational Behavior', code: 'MGT 223', semesterOrYear: '3rd Year (Compulsory)', courseType: 'Old Course', description: 'Foundations of individual behavior, personality, perception, attitudes, values, work motivation theories (Maslow, Herzberg, Vroom), group dynamics, leadership styles, organizational conflict, and change management (100 Marks).' },
-
-      // 3rd Year (3-Year BBS) [Concentration Group 1: Finance - 300 Marks]
-      { name: 'Financial Markets and Institutions', code: 'FIN 252', semesterOrYear: '3rd Year (Finance)', courseType: 'Old Course', description: 'Structure of the Nepalese financial system, money market instruments (Treasury Bills, Commercial Paper), capital markets, NEPSE trading mechanisms, mutual funds, insurance sector, and NRB/SEBON regulations (100 Marks).' },
-      { name: 'Fundamentals of Investment', code: 'FIN 253', semesterOrYear: '3rd Year (Finance)', courseType: 'Old Course', description: 'Investment process, risk-return measurement of securities, Markowitz portfolio selection, Capital Asset Pricing Model (CAPM), fundamental and technical analysis, bond valuation, and portfolio performance evaluation (100 Marks).' },
-      { name: 'Commercial Bank Management', code: 'FIN 251', semesterOrYear: '3rd Year (Finance)', courseType: 'Old Course', description: 'Commercial banking operations in Nepal, asset-liability management, liquidity management (CRR, SLR), credit risk assessment, loan syndication, bank capital adequacy framework, and NRB prudential norms (100 Marks).' },
-
-      // 3rd Year (3-Year BBS) [Concentration Group 2: Accounting - 300 Marks]
-      { name: 'Advanced Accounting', code: 'ACC 250', semesterOrYear: '3rd Year (Accounting)', courseType: 'Old Course', description: 'Specialized accounting: Partnership accounts (admission, retirement, death, dissolution, piecemeal distribution), joint ventures, consignment accounts, branch and departmental accounts, and hire-purchase installment systems (100 Marks).' },
-      { name: 'Auditing Practice', code: 'ACC 252', semesterOrYear: '3rd Year (Accounting)', courseType: 'Old Course', description: 'Internal check and internal control systems, vouching of cash and trading transactions, verification and valuation of assets and liabilities, statutory rights and liabilities of company auditors, and audit reporting (100 Marks).' },
-      { name: 'Corporate Taxation in Nepal', code: 'ACC 253', semesterOrYear: '3rd Year (Accounting)', courseType: 'Old Course', description: 'Corporate taxation under Income Tax Act 2058: computation of assessable business income, tax depreciation schedules, carry-forward of losses, withholding taxes (TDS), advance tax, and tax assessment and appeals procedures (100 Marks).' },
-
-      // 3rd Year (3-Year BBS) [Concentration Group 3: Marketing - 300 Marks]
-      { name: 'Fundamentals of Selling', code: 'MKT 250', semesterOrYear: '3rd Year (Marketing)', courseType: 'Old Course', description: 'Salesmanship principles, personal selling process: prospecting, pre-approach, sales presentation and demonstration, handling sales objections, closing techniques, and sales territory management (100 Marks).' },
-      { name: 'Advertising & Public Relations', code: 'MKT 251', semesterOrYear: '3rd Year (Marketing)', courseType: 'Old Course', description: 'Role of advertising in modern commerce, advertisement copy creation, print and electronic media planning, public relations tools, corporate publicity campaigns, and advertising ethics in Nepal (100 Marks).' },
-      { name: 'Distribution Management', code: 'MKT 252', semesterOrYear: '3rd Year (Marketing)', courseType: 'Old Course', description: 'Channel design decisions, channel participant selection, wholesaling and retailing institutions in Nepal, physical distribution logistics, inventory control, warehousing, and channel conflict management (100 Marks).' },
-
-      // 3rd Year (3-Year BBS) [Concentration Group 4: Management - 300 Marks]
-      { name: 'Small Business Management', code: 'MGT 250', semesterOrYear: '3rd Year (Management)', courseType: 'Old Course', description: 'Nature and importance of small enterprises in Nepal, entrepreneurship characteristics, business idea generation, project feasibility study, business plan preparation, micro-financing, and SME growth challenges (100 Marks).' },
-      { name: 'Human Resource Management', code: 'MGT 251', semesterOrYear: '3rd Year (Management)', courseType: 'Old Course', description: 'HR planning, job analysis, employee recruitment and selection procedures, training and development techniques, performance appraisal systems, wage and salary administration, and industrial relations in Nepal (100 Marks).' },
-      { name: 'Production and Operations Management', code: 'MGT 252', semesterOrYear: '3rd Year (Management)', courseType: 'Old Course', description: 'Operations strategy, facility location and plant layout design, product design, aggregate planning, materials management (EOQ, safety stock), total quality management (TQM), and maintenance management (100 Marks).' },
-    ],
-    classModes: ['Online', 'Offline', 'Hybrid'],
-    schedule: 'Morning: 5:00 AM – 8:00 AM | Evening: 7:00 PM – 10:00 PM',
-    feeInfo: 'Available per subject (e.g. Stats only, Cost Account only) or full-year annual package. Inquire for current batch fees.',
-    featured: true,
-    published: true,
-    assignedTeacherIds: ['teacher-1', 'teacher-2', 'teacher-6'],
-    features: [
-      'Dedicated batches for 1st Year, 2nd Year, and 3rd Year TU 3-Year BBS students',
-      'Step-by-step whiteboard solving for TU past 10 years annual exam questions',
-      'Formula booklets, revision summaries, and numerical cheat-sheets included',
-      'Daily morning (5 AM) and evening (7 PM) class timings for working students',
-      'Special exam clearance crash courses prior to TU annual examinations',
-    ],
-    metaDescription: '3 Years Program on BBS (TU) Tuition and Backpaper Coaching in Kathmandu at Shikshyalaya Shaikshik Sanstha. 1st, 2nd, 3rd Year Account, Finance, Stats & Law.',
-  },
-  {
-    id: 'course-old-2',
-    slug: 'mbs-tu-old',
-    title: 'MBS (TU) – Old Course (Annual System / Backpaper)',
-    devanagariTitle: 'MBS पुरानो पाठ्यक्रम (वार्षिक प्रणाली) – TU',
-    courseType: 'Old Course',
-    syllabusVersion: 'Pre-Semester Annual Scheme (Part 1 & Part 2)',
-    shortDescription: 'Targeted coaching and revision for students clearing backlog papers under Tribhuvan University MBS Old Annual Curriculum (Part 1 & Part 2).',
-    longDescription: 'For candidates completing their Master of Business Studies under the pre-semester annual system of Tribhuvan University, Shikshyalaya provides structured tuition covering Advanced Financial Management, Accounting for Financial Analysis, Research Methodology, and Strategic Management.',
-    category: 'master',
-    board: 'Tribhuvan University (TU)',
-    duration: 'Intensive Back Exam Revision Batch',
-    level: 'Master’s Degree — Old Course (Annual Scheme)',
-    eligibleStudents: [
-      'Students appearing in TU MBS Annual Back / Chance Examinations',
-      'Candidates preparing for Part 1 or Part 2 backlog subjects',
-      'Scholars completing pending thesis under old scheme regulations',
-    ],
-    subjectsOffered: [
-      { name: 'Accounting for Financial Analysis (Old Scheme)', code: 'MBS-ACC-OLD', semesterOrYear: 'Part 1', description: 'Financial statements, funds flow, cost-volume-profit analysis, and standard costing.' },
-      { name: 'Advanced Financial Management (Old Scheme)', code: 'MBS-FIN-OLD', semesterOrYear: 'Part 2', description: 'Valuation models, risk-adjusted capital budgeting, and corporate restructuring.' },
-      { name: 'Research Methodology & Statistical Techniques (Old Scheme)', code: 'MBS-RES-OLD', semesterOrYear: 'Part 2', description: 'Hypothesis testing, ANOVA, Chi-square, and research proposal drafting.' },
-    ],
-    classModes: ['Online', 'Offline', 'Hybrid'],
-    schedule: 'Evening: 7:00 PM – 9:30 PM (Sunday – Friday)',
-    feeInfo: 'Modular subject-based fees. Contact admissions desk for ongoing batch timings.',
-    featured: false,
-    published: true,
-    assignedTeacherIds: ['teacher-1', 'teacher-7'],
-    features: [
-      'Faculty with 15+ years experience in TU Annual System curriculum',
-      'Detailed analytical solutions for previous TU annual questions',
-      'Flexible hybrid schedule for working professionals',
-    ],
-    metaDescription: 'TU MBS Old Course Annual Tuition in Kathmandu. Advanced Financial Management & Accounting classes.',
-  },
-  {
-    id: 'course-old-3',
-    slug: 'plus-two-old',
-    title: '+2 Science & Management – Old Course (NEB Backpaper Prep)',
-    devanagariTitle: '+२ पुरानो पाठ्यक्रम (NEB मौका परीक्षा तयारी)',
-    courseType: 'Old Course',
-    syllabusVersion: 'Pre-2077 NEB Examination Syllabus',
-    shortDescription: 'High-yield chance / partial examination coaching for Grade 11 & 12 students giving NEB board exams under the pre-2077 older syllabus.',
-    longDescription: 'Students clearing back exams under the old NEB grading and marks distribution receive focused problem-solving sessions in Physics, Chemistry, Mathematics, Accountancy, and English, ensuring rapid concept mastery and high exam success rates.',
-    category: '+2',
-    board: 'National Examinations Board (NEB)',
-    duration: '45-Day Board Exam Crash Course',
-    level: '+2 Higher Secondary — Old Syllabus (NEB)',
-    eligibleStudents: [
-      'Grade 11 and 12 students appearing in NEB partial/chance exams',
-      'Old course students clearing single or multiple back subjects',
-    ],
-    subjectsOffered: [
-      { name: 'Physics (NEB Old Syllabus)', code: 'PHY-OLD', semesterOrYear: 'Grade 12 (Old)', description: 'Mechanics, Electromagnetism, Modern Physics, and Optics according to older 75-mark format.' },
-      { name: 'Chemistry (NEB Old Syllabus)', code: 'CHEM-OLD', semesterOrYear: 'Grade 12 (Old)', description: 'Physical, Inorganic, and Organic reaction mechanisms and numerical problems.' },
-      { name: 'Principles of Accounting (NEB Old Syllabus)', code: 'ACC-OLD', semesterOrYear: 'Grade 12 (Old)', description: 'Final accounts, share capital, debentures, and company accounts.' },
-      { name: 'Business Mathematics / Basic Math (NEB Old Syllabus)', code: 'MTH-OLD', semesterOrYear: 'Grade 12 (Old)', description: 'Calculus, algebra, matrix methods, and financial mathematics.' },
-    ],
-    classModes: ['Online', 'Offline', 'Hybrid'],
-    schedule: 'Morning: 6:30 AM – 9:30 AM | Afternoon: 3:00 PM – 6:00 PM',
-    feeInfo: 'Per-subject crash course rates with study material included.',
-    featured: false,
-    published: true,
-    assignedTeacherIds: ['teacher-3', 'teacher-4', 'teacher-5', 'teacher-6'],
-    features: [
-      'High-yield NEB model questions practice',
-      'Focus on passing marks numericals and mandatory derivations',
-      'Daily 2-hour intensive problem sessions',
-    ],
-    metaDescription: '+2 Old Course NEB tuition classes in Kathmandu. Physics, Chemistry, Accounting & Math backpaper coaching.',
   },
 
   // ==========================================
@@ -1909,10 +1663,16 @@ export const INITIAL_STUDENT_GROUPS: StudentGroup[] = [
     academicLevel: '5th Semester',
     shift: 'Morning',
     batchYear: '2026',
+    teacherId: 'teacher-2',
+    teacherName: 'Ganesh Das',
+    subjectTeachers: [
+      { subject: 'Corporate Finance', teacherId: 'teacher-2', teacherName: 'Ganesh Das' },
+      { subject: 'Legal Environment of Business', teacherId: 'teacher-7', teacherName: 'Nischal Rayamajhi' },
+    ],
     description: 'Official communication & alert group for enrolled BBM 5th Semester students for live class links, lecture rescheduling, and TU semester examinations.',
     whatsappGroupUrl: 'https://chat.whatsapp.com/invite/ShikshyalayaBBM5thSem',
     telegramGroupUrl: 'https://t.me/+ShikshyalayaBBM',
-    coordinatorName: 'Prof. B. Sharma',
+    coordinatorName: 'Ganesh Das',
     coordinatorPhone: '+977 9841234567',
     members: [
       {
@@ -1975,10 +1735,16 @@ export const INITIAL_STUDENT_GROUPS: StudentGroup[] = [
     academicLevel: '3rd Semester',
     shift: 'Morning',
     batchYear: '2026',
+    teacherId: 'teacher-6',
+    teacherName: 'Anish Karna',
+    subjectTeachers: [
+      { subject: 'Business Statistics', teacherId: 'teacher-6', teacherName: 'Anish Karna' },
+      { subject: 'Cost & Management Accounting', teacherId: 'teacher-1', teacherName: 'Vishwanath Karna' },
+    ],
     description: 'Direct notice board for 3rd Semester BBA scholars: Business Statistics formula sheets, unit test schedules, and project submission guidelines.',
     whatsappGroupUrl: 'https://chat.whatsapp.com/invite/ShikshyalayaBBA3rdSem',
     telegramGroupUrl: 'https://t.me/+ShikshyalayaBBA',
-    coordinatorName: 'Dr. K. R. Paudel',
+    coordinatorName: 'Anish Karna',
     coordinatorPhone: '+977 9851098765',
     members: [
       {
@@ -2041,9 +1807,16 @@ export const INITIAL_STUDENT_GROUPS: StudentGroup[] = [
     academicLevel: '1st Year',
     shift: 'Morning',
     batchYear: '2026',
-    description: 'Class coordination, daily accounting homework queries, and TU examination board registration alerts for BBS 1st Year.',
+    teacherId: 'teacher-1',
+    teacherName: 'Vishwanath Karna',
+    subjectTeachers: [
+      { subject: 'Financial Accounting and Analysis', teacherId: 'teacher-1', teacherName: 'Vishwanath Karna' },
+      { subject: 'Business Statistics', teacherId: 'teacher-6', teacherName: 'Anish Karna' },
+      { subject: 'Microeconomics for Business', teacherId: 'teacher-7', teacherName: 'Nischal Rayamajhi' },
+    ],
+    description: 'Class coordination, daily accounting homework queries, and TU examination board registration alerts for BBS 1st Year Morning Batch.',
     whatsappGroupUrl: 'https://chat.whatsapp.com/invite/ShikshyalayaBBS1stYear',
-    coordinatorName: 'M. N. Tiwari',
+    coordinatorName: 'Vishwanath Karna',
     coordinatorPhone: '+977 9849001122',
     members: [
       {
@@ -2143,57 +1916,29 @@ export const INITIAL_STUDENT_GROUPS: StudentGroup[] = [
     updatedAt: '2026-10-21T08:00:00Z'
   },
   {
-    id: 'grp-5',
-    title: 'BBS (TU) Old Course – Annual Backpaper Exam Prep Batch',
-    code: 'GRP-BBS-OLD-BP',
-    courseSlug: 'bbs-tu-old',
-    courseName: 'BBS (TU) – Old Course (Annual & Backpaper Prep)',
-    courseType: 'Old Course',
-    academicLevel: 'Old Course Backpaper (All Years)',
+    id: 'grp-6',
+    title: 'BBS 1st Year – Evening Batch',
+    code: 'GRP-BBS-1YR-EVE',
+    courseSlug: 'bbs-tu',
+    courseName: '4 Years Program on BBS (TU)',
+    academicLevel: '1st Year',
     shift: 'Evening',
     batchYear: '2026',
-    description: 'Immediate updates, routine changes, and exam numerical question bank for students clearing TU BBS Old Course backlog examinations.',
-    whatsappGroupUrl: 'https://chat.whatsapp.com/invite/ShikshyalayaBBSOldBatch',
-    coordinatorName: 'M. N. Tiwari',
-    coordinatorPhone: '+977 9849001122',
-    members: [
-      {
-        id: 'mem-501',
-        fullName: 'Kiran KC',
-        phone: '9841992211',
-        email: 'kiran.kc@example.com',
-        studentId: 'SSS-STU-BBS-OLD-01',
-        enrolledCourseSlug: 'bbs-tu-old',
-        semesterOrYear: 'Old Annual Scheme',
-        addedAt: '2026-10-10T11:00:00Z',
-        notes: 'Enrolled for Cost Accounting & Taxation backpaper'
-      },
-      {
-        id: 'mem-502',
-        fullName: 'Anjali श्रेष्ठ',
-        phone: '9860334455',
-        studentId: 'SSS-STU-BBS-OLD-02',
-        enrolledCourseSlug: 'bbs-tu-old',
-        semesterOrYear: 'Old Annual Scheme',
-        addedAt: '2026-10-12T15:30:00Z',
-        notes: 'Enrolled for Business Statistics backpaper'
-      }
+    teacherId: 'teacher-2',
+    teacherName: 'Ganesh Das',
+    subjectTeachers: [
+      { subject: 'Financial Accounting and Analysis', teacherId: 'teacher-2', teacherName: 'Ganesh Das' },
+      { subject: 'Business Statistics', teacherId: 'teacher-6', teacherName: 'Anish Karna' },
+      { subject: 'Microeconomics for Business', teacherId: 'teacher-7', teacherName: 'Nischal Rayamajhi' },
     ],
-    broadcasts: [
-      {
-        id: 'bc-5',
-        groupId: 'grp-5',
-        groupTitle: 'BBS (TU) Old Course – Annual Backpaper Exam Prep Batch',
-        title: 'TU BBS Old Syllabus 10-Year Question Bank Uploaded',
-        message: 'Dear students! Solved solutions for TU BBS Old Course Business Statistics (2070-2079) and Cost Accounting have been uploaded to your student portal. Physical problem drill class tomorrow at 7:00 PM.',
-        urgency: 'Urgent',
-        channels: ['In-App Notice', 'WhatsApp', 'SMS'],
-        sentAt: '2026-10-21T18:00:00Z',
-        sentBy: 'M. N. Tiwari'
-      }
-    ],
-    createdAt: '2026-10-09T10:00:00Z',
-    updatedAt: '2026-10-21T18:00:00Z'
+    description: 'Evening tuition batch for BBS 1st Year students with dedicated faculty resource sets and evening schedule.',
+    whatsappGroupUrl: 'https://chat.whatsapp.com/invite/ShikshyalayaBBS1stEvening',
+    coordinatorName: 'Ganesh Das',
+    coordinatorPhone: '+977 9849001133',
+    members: [],
+    broadcasts: [],
+    createdAt: '2026-10-12T10:00:00Z',
+    updatedAt: '2026-10-12T10:00:00Z'
   }
 ];
 
@@ -2310,60 +2055,6 @@ Section 'B': Analytical & Numerical Questions (2 x 15 = 30 Marks)
     updatedAt: '2026-10-23T11:00:00Z',
   },
   {
-    id: 'mock-test-3',
-    title: 'TU 3-Year BBS (1st Year) – Business Statistics Backpaper Clearance Mock',
-    courseSlug: '3-year-bbs-tu',
-    courseName: '3 Years Program on BBS (TU)',
-    courseType: 'Old Course',
-    semesterOrYear: '1st Year (3-Year BBS)',
-    subject: 'Business Statistics',
-    subjectCode: 'MGT 202',
-    examDate: '2026-10-27',
-    startTime: '06:30 AM',
-    durationMinutes: 180,
-    fullMarks: 100,
-    passMarks: 35,
-    instructions: [
-      'Tailored specifically for candidates appearing in TU 3-Year BBS Annual Backpaper & Chance examinations.',
-      'Follow the classic TU annual question pattern (Group A 10 brief numericals, Group B 5 long problems, Group C 2 comprehensive analytical problems).',
-      'Calculators are allowed. Statistical tables will be provided if required.',
-      'Submit scanned answer sheets within 3 hours from test activation.'
-    ],
-    questionPaperName: 'TU_3Year_BBS_1stYear_Business_Statistics_Mock.pdf',
-    questionPaperSize: '1.8 MB',
-    questionText: `TRIBHUVAN UNIVERSITY
-3-Year BBS Program (Legacy Annual Syllabus) - Backpaper Mock Examination
-Subject: Business Statistics (MGT 202)
-Full Marks: 100 | Pass Marks: 35 | Time: 3 Hours
-
-GROUP 'A': Attempt all 10 questions (10 x 2 = 20 Marks)
-1. Define Karl Pearson's coefficient of correlation and explain its range.
-2. State the conditions under which Binomial distribution tends to Normal distribution.
-3. Compute the range and its coefficient for: 12, 18, 25, 30, 42, 55, 68.
-4. What is time reversal test in index numbers?
-5. State the two regression lines and explain their point of intersection.
-6. Calculate standard deviation for: 4, 8, 12, 16, 20.
-7. Define mutually exclusive events with an example from business.
-8. What is the difference between primary data and secondary data?
-9. State two primary uses of time series analysis in business forecasting.
-10. The mean and variance of a binomial distribution are 4 and 2.4. Find n and p.
-
-GROUP 'B': Descriptive Answer Questions (Attempt FIVE questions) [5 x 10 = 50 Marks]
-11. Compute Bowley's coefficient of skewness from the income distribution of 100 industrial workers.
-12. Calculate Karl Pearson's coefficient of correlation between advertising expenditure and sales volume.
-13. Fit a linear trend line by the method of least squares and estimate sales for the year 2085.
-14. Construct Fisher's Ideal Index number and show that it satisfies both Time Reversal and Factor Reversal tests.
-15. Solve two simultaneous regression equations and estimate value of Y when X = 65.
-
-GROUP 'C': Comprehensive Analytical Questions (Attempt TWO questions) [2 x 15 = 30 Marks]
-16. Two brands of car tires (Brand A and Brand B) were tested for durability. Perform complete statistical analysis of mean life, standard deviation, and coefficient of variation (C.V.) to determine which brand has greater consistency and reliability.
-17. A company manufactures ball bearings whose diameters are normally distributed with mean 2.5 cm and standard deviation 0.05 cm. If 10,000 bearings are produced daily, determine how many are expected to meet the tolerance limit of 2.42 cm to 2.58 cm.`,
-    status: 'Upcoming',
-    published: true,
-    createdAt: '2026-10-18T14:00:00Z',
-    updatedAt: '2026-10-22T16:00:00Z',
-  },
-  {
     id: 'mock-test-4',
     title: 'MBS 2nd Semester – Financial Management Numerical Evaluation Test',
     courseSlug: 'mbs-tu',
@@ -2394,60 +2085,6 @@ Q2. (30 Marks) Working Capital Policy simulation and Baumol Cash Management mode
     published: true,
     createdAt: '2026-10-14T08:00:00Z',
     updatedAt: '2026-10-19T10:00:00Z',
-  },
-  {
-    id: 'mock-test-5',
-    title: 'TU 3-Year BBS (2nd Year) – Cost & Management Accounting Backpaper Clearance Mock',
-    courseSlug: '3-year-bbs-tu',
-    courseName: '3 Years Program on BBS (TU)',
-    courseType: 'Old Course',
-    semesterOrYear: '2nd Year (3-Year BBS)',
-    subject: 'Cost and Management Accounting',
-    subjectCode: 'ACC 212',
-    examDate: '2026-10-29',
-    startTime: '07:00 AM',
-    durationMinutes: 180,
-    fullMarks: 100,
-    passMarks: 35,
-    instructions: [
-      'Designed for candidates clearing 2nd Year TU 3-Year BBS Cost & Management Accounting backpapers.',
-      'Working notes, step-by-step cost reconciliations, and formulas must be legibly presented.',
-      'Full Marks: 100 (Group A 10x2=20, Group B 5x10=50, Group C 2x15=30).',
-      'Upload answer sheets before time expires.'
-    ],
-    questionPaperName: 'TU_3Year_BBS_2ndYear_Cost_Accounting_Mock.pdf',
-    questionPaperSize: '1.5 MB',
-    questionText: `TRIBHUVAN UNIVERSITY
-3-Year BBS Program - 2nd Year Backpaper Mock Exam
-Subject: Cost and Management Accounting (ACC 212 / MGT 212)
-Full Marks: 100 | Pass Marks: 35 | Time: 3 Hours
-
-GROUP 'A': Brief Answer Questions (10 x 2 = 20 Marks)
-1. Differentiate between Cost Accounting and Financial Accounting.
-2. What is Economic Order Quantity (EOQ)? State the formula.
-3. Calculate Reorder Level when Maximum consumption is 400 units/day and Lead time is 10 to 15 days.
-4. Define Idle Time and distinguish between normal and abnormal idle time.
-5. State the meaning of Margin of Safety and give its formula.
-6. What is a Flexible Budget and why is it preferred over a Fixed Budget?
-7. Mention any two reasons for disagreement between costing profit and financial profit.
-8. Define Sunk Cost and Opportunity Cost.
-9. Write the formula for Material Cost Variance and Material Price Variance.
-10. What is meant by Machine Hour Rate?
-
-GROUP 'B': Descriptive & Problem Questions (5 x 10 = 50 Marks)
-11. Prepare a Cost Sheet from the following manufacturing particulars of Pokhara Confectionery Ltd.
-12. Store Ledger Account under FIFO and Weighted Average Methods with normal & abnormal loss.
-13. Prepare a Reconciliation Statement showing the reconciliation between Cost Accounts and Financial Accounts profits.
-14. Break-even analysis, P/V ratio, required sales for desired profit of Rs. 200,000, and Margin of Safety.
-15. Prepare a Flexible Budget for 60%, 80%, and 100% activity levels.
-
-GROUP 'C': Comprehensive Analytical Problems (2 x 15 = 30 Marks)
-16. Standard Costing: Calculate Material Variances (Price, Usage, Mix, Yield) and Labor Variances (Rate, Efficiency, Idle Time) for a two-component chemical blending operation.
-17. Job & Batch Costing case analysis with overhead apportionment and tender price estimation for a government supply contract.`,
-    status: 'Upcoming',
-    published: true,
-    createdAt: '2026-10-22T08:00:00Z',
-    updatedAt: '2026-10-24T09:00:00Z',
   },
   {
     id: 'mock-test-6',

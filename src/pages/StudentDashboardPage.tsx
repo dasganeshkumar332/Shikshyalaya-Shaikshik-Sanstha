@@ -18,6 +18,8 @@ import {
   Upload,
   ChevronRight,
   Eye,
+  Users,
+  UserCheck,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { StudyMaterial } from '../types';
@@ -40,6 +42,7 @@ export const StudentDashboardPage: React.FC = () => {
     mockTests,
     mockTestSubmissions,
     isStudentEnrolledInSubject,
+    isStudentAllowedMaterial,
     resolveMaterialUrl,
   } = useApp();
 
@@ -112,13 +115,13 @@ export const StudentDashboardPage: React.FC = () => {
     [courses, currentUser.enrolledCourseSlugs]
   );
 
-  // Strictly enrolled study materials ONLY (course + specific subject check), sorted by upload date
+  // Strictly enrolled & batch-allowed study materials ONLY, sorted by upload date
   const enrolledMaterials = useMemo(() => {
     const filtered = studyMaterials.filter(
-      (m) => m.published && isStudentEnrolledInSubject(m.courseSlug, m.subject)
+      (m) => m.published && isStudentAllowedMaterial(m)
     );
     return sortByDate(filtered, (m) => m.uploadDate, 'desc', { getId: (m) => m.id });
-  }, [studyMaterials, currentUser, isStudentEnrolledInSubject]);
+  }, [studyMaterials, currentUser, isStudentAllowedMaterial]);
 
   // Distinct enrolled subjects that actually have resources
   const resourceSubjectGroups = useMemo(() => {
@@ -153,7 +156,9 @@ export const StudentDashboardPage: React.FC = () => {
           m.title.toLowerCase().includes(q) ||
           m.subject.toLowerCase().includes(q) ||
           m.resourceType.toLowerCase().includes(q) ||
-          m.semesterOrYear.toLowerCase().includes(q)
+          m.semesterOrYear.toLowerCase().includes(q) ||
+          (m.teacherName && m.teacherName.toLowerCase().includes(q)) ||
+          (m.batchName && m.batchName.toLowerCase().includes(q))
         );
       }
       return true;
@@ -349,6 +354,21 @@ export const StudentDashboardPage: React.FC = () => {
                   <span>{c.title}</span>
                 </span>
               ))}
+              {((currentUser.batchNames && currentUser.batchNames.length > 0) || currentUser.batchName) &&
+                (currentUser.batchNames && currentUser.batchNames.length > 0
+                  ? currentUser.batchNames
+                  : currentUser.batchName
+                  ? [currentUser.batchName]
+                  : []
+                ).map((bName) => (
+                  <span
+                    key={bName}
+                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-indigo-500/40 text-white border border-indigo-300/40 font-semibold text-[11px]"
+                  >
+                    <Users className="w-3 h-3 text-amber-300" />
+                    <span>{bName}</span>
+                  </span>
+                ))}
               {currentUser.enrolledSubjects &&
                 currentUser.enrolledSubjects.length > 0 &&
                 currentUser.enrolledSubjects.map((subj) => (
@@ -626,6 +646,16 @@ export const StudentDashboardPage: React.FC = () => {
                                 <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
                                   {mat.subject}
                                 </span>
+                                <span className="text-[10px] font-bold text-indigo-800 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200 inline-flex items-center gap-1">
+                                  <Users className="w-3 h-3 text-indigo-600" />
+                                  <span>{mat.batchId && mat.batchId !== 'ALL' && mat.batchName ? mat.batchName : 'All Batches'}</span>
+                                </span>
+                                {mat.teacherName && (
+                                  <span className="text-[10px] font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded border border-teal-200 inline-flex items-center gap-1">
+                                    <UserCheck className="w-3 h-3 text-teal-600" />
+                                    <span>{mat.teacherName}</span>
+                                  </span>
+                                )}
                               </div>
                               <h3 className="font-bold text-sm text-slate-900">{mat.title}</h3>
                               {mat.description && (
@@ -633,6 +663,7 @@ export const StudentDashboardPage: React.FC = () => {
                               )}
                               <p className="text-[11px] text-slate-400">
                                 {mat.courseName} • {mat.fileSize} • {mat.uploadDate}
+                                {mat.teacherName ? ` • Faculty: ${mat.teacherName}` : ''}
                                 {(mat.fileName || mat.attachmentName) ? ` • ${mat.fileName || mat.attachmentName}` : ''}
                               </p>
                             </div>
@@ -773,14 +804,8 @@ export const StudentDashboardPage: React.FC = () => {
                 >
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between gap-2">
-                      <span
-                        className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase ${
-                          test.courseType === 'Old Course'
-                            ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                            : 'bg-blue-100 text-blue-900'
-                        }`}
-                      >
-                        {test.courseType}
+                      <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase bg-blue-100 text-blue-900">
+                        {test.semesterOrYear || test.courseName}
                       </span>
                       <span className="text-[11px] font-mono font-semibold text-slate-500 flex items-center gap-1">
                         <Clock className="w-3.5 h-3.5 text-amber-500" />

@@ -36,7 +36,7 @@ import {
   ArrowUpDown,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { MockTest, MockTestSubmission, CourseType, MockTestRegistration } from '../types';
+import { MockTest, MockTestSubmission, MockTestRegistration } from '../types';
 import { sortByDate, DateSortOrder } from '../utils/dateSort';
 import { mobileMatches, normalizeMobileNumber } from '../utils/phone';
 
@@ -98,7 +98,6 @@ export const MockTestsPage: React.FC = () => {
   const [regEmail, setRegEmail] = useState(currentUser?.email || '');
   const [regPhone, setRegPhone] = useState(currentUser?.phone || '');
   const [regCourseSlug, setRegCourseSlug] = useState('bbs-tu');
-  const [regCourseType, setRegCourseType] = useState<CourseType>('New Course');
   const [regYearOrSem, setRegYearOrSem] = useState('1st Year');
   const [regSelectedSubjects, setRegSelectedSubjects] = useState<string[]>(['Business Statistics']);
   const [regPreferredMode, setRegPreferredMode] = useState<'Online (Scanned PDF Submission)' | 'Physical / Campus Exam Hall' | 'Hybrid'>('Online (Scanned PDF Submission)');
@@ -126,13 +125,12 @@ export const MockTestsPage: React.FC = () => {
   const [selectedCourseSlug, setSelectedCourseSlug] = useState<string>(searchParams.get('course') || 'ALL');
   const [selectedYearOrSem, setSelectedYearOrSem] = useState<string>(searchParams.get('year') || 'ALL');
   const [selectedSubject, setSelectedSubject] = useState<string>(searchParams.get('subject') || 'ALL');
-  const [selectedCourseType, setSelectedCourseType] = useState<string>(searchParams.get('type') || 'ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [dateSortOrder, setDateSortOrder] = useState<DateSortOrder>('desc');
 
   // Course, Year & Subject Quick Attender / Uploader Widget State
   const [quickCourseSlug, setQuickCourseSlug] = useState<string>(
-    (currentUser?.role === 'student' && currentUser.enrolledCourseSlugs?.[0]) || courses[0]?.slug || '3-year-bbs-tu'
+    (currentUser?.role === 'student' && currentUser.enrolledCourseSlugs?.[0]) || courses[0]?.slug || 'bbs-tu'
   );
   const [quickYearOrSem, setQuickYearOrSem] = useState<string>('ALL');
   const [quickSubject, setQuickSubject] = useState<string>('');
@@ -327,10 +325,6 @@ export const MockTestsPage: React.FC = () => {
         return t.courseSlug === selectedCourseSlug;
       })
       .filter((t) => {
-        if (selectedCourseType === 'ALL') return true;
-        return t.courseType === selectedCourseType;
-      })
-      .filter((t) => {
         if (selectedYearOrSem === 'ALL') return true;
         return (
           t.semesterOrYear === selectedYearOrSem ||
@@ -367,7 +361,7 @@ export const MockTestsPage: React.FC = () => {
       dateSortOrder,
       { getFallbackDate: (t) => t.updatedAt, getId: (t) => t.id }
     );
-  }, [mockTests, selectedCourseSlug, selectedCourseType, selectedYearOrSem, selectedSubject, searchQuery, currentUser, isStudentEnrolledInSubject, dateSortOrder]);
+  }, [mockTests, selectedCourseSlug, selectedYearOrSem, selectedSubject, searchQuery, currentUser, isStudentEnrolledInSubject, dateSortOrder]);
 
   // Private evaluated results visible to the logged-in student ONLY
   const myEvaluatedSubmissions = useMemo(() => {
@@ -634,7 +628,7 @@ export const MockTestsPage: React.FC = () => {
       phone: regPhone.trim(),
       courseSlug: regCourseSlug,
       courseName,
-      courseType: regCourseType,
+      courseType: 'New Course',
       semesterOrYear: regYearOrSem,
       enrolledSubjects: regSelectedSubjects.length > 0 ? regSelectedSubjects : ['Business Statistics'],
       preferredMode: regPreferredMode,
@@ -705,24 +699,6 @@ export const MockTestsPage: React.FC = () => {
                 <Award className="w-4 h-4" />
                 <span>Check My Results & Feedback</span>
               </button>
-            </div>
-          </div>
-
-          {/* New Course vs Old Course Guidance Callout */}
-          <div className="pt-4 border-t border-white/10 flex flex-wrap items-center justify-between gap-3 text-xs text-blue-200">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
-              <span>
-                Both <strong>New Course (Current Syllabus)</strong> and <strong>Old Course (Backpaper Preparation)</strong> question papers are available.
-              </span>
-            </div>
-            <div className="flex items-center gap-4 text-xs font-medium">
-              <span className="inline-flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-blue-400" /> New Course (Semester / Revised)
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-amber-400" /> Old Course (Annual / Backpaper)
-              </span>
             </div>
           </div>
         </div>
@@ -1008,7 +984,7 @@ export const MockTestsPage: React.FC = () => {
               </div>
 
               {/* Reset */}
-              {(searchQuery || selectedCourseSlug !== 'ALL' || selectedYearOrSem !== 'ALL' || selectedCourseType !== 'ALL' || selectedSubject !== 'ALL') && (
+              {(searchQuery || selectedCourseSlug !== 'ALL' || selectedYearOrSem !== 'ALL' || selectedSubject !== 'ALL') && (
                 <button
                   onClick={() => {
                     setSearchQuery('');
@@ -1016,7 +992,6 @@ export const MockTestsPage: React.FC = () => {
                     setSelectedYearOrSem('ALL');
                     setQuickYearOrSem('ALL');
                     setSelectedSubject('ALL');
-                    setSelectedCourseType('ALL');
                   }}
                   className="px-3 py-2.5 rounded-xl text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                 >
@@ -1024,32 +999,6 @@ export const MockTestsPage: React.FC = () => {
                   <span>Reset</span>
                 </button>
               )}
-            </div>
-
-            {/* Syllabus Type Pills */}
-            <div className="flex items-center gap-2 pt-2 border-t border-slate-100 overflow-x-auto">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider shrink-0">
-                Syllabus Stream:
-              </span>
-              {[
-                { id: 'ALL', label: 'All Syllabi' },
-                { id: 'New Course', label: 'New Course (Regular)' },
-                { id: 'Old Course', label: 'Old Course (Backpaper)' },
-              ].map((type) => (
-                <button
-                  key={type.id}
-                  onClick={() => setSelectedCourseType(type.id)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                    selectedCourseType === type.id
-                      ? type.id === 'Old Course'
-                        ? 'bg-amber-400 text-slate-950 shadow-xs'
-                        : 'bg-[#12315A] text-white shadow-xs'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  {type.label}
-                </button>
-              ))}
             </div>
           </div>
 
@@ -1134,7 +1083,7 @@ export const MockTestsPage: React.FC = () => {
                 <FileText className="w-10 h-10 text-slate-400 mx-auto" />
                 <h3 className="text-base font-bold text-slate-800">No mock tests found matching this filter</h3>
                 <p className="text-xs text-slate-500">
-                  Try switching the syllabus stream (New vs Old Course) or clearing the search keyword.
+                  Try adjusting your course, subject, or search keyword.
                 </p>
               </div>
             ) : (
@@ -1150,8 +1099,6 @@ export const MockTestsPage: React.FC = () => {
                     )
                   : null;
 
-                const isOldCourse = test.courseType === 'Old Course';
-
                 return (
                   <div
                     key={test.id}
@@ -1161,14 +1108,8 @@ export const MockTestsPage: React.FC = () => {
                       {/* Top Bar */}
                       <div className="p-5 pb-3 border-b border-slate-100 bg-slate-50/70">
                         <div className="flex items-center justify-between gap-2 mb-2">
-                          <span
-                            className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider ${
-                              isOldCourse
-                                ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                                : 'bg-blue-100 text-blue-900 border border-blue-200'
-                            }`}
-                          >
-                            {test.courseType}
+                          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider bg-blue-100 text-blue-900 border border-blue-200">
+                            {test.semesterOrYear || test.courseName}
                           </span>
                           <span className="text-xs font-bold text-slate-500 flex items-center gap-1">
                             <Clock className="w-3.5 h-3.5 text-amber-500" />
@@ -1391,8 +1332,8 @@ export const MockTestsPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Row 2: Program, Syllabus Version & Year/Semester */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-slate-100">
+              {/* Row 2: Program & Year/Semester */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">
                     Target Program / Course *
@@ -1419,20 +1360,6 @@ export const MockTestsPage: React.FC = () => {
                         {c.title}
                       </option>
                     ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Syllabus Scheme *
-                  </label>
-                  <select
-                    value={regCourseType}
-                    onChange={(e) => setRegCourseType(e.target.value as CourseType)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                  >
-                    <option value="New Course">New Course (Current Regular Syllabus)</option>
-                    <option value="Old Course">Old Course (Backpaper / Old Syllabus)</option>
                   </select>
                 </div>
 
@@ -1751,7 +1678,7 @@ export const MockTestsPage: React.FC = () => {
                     const isPassed = marks !== undefined ? marks >= passMarks : false;
                     const displayTitle = sub.testTitle || sub.mockTestTitle || testMeta?.title || 'Mock Examination';
                     const displaySubject = sub.subject || testMeta?.subject || 'Exam Subject';
-                    const displayCourseType = sub.courseType || testMeta?.courseType || 'New Course';
+                    const displayProgramTag = testMeta?.semesterOrYear || testMeta?.courseName || 'Mock Exam';
 
                     return (
                       <div
@@ -1762,14 +1689,8 @@ export const MockTestsPage: React.FC = () => {
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
                           <div>
                             <div className="flex items-center gap-2">
-                              <span
-                                className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
-                                  displayCourseType === 'Old Course'
-                                    ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                                    : 'bg-blue-100 text-blue-900'
-                                }`}
-                              >
-                                {displayCourseType}
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase bg-blue-100 text-blue-900">
+                                {displayProgramTag}
                               </span>
                               <span className="text-xs text-slate-400 font-mono">
                                 Submitted {new Date(sub.submittedAt).toLocaleDateString()}
@@ -1900,7 +1821,7 @@ export const MockTestsPage: React.FC = () => {
                     const isPassed = marks !== undefined ? marks >= passMarks : false;
                     const displayTitle = sub.testTitle || sub.mockTestTitle || testMeta?.title || 'Mock Examination';
                     const displaySubject = sub.subject || testMeta?.subject || 'Exam Subject';
-                    const displayCourseType = sub.courseType || testMeta?.courseType || 'New Course';
+                    const displayProgramTag = testMeta?.semesterOrYear || testMeta?.courseName || 'Mock Exam';
 
                     return (
                       <div
@@ -1911,7 +1832,7 @@ export const MockTestsPage: React.FC = () => {
                           <div>
                             <div className="flex items-center gap-2">
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase bg-blue-100 text-blue-900">
-                                {displayCourseType}
+                                {displayProgramTag}
                               </span>
                               <span className="text-xs text-slate-500 font-mono">
                                 Student: <strong>{maskStudentName(sub.studentName)}</strong> • Verified Examinee
@@ -1995,7 +1916,7 @@ export const MockTestsPage: React.FC = () => {
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-white/20 text-white">
-                    {activeExamTest.courseType}
+                    {activeExamTest.semesterOrYear || activeExamTest.subject}
                   </span>
                   <span className="text-xs text-blue-200 font-medium">
                     {activeExamTest.courseName}
@@ -2270,7 +2191,7 @@ export const MockTestsPage: React.FC = () => {
             <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-[#12315A] text-white">
               <div>
                 <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-amber-400 text-slate-950">
-                  {previewTest.courseType}
+                  {previewTest.semesterOrYear || previewTest.courseName}
                 </span>
                 <h3 className="text-base font-bold mt-1">{previewTest.title}</h3>
                 <p className="text-xs text-blue-200">
@@ -2427,9 +2348,9 @@ export const MockTestsPage: React.FC = () => {
                   <strong className="font-mono text-slate-900">{registrationPassModal.phone}</strong>
                 </div>
                 <div className="flex justify-between py-1 border-b border-slate-200/60">
-                  <span className="text-slate-500 font-medium">Program & Scheme:</span>
+                  <span className="text-slate-500 font-medium">Target Program:</span>
                   <strong className="text-blue-900">
-                    {registrationPassModal.courseName} ({registrationPassModal.semesterOrYear}, {registrationPassModal.courseType})
+                    {registrationPassModal.courseName} ({registrationPassModal.semesterOrYear})
                   </strong>
                 </div>
                 <div className="flex justify-between py-1 border-b border-slate-200/60">

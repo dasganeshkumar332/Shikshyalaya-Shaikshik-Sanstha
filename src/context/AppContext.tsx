@@ -79,6 +79,7 @@ interface AppContextType {
   togglePublishCourse: (id: string) => void;
   deleteCourse: (id: string) => void;
   clearAllCourses: () => void;
+  restoreDefaultCourses: () => number;
 
   teachers: Teacher[];
   addTeacher: (teacher: Omit<Teacher, 'id'>) => void;
@@ -106,7 +107,7 @@ interface AppContextType {
   inquiries: AdmissionInquiry[];
   submitAdmissionInquiry: (inquiryData: Omit<AdmissionInquiry, 'id' | 'referenceNumber' | 'status' | 'adminNotes' | 'createdAt' | 'updatedAt'>) => Promise<string>;
   updateInquiryStatus: (id: string, status: InquiryStatus, note?: string) => void;
-  verifyAndEnrollApplicant: (inquiryId: string, customStudentId?: string, note?: string) => void;
+  verifyAndEnrollApplicant: (inquiryId: string, customStudentId?: string, note?: string, batchId?: string) => void;
   attachPaymentProofToInquiry: (
     referenceOrPhone: string,
     paymentData: {
@@ -219,6 +220,8 @@ interface AppContextType {
   updateStudentEnrolledSubjects: (subjects: string[]) => void;
   isStudentEnrolledInCourse: (courseSlug: string) => boolean;
   isStudentEnrolledInSubject: (courseSlug: string, subjectName: string) => boolean;
+  isStudentAllowedMaterial: (material: StudyMaterial) => boolean;
+  isStudentBatchRestricted: (material: StudyMaterial) => boolean;
   subjectsMatch: (a: string, b: string) => boolean;
   logout: () => void;
 
@@ -293,6 +296,79 @@ function recordDeletedIds(category: DeletedRecordCategory, ids: string[]): void 
   }
 }
 
+function clearDeletedCategory(category: DeletedRecordCategory): void {
+  try {
+    const map = readDeletedRecordsMap();
+    if (map[category]) {
+      delete map[category];
+      localStorage.setItem(STORAGE_KEYS.DELETED_RECORDS, JSON.stringify(map));
+    }
+  } catch (err) {
+    console.warn('Error clearing deleted record category:', err);
+  }
+}
+
+const COURSES_RESTORE_KEY = 'sss_courses_restored_all_v4';
+const OLD_COURSE_REMOVAL_KEY = 'sss_old_course_removed_v1';
+const OBSOLETE_COURSE_SLUGS = new Set([
+  'bba-bbm-tu',
+  '3-year-bbs-tu',
+  'mbs-tu-old',
+  'plus-two-old',
+  'bbs-tu-old',
+]);
+
+function isObsoleteOldCourse(c: Course): boolean {
+  return OBSOLETE_COURSE_SLUGS.has(c.slug) || c.courseType === 'Old Course';
+}
+
+function mergeCoursesWithDefaults(existingCourses: Course[], forcePublishRestored = false): Course[] {
+  const cleaned = existingCourses.filter((c) => !isObsoleteOldCourse(c));
+  const initialOrder = INITIAL_COURSES.map((ic) => ic.slug);
+
+  const syncedExisting = cleaned.map((c) => {
+    const initial = INITIAL_COURSES.find((ic) => ic.slug === c.slug || ic.id === c.id);
+    if (initial) {
+      return {
+        ...c,
+        id: initial.id,
+        slug: initial.slug,
+        title: initial.title,
+        devanagariTitle: initial.devanagariTitle,
+        duration: initial.duration,
+        level: initial.level,
+        shortDescription: initial.shortDescription,
+        longDescription: initial.longDescription,
+        metaDescription: initial.metaDescription,
+        subjectsOffered: initial.subjectsOffered,
+        eligibleStudents: initial.eligibleStudents,
+        schedule: initial.schedule,
+        assignedTeacherIds: initial.assignedTeacherIds,
+        courseType: initial.courseType || 'New Course',
+        syllabusVersion: initial.syllabusVersion || c.syllabusVersion,
+        hasOldCourseOption: initial.hasOldCourseOption ?? false,
+        newCourseNotes: initial.newCourseNotes || c.newCourseNotes,
+        oldCourseNotes: undefined,
+        published: forcePublishRestored ? true : c.published,
+      };
+    }
+    return c;
+  });
+
+  const existingSlugs = new Set(syncedExisting.map((c) => c.slug));
+  const existingIds = new Set(syncedExisting.map((c) => c.id));
+  const missingDefaults = INITIAL_COURSES.filter(
+    (ic) => !existingSlugs.has(ic.slug) && !existingIds.has(ic.id)
+  ).map((ic) => ({ ...ic, published: true }));
+
+  const combined = [...syncedExisting, ...missingDefaults];
+  return combined.sort((a, b) => {
+    const idxA = initialOrder.indexOf(a.slug);
+    const idxB = initialOrder.indexOf(b.slug);
+    return (idxA !== -1 ? idxA : 999) - (idxB !== -1 ? idxB : 999);
+  });
+}
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Settings
   const [settings, setSettings] = useState<SiteSettings>(() => {
@@ -320,12 +396,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Courses
   const [courses, setCourses] = useState<Course[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.COURSES);
-    if (saved === null) return INITIAL_COURSES;
+    const needsRestoreAll = localStorage.getItem(COURSES_RESTORE_KEY) !== 'true';
+    if (saved === null) {
+      if (needsRestoreAll) {
+        clearDeletedCategory('courses');
+        localStorage.setItem(COURSES_RESTORE_KEY, 'true');
+      }
+      return INITIAL_COURSES;
+    }
     try {
       let parsed: Course[] = JSON.parse(saved);
-      if (!Array.isArray(parsed)) return INITIAL_COURSES;
-      // Remove obsolete combined bba-bbm-tu slug without resurrecting deleted courses
-      parsed = parsed.filter((c) => c.slug !== 'bba-bbm-tu');
+      if (!Array.isArray(parsed)) {
+        clearDeletedCategory('courses');
+        localStorage.setItem(COURSES_RESTORE_KEY, 'true');
+        return INITIAL_COURSES;
+      }
+
+      if (needsRestoreAll) {
+        clearDeletedCategory('courses');
+        const restored = mergeCoursesWithDefaults(parsed, true);
+        try {
+          localStorage.setItem(STORAGE_KEYS.COURSES, JSON.stringify(restored));
+          localStorage.setItem(COURSES_RESTORE_KEY, 'true');
+        } catch {}
+        return restored;
+      }
+
+      // Remove obsolete Old Course slugs without resurrecting intentionally deleted courses
+      parsed = parsed.filter((c) => !isObsoleteOldCourse(c));
       const initialOrder = INITIAL_COURSES.map((ic) => ic.slug);
       const updated = parsed.map((c) => {
         const initial = INITIAL_COURSES.find((ic) => ic.slug === c.slug);
@@ -340,13 +438,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             longDescription: initial.longDescription,
             metaDescription: initial.metaDescription,
             subjectsOffered: initial.subjectsOffered,
+            eligibleStudents: initial.eligibleStudents,
             schedule: initial.schedule,
             assignedTeacherIds: initial.assignedTeacherIds,
-            courseType: initial.courseType || c.courseType || 'New Course',
+            courseType: initial.courseType || 'New Course',
             syllabusVersion: initial.syllabusVersion || c.syllabusVersion,
-            hasOldCourseOption: initial.hasOldCourseOption !== undefined ? initial.hasOldCourseOption : true,
+            hasOldCourseOption: initial.hasOldCourseOption ?? false,
             newCourseNotes: initial.newCourseNotes || c.newCourseNotes,
-            oldCourseNotes: initial.oldCourseNotes || c.oldCourseNotes,
+            oldCourseNotes: undefined,
           };
         }
         return c;
@@ -513,7 +612,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (saved === null) return INITIAL_STUDENT_GROUPS;
     try {
       const parsed: StudentGroup[] = JSON.parse(saved);
-      return Array.isArray(parsed) ? parsed : INITIAL_STUDENT_GROUPS;
+      if (!Array.isArray(parsed)) return INITIAL_STUDENT_GROUPS;
+      return parsed.filter((g) => !OBSOLETE_COURSE_SLUGS.has(g.courseSlug) && g.courseType !== 'Old Course');
     } catch {
       return INITIAL_STUDENT_GROUPS;
     }
@@ -525,7 +625,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (saved === null) return INITIAL_MOCK_TESTS;
     try {
       const parsed: MockTest[] = JSON.parse(saved);
-      return Array.isArray(parsed) ? parsed : INITIAL_MOCK_TESTS;
+      if (!Array.isArray(parsed)) return INITIAL_MOCK_TESTS;
+      const filtered = parsed.filter((t) => !OBSOLETE_COURSE_SLUGS.has(t.courseSlug) && t.courseType !== 'Old Course');
+      if (localStorage.getItem(OLD_COURSE_REMOVAL_KEY) !== 'true') {
+        try {
+          localStorage.setItem(OLD_COURSE_REMOVAL_KEY, 'true');
+        } catch {}
+      }
+      return filtered;
     } catch {
       return INITIAL_MOCK_TESTS;
     }
@@ -949,6 +1056,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch {}
   };
 
+  const restoreDefaultCourses = () => {
+    clearDeletedCategory('courses');
+    let addedOrRepublished = 0;
+    setCourses((prev) => {
+      const prevSlugs = new Set(prev.map((c) => c.slug));
+      const prevUnpublished = new Set(prev.filter((c) => !c.published).map((c) => c.slug));
+      const next = mergeCoursesWithDefaults(prev, true);
+      addedOrRepublished = next.filter(
+        (c) => !prevSlugs.has(c.slug) || prevUnpublished.has(c.slug)
+      ).length;
+      try {
+        localStorage.setItem(STORAGE_KEYS.COURSES, JSON.stringify(next));
+        localStorage.setItem(COURSES_RESTORE_KEY, 'true');
+      } catch {}
+      return next;
+    });
+    return addedOrRepublished;
+  };
+
   const addTeacher = (teacherData: Omit<Teacher, 'id'>) => {
     const newTeacher: Teacher = {
       ...teacherData,
@@ -1173,10 +1299,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   };
 
-  const verifyAndEnrollApplicant = (id: string, customStudentId?: string, note?: string) => {
+  const verifyAndEnrollApplicant = (id: string, customStudentId?: string, note?: string, batchId?: string) => {
     const now = new Date().toISOString();
     let verifiedInquiry: AdmissionInquiry | null = null;
     let issuedId = '';
+    const explicitBatch =
+      batchId && batchId !== 'NONE' && batchId !== 'ALL'
+        ? studentGroups.find((g) => g.id === batchId)
+        : undefined;
 
     setInquiries((prev) =>
       prev.map((inq) => {
@@ -1190,12 +1320,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             inq.assignedStudentId ||
             `SSS-STU-${courseCode}-${Math.floor(1000 + Math.random() * 9000)}`;
           issuedId = autoId;
+          const resolvedBatch =
+            explicitBatch ||
+            (inq.batchId ? studentGroups.find((g) => g.id === inq.batchId) : undefined);
+          const resolvedBatchId = resolvedBatch?.id || inq.batchId;
+          const resolvedBatchName = resolvedBatch
+            ? resolvedBatch.name || resolvedBatch.title
+            : inq.batchName;
           const amountDisplay = inq.paymentAmount ? ` (Payment: NPR ${inq.paymentAmount})` : '';
+          const batchSuffix = resolvedBatchName ? ` Batch: ${resolvedBatchName}.` : '';
           notes.push({
             date: new Date().toLocaleDateString(),
             text:
               note ||
-              `Payment verified${amountDisplay} & student officially enrolled in ${inq.courseName}. Login ID (Mobile): ${autoId}.`,
+              `Payment verified${amountDisplay} & student officially enrolled in ${inq.courseName}. Login ID (Mobile): ${autoId}.${batchSuffix}`,
             by: currentUser?.name || 'Administrator',
           });
           const updated: AdmissionInquiry = {
@@ -1205,6 +1343,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             verifiedBy: currentUser?.name || 'Administrator',
             verifiedAt: now,
             assignedStudentId: autoId,
+            batchId: resolvedBatchId,
+            batchName: resolvedBatchName,
             adminNotes: notes,
             updatedAt: now,
           };
@@ -1216,12 +1356,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
     );
 
-    // Auto-sync into active student group if matching course group exists
+    // Auto-sync into the assigned batch (or matching course group if none explicitly chosen)
     if (verifiedInquiry) {
       const v = verifiedInquiry as AdmissionInquiry;
       setStudentGroups((prev) =>
         prev.map((g) => {
-          if (g.courseSlug === v.courseSlug) {
+          const isTargetGroup = v.batchId ? g.id === v.batchId : g.courseSlug === v.courseSlug;
+          if (isTargetGroup) {
             const exists = g.members.some(
               (m) =>
                 m.referenceNumber === v.referenceNumber ||
@@ -1248,6 +1389,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               enrolledCourseSlug: v.courseSlug,
               enrolledSubjects: parsedSubjects,
               semesterOrYear: v.academicLevel,
+              batchId: g.id,
+              batchName: g.name || g.title,
               addedAt: now,
               notes: 'Auto-added upon verified enrollment',
             };
@@ -1449,11 +1592,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Student Group Management
   const addStudentGroup = (groupData: Partial<StudentGroup>) => {
     const now = new Date().toISOString();
-    const groupTitle = groupData.title || groupData.name || 'New Student Cohort';
+    const groupTitle = (groupData.title || groupData.name || 'New Student Cohort').trim();
+    const customCode = groupData.code?.trim();
+    const customBatchNumber = groupData.batchNumber?.trim() || undefined;
     const newGroup: StudentGroup = {
-      title: groupTitle,
-      name: groupTitle,
-      code: groupData.code || `GRP-${Date.now().toString().slice(-4)}`,
       courseSlug: groupData.courseSlug || 'bbs-tu',
       courseName: groupData.courseName || 'Academic Course',
       courseType: groupData.courseType || 'New Course',
@@ -1469,6 +1611,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       coordinatorPhone: groupData.coordinatorPhone || '9767648342',
       members: groupData.members || [],
       ...groupData,
+      title: groupTitle,
+      name: groupTitle,
+      batchNumber: customBatchNumber,
+      code: customCode || `GRP-${Date.now().toString().slice(-4)}`,
       id: `grp-${Date.now()}`,
       broadcasts: [],
       createdAt: now,
@@ -1480,16 +1626,66 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateStudentGroup = (id: string, updates: Partial<StudentGroup>) => {
     const now = new Date().toISOString();
+    let updatedTitle: string | undefined;
+
     setStudentGroups((prev) =>
       prev.map((g) => {
         if (g.id === id) {
-          const updated = { ...g, ...updates, updatedAt: now };
+          const nextTitle =
+            updates.title !== undefined || updates.name !== undefined
+              ? (updates.name ?? updates.title ?? g.name ?? g.title).trim()
+              : g.name || g.title;
+          if (nextTitle && nextTitle !== (g.name || g.title)) {
+            updatedTitle = nextTitle;
+          }
+          const nextBatchNumber =
+            updates.batchNumber !== undefined
+              ? updates.batchNumber.trim() || undefined
+              : g.batchNumber;
+          const nextCode =
+            updates.code !== undefined
+              ? updates.code.trim() || g.code
+              : g.code;
+
+          const updated: StudentGroup = {
+            ...g,
+            ...updates,
+            title: nextTitle,
+            name: nextTitle,
+            batchNumber: nextBatchNumber,
+            code: nextCode,
+            updatedAt: now,
+          };
           saveStudentGroupToSupabase(updated).catch(console.warn);
           return updated;
         }
         return g;
       })
     );
+
+    if (updatedTitle) {
+      const newBatchName = updatedTitle;
+      setStudyMaterials((prev) =>
+        prev.map((m) => {
+          if (m.batchId === id) {
+            const nextMat = { ...m, batchName: newBatchName };
+            saveStudyMaterialToSupabase(nextMat).catch(console.warn);
+            return nextMat;
+          }
+          return m;
+        })
+      );
+      setInquiries((prev) =>
+        prev.map((inq) => {
+          if (inq.batchId === id) {
+            const nextInq = { ...inq, batchName: newBatchName, updatedAt: now };
+            saveInquiryToSupabase(nextInq).catch(console.warn);
+            return nextInq;
+          }
+          return inq;
+        })
+      );
+    }
   };
 
   const deleteStudentGroup = (id: string) => {
@@ -2029,6 +2225,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       matchedGroupMember?.phone ||
       (phoneClean.length >= 7 ? phoneClean : undefined);
 
+    const matchedBatches = studentGroups.filter((g) => {
+      if (matchedInquiry?.batchId && g.id === matchedInquiry.batchId) return true;
+      return g.members.some(
+        (m) =>
+          (resolvedPhone && mobileMatches(m.phone, resolvedPhone)) ||
+          (matchedInquiry?.referenceNumber && m.referenceNumber === matchedInquiry.referenceNumber) ||
+          (resolvedId && m.studentId && m.studentId.toLowerCase() === resolvedId.toLowerCase())
+      );
+    });
+
+    const resolvedBatchIds = Array.from(
+      new Set([
+        ...(matchedInquiry?.batchId ? [matchedInquiry.batchId] : []),
+        ...matchedBatches.map((g) => g.id),
+      ])
+    );
+    const resolvedBatchNames = Array.from(
+      new Set([
+        ...(matchedInquiry?.batchName ? [matchedInquiry.batchName] : []),
+        ...matchedBatches.map((g) => g.name || g.title),
+      ])
+    );
+
     const user: UserProfile = {
       id: `student-${Date.now()}`,
       email: email || matchedInquiry?.email || matchedMockReg?.email || matchedGroupMember?.email || `${(resolvedId || 'student').toLowerCase()}@shikshyalaya.edu.np`,
@@ -2038,6 +2257,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       studentId: normalizeMobileNumber(resolvedPhone) || resolvedId || `SSS-STU-${firstSlug.toUpperCase().slice(0, 3)}-2026`,
       enrolledCourseSlugs: enrolled,
       enrolledSubjects: resolvedEnrolledSubjects,
+      batchId: resolvedBatchIds[0],
+      batchName: resolvedBatchNames[0],
+      batchIds: resolvedBatchIds,
+      batchNames: resolvedBatchNames,
     };
     setCurrentUser(user);
     try {
@@ -2129,6 +2352,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     // If no specific subject restriction list was attached, user can view the enrolled course's subjects
     return true;
+  };
+
+  const getStudentLiveBatchIds = (): string[] => {
+    if (!currentUser || currentUser.role !== 'student') return [];
+    const fromProfile = currentUser.batchIds || (currentUser.batchId ? [currentUser.batchId] : []);
+    const fromGroups = studentGroups
+      .filter((g) =>
+        g.members.some(
+          (m) =>
+            (currentUser.phone && mobileMatches(m.phone, currentUser.phone)) ||
+            (currentUser.studentId && m.studentId && mobileMatches(m.phone, currentUser.studentId)) ||
+            (currentUser.studentId && m.studentId?.toLowerCase() === currentUser.studentId.toLowerCase())
+        )
+      )
+      .map((g) => g.id);
+    return Array.from(new Set([...fromProfile, ...fromGroups]));
+  };
+
+  const isStudentAllowedMaterial = (material: StudyMaterial): boolean => {
+    if (!currentUser) return false;
+    if (currentUser.role === 'admin') return true;
+    if (!isStudentEnrolledInSubject(material.courseSlug, material.subject)) return false;
+    // Common material (no specific batch set or explicitly All Batches)
+    if (!material.batchId || material.batchId === 'ALL') return true;
+
+    const studentBatchIds = getStudentLiveBatchIds();
+    if (studentBatchIds.includes(material.batchId)) return true;
+    if (
+      material.batchName &&
+      (currentUser.batchNames?.includes(material.batchName) || currentUser.batchName === material.batchName)
+    ) {
+      return true;
+    }
+    return false;
+  };
+
+  const isStudentBatchRestricted = (material: StudyMaterial): boolean => {
+    if (!currentUser || currentUser.role !== 'student') return false;
+    if (!isStudentEnrolledInSubject(material.courseSlug, material.subject)) return false;
+    if (!material.batchId || material.batchId === 'ALL') return false;
+    return !isStudentAllowedMaterial(material);
   };
 
   const registerForMockTest = (
@@ -2718,6 +2982,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         togglePublishCourse,
         deleteCourse,
         clearAllCourses,
+        restoreDefaultCourses,
         teachers,
         addTeacher,
         updateTeacher,
@@ -2789,6 +3054,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateStudentEnrolledSubjects,
         isStudentEnrolledInCourse,
         isStudentEnrolledInSubject,
+        isStudentAllowedMaterial,
+        isStudentBatchRestricted,
         subjectsMatch,
         logout,
         language,
