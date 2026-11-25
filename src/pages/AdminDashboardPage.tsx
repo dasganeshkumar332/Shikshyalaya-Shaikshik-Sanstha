@@ -7335,6 +7335,140 @@ export const AdminDashboardPage: React.FC = () => {
         </div>
       )}
 
+      {/* ALWAYS-VISIBLE BOTTOM BOX: ADMIN TEAM & MULTIPLE ADMINISTRATORS */}
+      {activeTab !== 'admins' && (
+        <div
+          id="admin-team-bottom-box"
+          className="bg-white p-6 sm:p-7 rounded-3xl border-2 border-[#12315A]/20 shadow-md space-y-5"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2.5 rounded-2xl bg-[#12315A] text-amber-400 shrink-0 shadow-xs">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base sm:text-lg font-bold text-[#12315A]">
+                  Admin Team &amp; Multiple Administrators ({adminAccounts.length + 1})
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Add, edit, or delete administrators. Every active admin has full access to upload, edit, and delete across the entire website.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap shrink-0">
+              <button
+                type="button"
+                onClick={openAddAdminModalDirect}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-950 bg-amber-400 hover:bg-amber-300 shadow-sm flex items-center gap-1.5 cursor-pointer"
+              >
+                <UserPlus className="w-4 h-4" />
+                <span>+ Add New Admin</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('admins')}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-[#12315A] hover:bg-blue-900 shadow-sm cursor-pointer"
+              >
+                Manage All Admins
+              </button>
+            </div>
+          </div>
+
+          {adminTeamToast && (
+            <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-semibold flex items-center justify-between">
+              <span>{adminTeamToast}</span>
+              <button type="button" onClick={() => setAdminTeamToast(null)} className="cursor-pointer">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
+            {/* Primary Super Admin Summary */}
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-bold text-slate-900">Primary Super Admin</span>
+                <span className="px-2 py-0.5 rounded bg-blue-100 text-blue-800 text-[10px] font-bold">
+                  Root
+                </span>
+              </div>
+              <p className="text-slate-600">
+                Username: <code className="font-mono font-bold">admin</code>
+              </p>
+              <p className="text-[11px] text-emerald-700 font-semibold">Always Active • Full Access</p>
+            </div>
+
+            {/* Co-Admin Summary Cards */}
+            {adminAccounts.map((acc) => {
+              const isSelf = currentUser.id === acc.id;
+              return (
+                <div
+                  key={acc.id}
+                  className="p-4 rounded-2xl bg-white border border-slate-200 space-y-2"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-bold text-slate-900 truncate">{acc.name}</span>
+                    <span
+                      className={`px-2 py-0.5 rounded text-[10px] font-bold shrink-0 ${
+                        acc.active ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                      }`}
+                    >
+                      {acc.active ? 'Active' : 'Suspended'}
+                    </span>
+                  </div>
+                  <p className="text-slate-600 truncate">
+                    Username: <code className="font-mono font-bold">{acc.username}</code> • {acc.email}
+                  </p>
+                  <div className="flex items-center justify-end gap-1.5 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingAdmin(acc);
+                        setAdminFormName(acc.name);
+                        setAdminFormUsername(acc.username);
+                        setAdminFormEmail(acc.email);
+                        setAdminFormPhone(acc.phone || '');
+                        setAdminFormDesignation(acc.designation || 'Co-Administrator');
+                        setAdminFormPassword('');
+                        setAdminFormActive(acc.active);
+                        setShowAdminModalPassword(false);
+                        setAdminFormError(null);
+                        setIsAdminModalOpen(true);
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold cursor-pointer"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isSelf}
+                      onClick={() => {
+                        setConfirmAction({
+                          title: 'Delete Administrator Account',
+                          message: `Permanently delete admin access for ${acc.name} (${acc.username})?`,
+                          confirmLabel: 'Delete Admin',
+                          onConfirm: async () => {
+                            const res = await deleteAdminAccount(acc.id);
+                            if (res.success) {
+                              setAdminTeamToast(`Admin account "${acc.name}" deleted.`);
+                              setTimeout(() => setAdminTeamToast(null), 3500);
+                            }
+                          },
+                        });
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 font-bold cursor-pointer disabled:opacity-40"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* ADD / EDIT ADMIN ACCOUNT MODAL */}
       {isAdminModalOpen && (
         <div
