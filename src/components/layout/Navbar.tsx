@@ -25,8 +25,11 @@ export const Navbar: React.FC = () => {
   const [coursesDropdownOpen, setCoursesDropdownOpen] = useState(false);
   const [loksewaDropdownOpen, setLoksewaDropdownOpen] = useState(false);
   const [examsDropdownOpen, setExamsDropdownOpen] = useState(false);
-  const { settings, courses, currentUser, language, toggleLanguage } = useApp();
+  const { settings, courses, currentUser, inquiries, language, toggleLanguage } = useApp();
   const location = useLocation();
+  const pendingApplicationsCount = inquiries.filter(
+    (i) => i.status === 'New' || (i.hasPaymentProof && !i.paymentVerified)
+  ).length;
 
   const isActive = (path: string) => {
     if (path === '/' && location.pathname !== '/') return false;
@@ -92,13 +95,28 @@ export const Navbar: React.FC = () => {
             {currentUser ? (
               <div className="flex items-center gap-2">
                 {currentUser.role === 'admin' ? (
-                  <Link
-                    to="/admin"
-                    className="flex items-center gap-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-semibold px-2.5 py-0.5 rounded text-[11px] transition-colors"
-                  >
-                    <Shield className="w-3 h-3" />
-                    <span>Admin Portal</span>
-                  </Link>
+                  <div className="flex items-center gap-1.5">
+                    <Link
+                      to="/admin?tab=applications"
+                      className="flex items-center gap-1 bg-white/15 hover:bg-white/25 text-amber-200 hover:text-white font-semibold px-2.5 py-0.5 rounded text-[11px] transition-colors"
+                      title="View Student Admission Application Forms"
+                    >
+                      <FileText className="w-3 h-3 text-amber-300" />
+                      <span>Applications ({inquiries.length})</span>
+                      {pendingApplicationsCount > 0 && (
+                        <span className="ml-0.5 px-1.5 py-0.2 rounded-full bg-amber-400 text-slate-950 text-[10px] font-black">
+                          {pendingApplicationsCount}
+                        </span>
+                      )}
+                    </Link>
+                    <Link
+                      to="/admin"
+                      className="flex items-center gap-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-semibold px-2.5 py-0.5 rounded text-[11px] transition-colors"
+                    >
+                      <Shield className="w-3 h-3" />
+                      <span>Admin Portal</span>
+                    </Link>
+                  </div>
                 ) : (
                   <Link
                     to="/student/dashboard"
@@ -738,6 +756,26 @@ export const Navbar: React.FC = () => {
           </Link>
 
           <div className="pt-3 border-t border-slate-100 space-y-2">
+            {currentUser?.role === 'admin' && (
+              <div className="grid grid-cols-2 gap-2">
+                <Link
+                  to="/admin?tab=applications"
+                  className="flex items-center justify-center gap-1.5 w-full py-2.5 text-xs font-bold text-[#12315A] bg-amber-100 hover:bg-amber-200 rounded-lg"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <FileText className="w-4 h-4 text-amber-700" />
+                  <span>Applications ({inquiries.length})</span>
+                </Link>
+                <Link
+                  to="/admin"
+                  className="flex items-center justify-center gap-1.5 w-full py-2.5 text-xs font-bold text-slate-950 bg-amber-400 hover:bg-amber-300 rounded-lg"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <Shield className="w-4 h-4" />
+                  <span>Admin Portal</span>
+                </Link>
+              </div>
+            )}
             <Link
               to="/student/login"
               className="flex items-center justify-center gap-2 w-full py-2.5 text-sm font-semibold text-slate-700 bg-slate-100 rounded-lg"

@@ -36,7 +36,6 @@ export const AdmissionPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const {
     courses,
-    studentGroups,
     submitAdmissionInquiry,
     attachPaymentProofToInquiry,
     inquiries,
@@ -80,18 +79,8 @@ export const AdmissionPage: React.FC = () => {
   const [customSubjectText, setCustomSubjectText] = useState('');
   const [preferredMode, setPreferredMode] = useState<ClassMode>((preselectedMode as ClassMode) || 'Offline');
   const [preferredShift, setPreferredShift] = useState<'Morning' | 'Day' | 'Evening' | 'Flexible'>('Morning');
-  const [preferredBatchId, setPreferredBatchId] = useState<string>('');
   const [message, setMessage] = useState('');
   const [consentPrivacy, setConsentPrivacy] = useState(true);
-
-  const availableBatchesForCourse = React.useMemo(
-    () => studentGroups.filter((g) => g.courseSlug === selectedCourseSlug),
-    [studentGroups, selectedCourseSlug]
-  );
-
-  useEffect(() => {
-    setPreferredBatchId('');
-  }, [selectedCourseSlug]);
 
   // Payment Proof States
   const [hasPaymentProof, setHasPaymentProof] = useState(false);
@@ -351,8 +340,6 @@ export const AdmissionPage: React.FC = () => {
         finalSubjectsList = `All subjects under ${selectedTerm || 'Core Curriculum'}`;
       }
 
-      const selectedBatchObj = studentGroups.find((g) => g.id === preferredBatchId);
-
       const refNumber = await submitAdmissionInquiry({
         fullName,
         email: email || 'not-provided@example.com',
@@ -366,8 +353,6 @@ export const AdmissionPage: React.FC = () => {
         syllabusVersion: courseObj?.syllabusVersion || 'Standard Regular Syllabus',
         subjectsOfInterest: finalSubjectsList,
         enrolledSubjects: selectedSubjects.length > 0 ? selectedSubjects : undefined,
-        batchId: selectedBatchObj?.id,
-        batchName: selectedBatchObj ? (selectedBatchObj.title || selectedBatchObj.name) : undefined,
         preferredMode,
         preferredShift,
         message,
@@ -419,7 +404,6 @@ export const AdmissionPage: React.FC = () => {
     setAddress('');
     setSelectedSubjects([]);
     setCustomSubjectText('');
-    setPreferredBatchId('');
     setMessage('');
     handleRemovePaymentProof();
     setPaymentAmount('');
@@ -1204,7 +1188,7 @@ export const AdmissionPage: React.FC = () => {
 
                   <div>
                     <label className="block font-bold text-slate-700 mb-1.5">
-                      Preferred Batch Shift
+                      Preferred Shift
                     </label>
                     <select
                       value={preferredShift}
@@ -1213,49 +1197,11 @@ export const AdmissionPage: React.FC = () => {
                     >
                       <option value="Morning">Morning Class (5:00 AM – 8:00 AM)</option>
                       <option value="Evening">Evening Class (7:00 PM – 10:00 PM)</option>
-                      <option value="Day">Day / Afternoon Batch</option>
+                      <option value="Day">Day / Afternoon Shift</option>
                       <option value="Flexible">Flexible / Weekend Timing</option>
                     </select>
                   </div>
                 </div>
-
-                {availableBatchesForCourse.length > 0 && (
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-1.5">
-                      Preferred Academic Batch &amp; Assigned Faculty (Optional)
-                    </label>
-                    <select
-                      value={preferredBatchId}
-                      onChange={(e) => {
-                        const nextBatchId = e.target.value;
-                        setPreferredBatchId(nextBatchId);
-                        const grp = availableBatchesForCourse.find((g) => g.id === nextBatchId);
-                        if (grp?.shift && ['Morning', 'Day', 'Evening', 'Flexible'].includes(grp.shift)) {
-                          setPreferredShift(grp.shift as 'Morning' | 'Day' | 'Evening' | 'Flexible');
-                        }
-                      }}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm bg-white font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Assign Best Available Batch at Admission</option>
-                      {availableBatchesForCourse.map((g) => {
-                        const baseName = g.title || g.name || 'Academic Batch';
-                        const numSuffix =
-                          g.batchNumber && !baseName.toLowerCase().includes(g.batchNumber.toLowerCase())
-                            ? ` • Batch ${g.batchNumber}`
-                            : '';
-                        return (
-                          <option key={g.id} value={g.id}>
-                            {baseName}
-                            {numSuffix} ({g.shift} Shift{g.teacherName ? ` • Faculty: ${g.teacherName}` : ''})
-                          </option>
-                        );
-                      })}
-                    </select>
-                    <p className="text-[10px] text-slate-500 mt-1">
-                      Resources and subject faculty are organized by batch so you receive notes tailored to your batch&apos;s teacher.
-                    </p>
-                  </div>
-                )}
 
                 <div>
                   <label className="block font-bold text-slate-700 mb-1.5">

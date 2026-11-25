@@ -48,6 +48,7 @@ import {
   saveSettingsToSupabase,
   syncAllDataToSupabase,
   fetchInquiriesFromSupabase,
+  fetchInquiriesFromSupabaseWithMeta,
   fetchSubmissionsFromSupabase,
   deleteInquiryFromSupabase,
   deleteMultipleInquiriesFromSupabase,
@@ -125,6 +126,8 @@ interface AppContextType {
   deleteInquiry: (id: string) => Promise<void>;
   deleteMultipleInquiries: (ids: string[]) => Promise<void>;
   clearAllInquiries: () => Promise<void>;
+  refreshInquiries: () => Promise<{ count: number; added: number; error?: string }>;
+  resolveInquiryProofUrl: (inq: AdmissionInquiry) => Promise<string | undefined>;
   exportInquiriesCSV: () => void;
 
   contactMessages: ContactMessage[];
@@ -763,8 +766,63 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(STORAGE_KEYS.GALLERY, JSON.stringify(gallery));
   }, [gallery]);
 
+  const persistInquiriesSafely = (list: AdmissionInquiry[]) => {
+    const compactForLocalStorage = list.map((inq) => {
+      if (inq.paymentProofUrl && inq.paymentProofUrl.startsWith('data:')) {
+        putStoredFile(`inquiry_proof:${inq.id}`, inq.paymentProofUrl).catch(console.warn);
+        if (inq.paymentProofUrl.length > 40_000) {
+          return { ...inq, paymentProofUrl: IDB_MARKER };
+        }
+      }
+      return inq;
+    });
+    try {
+      localStorage.setItem(STORAGE_KEYS.INQUIRIES, JSON.stringify(compactForLocalStorage));
+    } catch {
+      const minimal = compactForLocalStorage.map((inq) =>
+        inq.paymentProofUrl && inq.paymentProofUrl.startsWith('data:')
+          ? { ...inq, paymentProofUrl: IDB_MARKER }
+          : inq
+      );
+      try {
+        localStorage.setItem(STORAGE_KEYS.INQUIRIES, JSON.stringify(minimal));
+      } catch (err) {
+        console.warn('Error saving inquiries to localStorage:', err);
+      }
+    }
+  };
+
+  // Hydrate large inquiry payment proofs from IndexedDB on initial mount
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.INQUIRIES, JSON.stringify(inquiries));
+    let active = true;
+    const hydrateProofsFromIdb = async () => {
+      const markers = inquiries.filter((i) => i.paymentProofUrl === IDB_MARKER);
+      if (markers.length === 0) return;
+      const entries = await Promise.all(
+        markers.map(async (i) => ({
+          id: i.id,
+          url: await getStoredFile(`inquiry_proof:${i.id}`),
+        }))
+      );
+      if (!active) return;
+      const resolvedMap = new Map<string, string>();
+      entries.forEach((entry) => {
+        if (entry.url) resolvedMap.set(entry.id, entry.url);
+      });
+      if (resolvedMap.size > 0) {
+        setInquiries((prev) =>
+          prev.map((i) => (resolvedMap.has(i.id) ? { ...i, paymentProofUrl: resolvedMap.get(i.id)! } : i))
+        );
+      }
+    };
+    hydrateProofsFromIdb();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    persistInquiriesSafely(inquiries);
   }, [inquiries]);
 
   useEffect(() => {
@@ -808,6 +866,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return status;
   };
 
+  const mergeInquiryLists = (
+    localInqs: AdmissionInquiry[],
+    remoteInqs: AdmissionInquiry[]
+  ): AdmissionInquiry[] => {
+    const deletedSet = getDeletedIdsSet('inquiries');
+    const map = new Map<string, AdmissionInquiry>();
+    localInqs.forEach((i) => {
+      if (i?.id && !deletedSet.has(i.id)) map.set(i.id, i);
+    });
+    remoteInqs.forEach((remote) => {
+      if (!remote?.id || deletedSet.has(remote.id)) return;
+      const existing = map.get(remote.id);
+      if (!existing) {
+        map.set(remote.id, remote);
+        return;
+      }
+      const existingTime = Date.parse(existing.updatedAt || existing.createdAt || '') || 0;
+      const remoteTime = Date.parse(remote.updatedAt || remote.createdAt || '') || 0;
+      const newer = remoteTime >= existingTime ? remote : existing;
+      const older = remoteTime >= existingTime ? existing : remote;
+      const resolvedProofUrl =
+        newer.paymentProofUrl && newer.paymentProofUrl !== IDB_MARKER
+          ? newer.paymentProofUrl
+          : older.paymentProofUrl || newer.paymentProofUrl;
+      map.set(remote.id, {
+        ...older,
+        ...newer,
+        batchId: newer.batchId || older.batchId,
+        batchName: newer.batchName || older.batchName,
+        paymentProofUrl: resolvedProofUrl,
+      });
+    });
+    return Array.from(map.values());
+  };
+
   const syncAllToSupabase = async () => {
     const resolvedMaterials = await Promise.all(
       studyMaterials
@@ -820,8 +913,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return m;
         })
     );
+    const resolvedInquiries = await Promise.all(
+      inquiries.map(async (inq) => {
+        if (inq.paymentProofUrl === IDB_MARKER) {
+          const actualProof = await getStoredFile(`inquiry_proof:${inq.id}`);
+          return { ...inq, paymentProofUrl: actualProof || undefined };
+        }
+        return inq;
+      })
+    );
     const res = await syncAllDataToSupabase({
-      inquiries,
+      inquiries: resolvedInquiries,
       mockSubmissions: mockTestSubmissions,
       mockRegistrations: mockTestRegistrations,
       contactMessages,
@@ -845,17 +947,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Check if remote inquiries exist to merge (excluding deleted tombstones)
     fetchInquiriesFromSupabase().then((remoteInqs) => {
       if (remoteInqs && remoteInqs.length > 0) {
-        const deletedSet = getDeletedIdsSet('inquiries');
-        setInquiries((localInqs) => {
-          const map = new Map<string, AdmissionInquiry>();
-          localInqs.forEach((i) => {
-            if (!deletedSet.has(i.id)) map.set(i.id, i);
-          });
-          remoteInqs.forEach((i) => {
-            if (!deletedSet.has(i.id)) map.set(i.id, i);
-          });
-          return Array.from(map.values());
-        });
+        setInquiries((localInqs) => mergeInquiryLists(localInqs, remoteInqs));
       }
     });
 
@@ -1273,8 +1365,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updatedAt: now,
     };
 
-    setInquiries((prev) => [newInquiry, ...prev]);
-    saveInquiryToSupabase(newInquiry).catch(console.warn);
+    setInquiries((prev) => {
+      const next = [newInquiry, ...prev];
+      persistInquiriesSafely(next);
+      return next;
+    });
+    await saveInquiryToSupabase(newInquiry).catch(console.warn);
     return refNum;
   };
 
@@ -1495,13 +1591,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteInquiry = async (id: string) => {
     recordDeletedIds('inquiries', [id]);
+    deleteStoredFile(`inquiry_proof:${id}`).catch(console.warn);
     setInquiries((prev) => {
       const updated = prev.filter((inq) => inq.id !== id);
-      try {
-        localStorage.setItem(STORAGE_KEYS.INQUIRIES, JSON.stringify(updated));
-      } catch (err) {
-        console.warn('Error saving to localStorage:', err);
-      }
+      persistInquiriesSafely(updated);
       return updated;
     });
     await deleteInquiryFromSupabase(id).catch(console.warn);
@@ -1509,14 +1602,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteMultipleInquiries = async (ids: string[]) => {
     recordDeletedIds('inquiries', ids);
+    ids.forEach((id) => deleteStoredFile(`inquiry_proof:${id}`).catch(console.warn));
     const idSet = new Set(ids);
     setInquiries((prev) => {
       const updated = prev.filter((inq) => !idSet.has(inq.id));
-      try {
-        localStorage.setItem(STORAGE_KEYS.INQUIRIES, JSON.stringify(updated));
-      } catch (err) {
-        console.warn('Error saving to localStorage:', err);
-      }
+      persistInquiriesSafely(updated);
       return updated;
     });
     await deleteMultipleInquiriesFromSupabase(ids).catch(console.warn);
@@ -1524,13 +1614,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const clearAllInquiries = async () => {
     recordDeletedIds('inquiries', inquiries.map((i) => i.id));
+    inquiries.forEach((i) => deleteStoredFile(`inquiry_proof:${i.id}`).catch(console.warn));
     setInquiries([]);
-    try {
-      localStorage.setItem(STORAGE_KEYS.INQUIRIES, JSON.stringify([]));
-    } catch (err) {
-      console.warn('Error saving to localStorage:', err);
-    }
+    persistInquiriesSafely([]);
     await clearAllInquiriesFromSupabase().catch(console.warn);
+  };
+
+  const resolveInquiryProofUrl = async (inq: AdmissionInquiry): Promise<string | undefined> => {
+    if (inq.paymentProofUrl && inq.paymentProofUrl !== IDB_MARKER) {
+      return inq.paymentProofUrl;
+    }
+    const stored = await getStoredFile(`inquiry_proof:${inq.id}`);
+    return stored || undefined;
+  };
+
+  const refreshInquiries = async (): Promise<{ count: number; added: number; error?: string }> => {
+    try {
+      const res = await fetchInquiriesFromSupabaseWithMeta(false);
+      if (res.inquiries && res.inquiries.length > 0) {
+        let added = 0;
+        setInquiries((localInqs) => {
+          const existingIds = new Set(localInqs.map((i) => i.id));
+          const deletedSet = getDeletedIdsSet('inquiries');
+          added = res.inquiries!.filter((i) => !existingIds.has(i.id) && !deletedSet.has(i.id)).length;
+          const merged = mergeInquiryLists(localInqs, res.inquiries!);
+          persistInquiriesSafely(merged);
+          return merged;
+        });
+        return { count: res.inquiries.length, added, error: res.error };
+      }
+      return { count: 0, added: 0, error: res.error };
+    } catch (e: any) {
+      console.warn('Failed to refresh inquiries from cloud:', e);
+      return { count: 0, added: 0, error: e?.message || 'Cloud refresh failed' };
+    }
   };
 
   const exportInquiriesCSV = () => {
@@ -2428,19 +2545,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Immediately fetch latest database records from Supabase on successful admin authentication
       fetchInquiriesFromSupabase(false).then((remoteInqs) => {
         if (remoteInqs && remoteInqs.length > 0) {
-          const deletedSet = getDeletedIdsSet('inquiries');
           setInquiries((localInqs) => {
-            const map = new Map<string, AdmissionInquiry>();
-            localInqs.forEach((i) => {
-              if (!deletedSet.has(i.id)) map.set(i.id, i);
-            });
-            remoteInqs.forEach((i) => {
-              if (!deletedSet.has(i.id)) map.set(i.id, i);
-            });
-            const merged = Array.from(map.values());
-            try {
-              localStorage.setItem(STORAGE_KEYS.INQUIRIES, JSON.stringify(merged));
-            } catch {}
+            const merged = mergeInquiryLists(localInqs, remoteInqs);
+            persistInquiriesSafely(merged);
             return merged;
           });
         }
@@ -2997,9 +3104,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setInquiries((prev) => {
       const nextInqs = [mirroredInquiry, ...prev];
-      try {
-        localStorage.setItem(STORAGE_KEYS.INQUIRIES, JSON.stringify(nextInqs));
-      } catch {}
+      persistInquiriesSafely(nextInqs);
       return nextInqs;
     });
     saveInquiryToSupabase(mirroredInquiry).catch(console.warn);
@@ -3063,21 +3168,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
       }
 
-      const remoteInqs = await fetchInquiriesFromSupabase();
+      const remoteInqs = await fetchInquiriesFromSupabase(false);
       if (remoteInqs && remoteInqs.length > 0) {
-        const deletedInqSet = getDeletedIdsSet('inquiries');
         setInquiries((localInqs) => {
-          const map = new Map<string, AdmissionInquiry>();
-          localInqs.forEach((i) => {
-            if (!deletedInqSet.has(i.id)) map.set(i.id, i);
-          });
-          remoteInqs.forEach((i) => {
-            if (!deletedInqSet.has(i.id)) map.set(i.id, i);
-          });
-          const merged = Array.from(map.values());
-          try {
-            localStorage.setItem(STORAGE_KEYS.INQUIRIES, JSON.stringify(merged));
-          } catch {}
+          const merged = mergeInquiryLists(localInqs, remoteInqs);
+          persistInquiriesSafely(merged);
           return merged;
         });
       }
@@ -3573,6 +3668,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteInquiry,
         deleteMultipleInquiries,
         clearAllInquiries,
+        refreshInquiries,
+        resolveInquiryProofUrl,
         exportInquiriesCSV,
         contactMessages,
         submitContactMessage,

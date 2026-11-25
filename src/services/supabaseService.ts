@@ -171,16 +171,28 @@ export async function clearAllMockRegistrationsFromSupabase(): Promise<boolean> 
 export async function saveInquiryToSupabase(inquiry: AdmissionInquiry): Promise<{ success: boolean; error?: string }> {
   try {
     const row = mapInquiryToRow(inquiry);
-    const { error } = await supabase.from('admission_inquiries').upsert(row, { onConflict: 'id' });
+    let { error } = await supabase.from('admission_inquiries').upsert(row, { onConflict: 'id' });
+
+    // Some RLS setups allow anonymous INSERT but disallow UPDATE during upsert
+    if (error) {
+      const insertRes = await supabase.from('admission_inquiries').insert(row);
+      if (!insertRes.error) {
+        return { success: true };
+      }
+      error = insertRes.error;
+    }
 
     if (error) {
       console.warn('[Supabase] Could not save inquiry to admission_inquiries table:', error.message);
       // Fallback: Store in generic app_storage
-      await supabase.from('app_storage').upsert({
+      const fallbackRes = await supabase.from('app_storage').upsert({
         key: `inquiry:${inquiry.id}`,
         value: inquiry,
         updated_at: new Date().toISOString(),
       });
+      if (!fallbackRes.error) {
+        return { success: true };
+      }
       return { success: false, error: error.message };
     }
     return { success: true };
@@ -878,7 +890,9 @@ export async function syncAllDataToSupabase(data: {
  */
 export function isCurrentAdminSession(): boolean {
   try {
-    const raw = localStorage.getItem('shikshyalaya_auth_profile');
+    const raw =
+      localStorage.getItem('sss_auth_user') ||
+      localStorage.getItem('shikshyalaya_auth_profile');
     if (!raw) return false;
     const parsed = JSON.parse(raw);
     return parsed?.role === 'admin';
@@ -887,65 +901,132 @@ export function isCurrentAdminSession(): boolean {
   }
 }
 
+function mapRowToInquiry(row: any): AdmissionInquiry {
+  if (row.raw_data && row.raw_data.referenceNumber) {
+    return {
+      ...row.raw_data,
+      id: row.id || row.raw_data.id,
+      status: row.status || row.raw_data.status || 'New',
+      paymentVerified:
+        row.payment_verified !== undefined ? row.payment_verified : row.raw_data.paymentVerified || false,
+      assignedStudentId: row.assigned_student_id || row.raw_data.assignedStudentId,
+      createdAt: row.created_at || row.raw_data.createdAt,
+      updatedAt: row.updated_at || row.raw_data.updatedAt,
+    } as AdmissionInquiry;
+  }
+  return {
+    id: row.id,
+    referenceNumber: row.reference_number,
+    fullName: row.full_name,
+    email: row.email || '',
+    phone: row.phone,
+    address: row.address || undefined,
+    courseSlug: row.course_slug,
+    courseName: row.course_name,
+    courseType: row.course_type,
+    syllabusVersion: row.syllabus_version || undefined,
+    board: row.board || undefined,
+    academicLevel: row.academic_level || undefined,
+    subjectsOfInterest: row.subjects_of_interest || undefined,
+    preferredMode: row.preferred_mode || 'Online',
+    preferredShift: row.preferred_shift || 'Morning',
+    message: row.message || undefined,
+    hasPaymentProof: row.has_payment_proof || false,
+    paymentProofUrl: row.payment_proof_url || undefined,
+    paymentProofName: row.payment_proof_name || undefined,
+    paymentProofSize: row.payment_proof_size || undefined,
+    paymentMethod: row.payment_method || undefined,
+    paymentAmount: row.payment_amount || undefined,
+    transactionReference: row.transaction_reference || undefined,
+    paymentRemarks: row.payment_remarks || undefined,
+    paymentVerified: row.payment_verified || false,
+    verifiedBy: row.verified_by || undefined,
+    verifiedAt: row.verified_at || undefined,
+    assignedStudentId: row.assigned_student_id || undefined,
+    status: row.status || 'New',
+    adminNotes: row.admin_notes || [],
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  } as AdmissionInquiry;
+}
+
 /**
- * Loads inquiries from Supabase for authorized administrators only
+ * Loads inquiries from Supabase (both admission_inquiries table and app_storage fallback)
+ * along with metadata/error details for authorized administrators.
  */
-export async function fetchInquiriesFromSupabase(forceAdminCheck = true): Promise<AdmissionInquiry[] | null> {
-  // Prevent anonymous reading of student PII
+export async function fetchInquiriesFromSupabaseWithMeta(
+  forceAdminCheck = true
+): Promise<{ inquiries: AdmissionInquiry[] | null; error?: string }> {
   if (forceAdminCheck && !isCurrentAdminSession()) {
-    return null;
+    return { inquiries: null };
   }
   try {
+    const mergedMap = new Map<string, AdmissionInquiry>();
+    let primaryError: string | undefined;
+
     const { data, error } = await supabase
       .from('admission_inquiries')
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (error || !data || data.length === 0) return null;
+    if (error) {
+      primaryError = error.message;
+      console.warn('[Supabase] admission_inquiries read warning:', error.message);
+    } else if (Array.isArray(data)) {
+      data.forEach((row: any) => {
+        const mapped = mapRowToInquiry(row);
+        if (mapped?.id) mergedMap.set(mapped.id, mapped);
+      });
+    }
 
-    return data.map((row: any) => {
-      if (row.raw_data && row.raw_data.referenceNumber) {
-        return row.raw_data as AdmissionInquiry;
+    // Also inspect app_storage fallback entries (inquiry:* and all_inquiries)
+    try {
+      const { data: fallbackRows } = await supabase
+        .from('app_storage')
+        .select('key, value')
+        .or('key.like.inquiry:%,key.eq.all_inquiries');
+
+      if (Array.isArray(fallbackRows)) {
+        fallbackRows.forEach((entry: any) => {
+          if (entry.key === 'all_inquiries' && Array.isArray(entry.value)) {
+            entry.value.forEach((inq: AdmissionInquiry) => {
+              if (inq?.id && !mergedMap.has(inq.id)) {
+                mergedMap.set(inq.id, inq);
+              }
+            });
+          } else if (entry.key?.startsWith('inquiry:') && entry.value?.id) {
+            const inq = entry.value as AdmissionInquiry;
+            if (!mergedMap.has(inq.id)) {
+              mergedMap.set(inq.id, inq);
+            }
+          }
+        });
       }
-      return {
-        id: row.id,
-        referenceNumber: row.reference_number,
-        fullName: row.full_name,
-        email: row.email || '',
-        phone: row.phone,
-        address: row.address || undefined,
-        courseSlug: row.course_slug,
-        courseName: row.course_name,
-        courseType: row.course_type,
-        syllabusVersion: row.syllabus_version || undefined,
-        board: row.board || undefined,
-        academicLevel: row.academic_level || undefined,
-        subjectsOfInterest: row.subjects_of_interest || undefined,
-        preferredMode: row.preferred_mode || 'Online',
-        preferredShift: row.preferred_shift || 'Morning',
-        message: row.message || undefined,
-        hasPaymentProof: row.has_payment_proof || false,
-        paymentProofUrl: row.payment_proof_url || undefined,
-        paymentProofName: row.payment_proof_name || undefined,
-        paymentProofSize: row.payment_proof_size || undefined,
-        paymentMethod: row.payment_method || undefined,
-        paymentAmount: row.payment_amount || undefined,
-        transactionReference: row.transaction_reference || undefined,
-        paymentRemarks: row.payment_remarks || undefined,
-        paymentVerified: row.payment_verified || false,
-        verifiedBy: row.verified_by || undefined,
-        verifiedAt: row.verified_at || undefined,
-        assignedStudentId: row.assigned_student_id || undefined,
-        status: row.status || 'New',
-        adminNotes: row.admin_notes || [],
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
-      } as AdmissionInquiry;
-    });
-  } catch (err) {
+    } catch {
+      // ignore fallback read errors
+    }
+
+    if (mergedMap.size === 0 && primaryError) {
+      return { inquiries: null, error: primaryError };
+    }
+
+    return {
+      inquiries: Array.from(mergedMap.values()),
+      error: mergedMap.size === 0 ? primaryError : undefined,
+    };
+  } catch (err: any) {
     console.warn('[Supabase] Failed to fetch inquiries:', err);
-    return null;
+    return { inquiries: null, error: err?.message || 'Failed to load inquiries from Supabase' };
   }
+}
+
+/**
+ * Loads inquiries from Supabase for authorized administrators only
+ */
+export async function fetchInquiriesFromSupabase(forceAdminCheck = true): Promise<AdmissionInquiry[] | null> {
+  const res = await fetchInquiriesFromSupabaseWithMeta(forceAdminCheck);
+  if (!res.inquiries || res.inquiries.length === 0) return null;
+  return res.inquiries;
 }
 
 /**

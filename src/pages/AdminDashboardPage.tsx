@@ -1,5 +1,5 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   Shield,
   LayoutDashboard,
@@ -123,6 +123,8 @@ export const AdminDashboardPage: React.FC = () => {
     deleteInquiry,
     deleteMultipleInquiries,
     clearAllInquiries,
+    refreshInquiries,
+    resolveInquiryProofUrl,
     exportInquiriesCSV,
     contactMessages,
     studentGroups,
@@ -163,10 +165,15 @@ export const AdminDashboardPage: React.FC = () => {
     syncAllToSupabase,
   } = useApp();
 
+  const [searchParams] = useSearchParams();
+
   // Admin authentication state
   const [adminPass, setAdminPass] = useState('');
   const [authError, setAuthError] = useState('');
   const [isRefreshingRegistrations, setIsRefreshingRegistrations] = useState(false);
+  const [isRefreshingInquiries, setIsRefreshingInquiries] = useState(false);
+  const [lastInquiriesSyncAt, setLastInquiriesSyncAt] = useState<string | null>(null);
+  const [inquiriesSyncError, setInquiriesSyncError] = useState<string | null>(null);
 
   // Active dashboard tab
   const [activeTab, setActiveTab] = useState<
@@ -223,6 +230,71 @@ export const AdminDashboardPage: React.FC = () => {
   const [newNoteText, setNewNoteText] = useState('');
   const [inquiryToastMessage, setInquiryToastMessage] = useState<string | null>(null);
   const [selectedInquiryIds, setSelectedInquiryIds] = useState<string[]>([]);
+
+  const handleRefreshInquiries = useCallback(
+    async (silent = false) => {
+      setIsRefreshingInquiries(true);
+      try {
+        const res = await refreshInquiries();
+        setLastInquiriesSyncAt(new Date().toLocaleTimeString());
+        setInquiriesSyncError(res.error || null);
+        if (!silent) {
+          setInquiryToastMessage(
+            res.error
+              ? `Cloud check notice: ${res.error}`
+              : res.added > 0
+              ? `Synced ${res.added} new student application(s) from database (Total in cloud: ${res.count}).`
+              : `Up to date — ${res.count} student application(s) checked from cloud database.`
+          );
+          setTimeout(() => setInquiryToastMessage(null), 4000);
+        }
+      } finally {
+        setIsRefreshingInquiries(false);
+      }
+    },
+    [refreshInquiries]
+  );
+
+  // Sync URL ?tab=applications / ?tab=inquiries parameter
+  useEffect(() => {
+    const tabParam = (searchParams.get('tab') || '').toLowerCase();
+    if (!tabParam) return;
+    if (tabParam === 'applications' || tabParam === 'inquiries') {
+      setInquiryStatusFilter('ALL');
+      setActiveTab('inquiries');
+    } else if (
+      [
+        'overview',
+        'registered-students',
+        'courses',
+        'groups',
+        'mock-tests',
+        'teachers',
+        'notices',
+        'materials',
+        'settings',
+        'database',
+      ].includes(tabParam)
+    ) {
+      setActiveTab(tabParam as any);
+    }
+  }, [searchParams]);
+
+  // Auto-sync student application forms when Admin opens Overview/Applications or focuses window
+  useEffect(() => {
+    if (!currentUser || currentUser.role !== 'admin') return;
+    if (activeTab !== 'overview' && activeTab !== 'inquiries') return;
+
+    handleRefreshInquiries(true);
+    const onFocus = () => handleRefreshInquiries(true);
+    window.addEventListener('focus', onFocus);
+    const timer = window.setInterval(() => handleRefreshInquiries(true), 20000);
+
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      window.clearInterval(timer);
+    };
+  }, [currentUser?.role, activeTab, handleRefreshInquiries]);
 
   // Payment proof verification states
   const [selectedProofModalUrl, setSelectedProofModalUrl] = useState<string | null>(null);
@@ -724,6 +796,15 @@ export const AdminDashboardPage: React.FC = () => {
 
   const handleOpenInquiryDetail = (inq: any) => {
     setSelectedInquiryDetail(inq);
+    if (inq?.paymentProofUrl === IDB_MARKER) {
+      resolveInquiryProofUrl(inq).then((resolved) => {
+        if (resolved) {
+          setSelectedInquiryDetail((prev: any) =>
+            prev && prev.id === inq.id ? { ...prev, paymentProofUrl: resolved } : prev
+          );
+        }
+      });
+    }
     const mobileId = normalizeMobileNumber(inq.phone);
     const suggestedId = mobileId || inq.assignedStudentId || inq.phone || '';
     setAssignedStudentIdInput(suggestedId);
@@ -790,7 +871,11 @@ export const AdminDashboardPage: React.FC = () => {
       <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-slate-200">
         {[
           { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-          { id: 'inquiries', label: `Inquiries (${stats.newInquiries} New)`, icon: GraduationCap },
+          {
+            id: 'inquiries',
+            label: `Student Applications (${inquiries.length}${stats.newInquiries > 0 ? ` • ${stats.newInquiries} New` : ''})`,
+            icon: GraduationCap,
+          },
           { id: 'registered-students', label: `Registered Students (${mockTestRegistrations.length})`, icon: UserCheck },
           { id: 'courses', label: `Courses (${courses.length})`, icon: BookOpen },
           { id: 'groups', label: `Batches & Groups (${studentGroups.length})`, icon: MessageSquare },
@@ -837,10 +922,19 @@ export const AdminDashboardPage: React.FC = () => {
               <span className="text-[10px] text-blue-600 font-semibold">Teachers</span>
             </div>
 
-            <div className="bg-white p-3.5 rounded-2xl border border-amber-300 bg-amber-50/30 shadow-2xs space-y-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800">Inquiries</span>
-              <p className="text-xl font-black text-amber-600">{stats.newInquiries}</p>
-              <span className="text-[10px] text-amber-700 font-bold">New Leads</span>
+            <div
+              onClick={() => {
+                setInquiryStatusFilter('ALL');
+                setInquirySearch('');
+                setActiveTab('inquiries');
+              }}
+              className="bg-white p-3.5 rounded-2xl border-2 border-amber-400 bg-amber-50/40 shadow-sm space-y-1 cursor-pointer hover:bg-amber-50 transition-colors"
+            >
+              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-900">Applications</span>
+              <p className="text-xl font-black text-amber-600">{inquiries.length}</p>
+              <span className="text-[10px] text-amber-800 font-bold underline">
+                {stats.newInquiries} New &rarr;
+              </span>
             </div>
 
             <div
@@ -905,17 +999,36 @@ export const AdminDashboardPage: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             {/* Recent Inquiries Quick Table */}
             <div className="lg:col-span-8 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <h3 className="text-base font-bold text-[#12315A]">Recent Admission Inquiries & Enrolled Students</h3>
-                  <p className="text-xs text-slate-400">Student applications and payment receipts submitted online</p>
+                  <h3 className="text-base font-bold text-[#12315A]">Recent Student Applications & Admission Forms</h3>
+                  <p className="text-xs text-slate-400">
+                    Online application forms and payment receipts submitted by students ({inquiries.length} total)
+                  </p>
                 </div>
-                <button
-                  onClick={() => setActiveTab('inquiries')}
-                  className="text-xs font-bold text-blue-700 hover:underline cursor-pointer"
-                >
-                  View All &rarr;
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={isRefreshingInquiries}
+                    onClick={() => handleRefreshInquiries(false)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer"
+                    title="Fetch latest student application forms from database"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${isRefreshingInquiries ? 'animate-spin' : ''}`} />
+                    <span>{isRefreshingInquiries ? 'Syncing...' : 'Refresh'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInquiryStatusFilter('ALL');
+                      setInquirySearch('');
+                      setActiveTab('inquiries');
+                    }}
+                    className="text-xs font-bold text-blue-700 hover:underline cursor-pointer"
+                  >
+                    View All ({inquiries.length}) &rarr;
+                  </button>
+                </div>
               </div>
 
               <div className="overflow-x-auto">
@@ -1017,6 +1130,18 @@ export const AdminDashboardPage: React.FC = () => {
 
               <div className="space-y-2 pt-1">
                 <button
+                  type="button"
+                  onClick={() => {
+                    setInquiryStatusFilter('ALL');
+                    setInquirySearch('');
+                    setActiveTab('inquiries');
+                  }}
+                  className="w-full py-2.5 px-3 rounded-xl bg-amber-50 border border-amber-300 text-left font-bold text-[#12315A] hover:border-amber-500 flex items-center justify-between cursor-pointer"
+                >
+                  <span>View Student Application Forms ({inquiries.length})</span>
+                  <FileText className="w-4 h-4 text-amber-700" />
+                </button>
+                <button
                   onClick={() => {
                     setQuickCreateBatchConfig(null);
                     setEditingGroup(null);
@@ -1095,16 +1220,32 @@ export const AdminDashboardPage: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="text-base sm:text-lg font-bold text-[#12315A]">
-                    Admission Inquiries & Student Applications
+                    Student Application Forms & Admission Inquiries
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Total Inquiries: <strong>{inquiries.length}</strong> • Pending Payment Verifications: <strong>{stats.pendingPayments}</strong>
+                    Total Applications: <strong>{inquiries.length}</strong> • New:{' '}
+                    <strong>{stats.newInquiries}</strong> • Pending Payment Verifications:{' '}
+                    <strong>{stats.pendingPayments}</strong>
+                    {lastInquiriesSyncAt && (
+                      <span className="ml-2 text-slate-400">• Synced at {lastInquiriesSyncAt}</span>
+                    )}
                   </p>
                 </div>
               </div>
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                disabled={isRefreshingInquiries}
+                onClick={() => handleRefreshInquiries(false)}
+                className="px-3.5 py-2.5 rounded-xl text-xs font-bold text-white bg-[#12315A] hover:bg-blue-900 transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-60"
+                title="Pull latest submitted student application forms from Supabase cloud database"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 text-amber-300 ${isRefreshingInquiries ? 'animate-spin' : ''}`} />
+                <span>{isRefreshingInquiries ? 'Refreshing...' : 'Refresh Applications'}</span>
+              </button>
+
               {/* Delete Sample / Demo Data Button */}
               {(() => {
                 const demoList = inquiries.filter(
@@ -1179,6 +1320,22 @@ export const AdminDashboardPage: React.FC = () => {
               </button>
             </div>
           </div>
+
+          {inquiriesSyncError && (
+            <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-300 text-amber-950 text-xs font-semibold flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>Cloud sync notice: {inquiriesSyncError}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setInquiriesSyncError(null)}
+                className="text-amber-700 hover:text-amber-900 p-1"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
 
           {/* Toast Notification Alert */}
           {inquiryToastMessage && (
@@ -1334,7 +1491,55 @@ export const AdminDashboardPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredInquiries.map((inq) => (
+                  {filteredInquiries.length === 0 ? (
+                    <tr>
+                      <td colSpan={10} className="py-12 px-6 text-center space-y-3">
+                        <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                          <FileText className="w-6 h-6" />
+                        </div>
+                        {inquiries.length > 0 ? (
+                          <div className="space-y-2">
+                            <p className="font-bold text-slate-700 text-sm">
+                              No student applications match the active filter ({inquiryStatusFilter})
+                              {inquirySearch.trim() ? ` or search "${inquirySearch.trim()}"` : ''}.
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              There are {inquiries.length} total application form(s) recorded.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setInquiryStatusFilter('ALL');
+                                setInquirySearch('');
+                              }}
+                              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-[#12315A] text-white hover:bg-blue-900 cursor-pointer"
+                            >
+                              <span>Show All Applications ({inquiries.length})</span>
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <p className="font-bold text-slate-700 text-sm">
+                              No student application forms loaded yet.
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              Click below to pull any newly submitted applications from Supabase cloud storage.
+                            </p>
+                            <button
+                              type="button"
+                              disabled={isRefreshingInquiries}
+                              onClick={() => handleRefreshInquiries(false)}
+                              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-[#12315A] text-white hover:bg-blue-900 cursor-pointer disabled:opacity-60"
+                            >
+                              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingInquiries ? 'animate-spin' : ''}`} />
+                              <span>{isRefreshingInquiries ? 'Refreshing...' : 'Refresh from Cloud'}</span>
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ) : (
+                  filteredInquiries.map((inq) => (
                     <tr
                       key={inq.id}
                       className={`hover:bg-slate-50 transition-colors ${
@@ -1411,9 +1616,14 @@ export const AdminDashboardPage: React.FC = () => {
                             <div className="flex items-center gap-1.5">
                               <button
                                 type="button"
-                                onClick={() => {
+                                onClick={async () => {
                                   if (inq.paymentProofUrl) {
-                                    setSelectedProofModalUrl(inq.paymentProofUrl);
+                                    const resolved = await resolveInquiryProofUrl(inq);
+                                    if (resolved) {
+                                      setSelectedProofModalUrl(resolved);
+                                    } else {
+                                      handleOpenInquiryDetail(inq);
+                                    }
                                   } else {
                                     handleOpenInquiryDetail(inq);
                                   }
@@ -1528,7 +1738,8 @@ export const AdminDashboardPage: React.FC = () => {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                  ))
+                  )}
                 </tbody>
               </table>
             </div>

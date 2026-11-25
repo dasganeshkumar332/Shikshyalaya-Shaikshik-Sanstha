@@ -16,7 +16,6 @@ import {
   Phone,
   Send,
   Plus,
-  X,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { ClassMode } from '../types';
@@ -61,11 +60,9 @@ export const HomePage: React.FC = () => {
   const [applyPhone, setApplyPhone] = useState('');
   const [applyEmail, setApplyEmail] = useState('');
   const [applyCourseSlug, setApplyCourseSlug] = useState('bbs-tu');
-  const [applyExtraCourseSlugs, setApplyExtraCourseSlugs] = useState<string[]>([]);
   const [applyTermFilter, setApplyTermFilter] = useState<string>('ALL');
   const [applySelectedSubjects, setApplySelectedSubjects] = useState<string[]>([]);
   const [applyCustomSubject, setApplyCustomSubject] = useState('');
-  const [applyBatchId, setApplyBatchId] = useState('');
   const [applyMode, setApplyMode] = useState<ClassMode>('Offline');
   const [applyShift, setApplyShift] = useState<'Morning' | 'Day' | 'Evening' | 'Flexible'>('Morning');
   const [applySubmitting, setApplySubmitting] = useState(false);
@@ -73,18 +70,10 @@ export const HomePage: React.FC = () => {
   const [applySuccessRef, setApplySuccessRef] = useState<string | null>(null);
 
   const selectedApplyCourse = publishedCourses.find((c) => c.slug === applyCourseSlug) || publishedCourses[0];
-  const activeApplyCourses = [
-    ...(selectedApplyCourse ? [selectedApplyCourse] : []),
-    ...applyExtraCourseSlugs
-      .filter((slug) => slug !== applyCourseSlug)
-      .map((slug) => publishedCourses.find((c) => c.slug === slug))
-      .filter((c): c is NonNullable<typeof c> => Boolean(c)),
-  ];
 
   const applyAvailableTerms = Array.from(
     new Set(
-      activeApplyCourses
-        .flatMap((c) => c.subjectsOffered || [])
+      (selectedApplyCourse?.subjectsOffered || [])
         .map((s) => s.semesterOrYear)
         .filter((t): t is string => Boolean(t))
     )
@@ -92,17 +81,12 @@ export const HomePage: React.FC = () => {
 
   const applyCourseSubjectOptions = Array.from(
     new Set([
-      ...activeApplyCourses
-        .flatMap((c) => c.subjectsOffered || [])
+      ...(selectedApplyCourse?.subjectsOffered || [])
         .filter((s) => applyTermFilter === 'ALL' || s.semesterOrYear === applyTermFilter)
         .map((s) => s.name)
         .filter(Boolean),
       ...applySelectedSubjects,
     ])
-  );
-
-  const availableApplyBatches = studentGroups.filter((g) =>
-    activeApplyCourses.some((c) => c.slug === g.courseSlug)
   );
 
   const toggleApplySubject = (subjectName: string) => {
@@ -302,12 +286,6 @@ export const HomePage: React.FC = () => {
       return;
     }
 
-    const extraCourseTitles = applyExtraCourseSlugs
-      .filter((s) => s !== selectedCourse.slug)
-      .map((s) => publishedCourses.find((c) => c.slug === s)?.title)
-      .filter((t): t is string => Boolean(t));
-    const chosenBatch = availableApplyBatches.find((g) => g.id === applyBatchId);
-
     setApplySubmitting(true);
     try {
       const ref = await submitAdmissionInquiry({
@@ -315,10 +293,7 @@ export const HomePage: React.FC = () => {
         email: applyEmail.trim() || 'not-provided@shikshyalaya.edu.np',
         phone: applyPhone.trim(),
         courseSlug: selectedCourse.slug,
-        courseName:
-          extraCourseTitles.length > 0
-            ? `${selectedCourse.title} (+ ${extraCourseTitles.join(', ')})`
-            : selectedCourse.title,
+        courseName: selectedCourse.title,
         courseType: selectedCourse.courseType || 'New Course',
         board: selectedCourse.board,
         academicLevel:
@@ -329,24 +304,17 @@ export const HomePage: React.FC = () => {
             : undefined,
         enrolledSubjects:
           applySelectedSubjects.length > 0 ? applySelectedSubjects : undefined,
-        batchId: chosenBatch?.id,
-        batchName: chosenBatch ? chosenBatch.name || chosenBatch.title : undefined,
         preferredMode: applyMode,
         preferredShift: applyShift,
-        message:
-          extraCourseTitles.length > 0
-            ? `Submitted via Home Page Admission Form (Additional Courses: ${extraCourseTitles.join(', ')})`
-            : 'Submitted via Home Page Admission Form',
+        message: 'Submitted via Home Page Admission Form',
       });
       setApplySuccessRef(ref);
       setApplyName('');
       setApplyPhone('');
       setApplyEmail('');
-      setApplyExtraCourseSlugs([]);
       setApplyTermFilter('ALL');
       setApplySelectedSubjects([]);
       setApplyCustomSubject('');
-      setApplyBatchId('');
     } catch {
       setApplyError('Unable to submit admission request right now. Please try the full admission page.');
     } finally {
@@ -768,7 +736,6 @@ export const HomePage: React.FC = () => {
                         onChange={(e) => {
                           setApplyCourseSlug(e.target.value);
                           setApplyTermFilter('ALL');
-                          setApplyBatchId('');
                         }}
                         className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white transition-all font-medium"
                       >
@@ -835,95 +802,6 @@ export const HomePage: React.FC = () => {
                       </select>
                     </div>
                   </div>
-
-                  {/* Add Additional Course (Optional) & Preferred Batch */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label
-                        htmlFor="home-apply-extra-course"
-                        className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1"
-                      >
-                        + Add Another Course (Optional)
-                      </label>
-                      <select
-                        id="home-apply-extra-course"
-                        value=""
-                        onChange={(e) => {
-                          const slug = e.target.value;
-                          if (slug && slug !== applyCourseSlug && !applyExtraCourseSlugs.includes(slug)) {
-                            setApplyExtraCourseSlugs((prev) => [...prev, slug]);
-                          }
-                        }}
-                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white font-medium"
-                      >
-                        <option value="">-- Add extra course to application --</option>
-                        {publishedCourses
-                          .filter((c) => c.slug !== applyCourseSlug && !applyExtraCourseSlugs.includes(c.slug))
-                          .map((c) => (
-                            <option key={c.slug} value={c.slug}>
-                              {c.title}
-                            </option>
-                          ))}
-                      </select>
-                    </div>
-
-                    {availableApplyBatches.length > 0 && (
-                      <div>
-                        <label
-                          htmlFor="home-apply-batch"
-                          className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1"
-                        >
-                          Preferred Batch (Optional)
-                        </label>
-                        <select
-                          id="home-apply-batch"
-                          value={applyBatchId}
-                          onChange={(e) => setApplyBatchId(e.target.value)}
-                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white font-medium"
-                        >
-                          <option value="">Assign Best Available Batch</option>
-                          {availableApplyBatches.map((g) => {
-                            const baseName = g.title || g.name || 'Academic Batch';
-                            const numSuffix =
-                              g.batchNumber && !baseName.toLowerCase().includes(g.batchNumber.toLowerCase())
-                                ? ` • Batch ${g.batchNumber}`
-                                : '';
-                            return (
-                              <option key={g.id} value={g.id}>
-                                {baseName}
-                                {numSuffix} ({g.shift})
-                              </option>
-                            );
-                          })}
-                        </select>
-                      </div>
-                    )}
-                  </div>
-
-                  {applyExtraCourseSlugs.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5">
-                      {applyExtraCourseSlugs.map((slug) => {
-                        const cObj = publishedCourses.find((c) => c.slug === slug);
-                        return (
-                          <span
-                            key={slug}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-300 text-amber-900 text-[11px] font-bold"
-                          >
-                            <span>+ {cObj?.title || slug}</span>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setApplyExtraCourseSlugs((prev) => prev.filter((s) => s !== slug))
-                              }
-                              className="text-amber-700 hover:text-rose-600 cursor-pointer"
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
-                          </span>
-                        );
-                      })}
-                    </div>
-                  )}
 
                   <div className="space-y-2 p-3 rounded-2xl bg-slate-50 border border-slate-200">
                     <div className="flex flex-wrap items-center justify-between gap-2">
