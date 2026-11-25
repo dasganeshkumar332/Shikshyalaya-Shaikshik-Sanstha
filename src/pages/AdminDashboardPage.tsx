@@ -308,6 +308,19 @@ export const AdminDashboardPage: React.FC = () => {
       ].includes(tabParam)
     ) {
       setActiveTab(tabParam as any);
+      if (tabParam === 'admins' && searchParams.get('action') === 'add') {
+        setEditingAdmin(null);
+        setAdminFormName('');
+        setAdminFormUsername('');
+        setAdminFormEmail('');
+        setAdminFormPhone('');
+        setAdminFormDesignation('Co-Administrator');
+        setAdminFormPassword('');
+        setAdminFormActive(true);
+        setShowAdminModalPassword(false);
+        setAdminFormError(null);
+        setIsAdminModalOpen(true);
+      }
     }
   }, [searchParams]);
 
@@ -888,6 +901,21 @@ export const AdminDashboardPage: React.FC = () => {
     setCopiedWelcomeMessage(false);
   };
 
+  const openAddAdminModalDirect = () => {
+    setActiveTab('admins');
+    setEditingAdmin(null);
+    setAdminFormName('');
+    setAdminFormUsername('');
+    setAdminFormEmail('');
+    setAdminFormPhone('');
+    setAdminFormDesignation('Co-Administrator');
+    setAdminFormPassword('');
+    setAdminFormActive(true);
+    setShowAdminModalPassword(false);
+    setAdminFormError(null);
+    setIsAdminModalOpen(true);
+  };
+
   // Handle Save Settings
   const handleSaveSettings = (e: React.FormEvent) => {
     e.preventDefault();
@@ -920,17 +948,25 @@ export const AdminDashboardPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <button
+            type="button"
+            onClick={openAddAdminModalDirect}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-slate-950 bg-amber-400 hover:bg-amber-300 transition-colors shadow-sm cursor-pointer"
+          >
+            <UserPlus className="w-3.5 h-3.5" />
+            <span>Add Admin</span>
+          </button>
           <button
             onClick={() => exportInquiriesCSV()}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-white bg-blue-700 hover:bg-blue-600 transition-colors shadow-sm"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-white bg-blue-700 hover:bg-blue-600 transition-colors shadow-sm cursor-pointer"
           >
             <Download className="w-3.5 h-3.5 text-amber-300" />
             <span>Export CSV</span>
           </button>
           <button
             onClick={() => logout()}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-300 hover:text-white bg-white/10 hover:bg-white/20 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-300 hover:text-white bg-white/10 hover:bg-white/20 transition-colors cursor-pointer"
           >
             <LogOut className="w-3.5 h-3.5" />
             <span>Sign Out</span>
@@ -939,7 +975,7 @@ export const AdminDashboardPage: React.FC = () => {
       </div>
 
       {/* Navigation Sub-Tabs */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-slate-200">
+      <div className="flex flex-wrap items-center gap-2 pb-3 border-b border-slate-200">
         {[
           { id: 'overview', label: 'Overview', icon: LayoutDashboard },
           {
@@ -981,7 +1017,7 @@ export const AdminDashboardPage: React.FC = () => {
       {activeTab === 'overview' && (
         <div className="space-y-8 animate-fadeIn">
           {/* Live Metric Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-9 gap-2.5">
+          <div className="grid grid-cols-2 sm:grid-cols-5 lg:grid-cols-10 gap-2.5">
             <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs space-y-1">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Courses</span>
               <p className="text-xl font-black text-[#12315A]">{stats.publishedCourses}</p>
@@ -1064,6 +1100,15 @@ export const AdminDashboardPage: React.FC = () => {
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Resources</span>
               <p className="text-xl font-black text-[#12315A]">{stats.studyMaterials}</p>
               <span className="text-[10px] text-purple-600 font-semibold">Notes & Sets</span>
+            </div>
+
+            <div
+              onClick={() => setActiveTab('admins')}
+              className="bg-white p-3.5 rounded-2xl border-2 border-[#12315A]/25 shadow-2xs space-y-1 cursor-pointer hover:border-[#12315A] transition-colors"
+            >
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Admins</span>
+              <p className="text-xl font-black text-[#12315A]">{adminAccounts.length + 1}</p>
+              <span className="text-[10px] text-blue-700 font-bold underline">+ Add Admin &rarr;</span>
             </div>
           </div>
 
@@ -1245,6 +1290,15 @@ export const AdminDashboardPage: React.FC = () => {
                   <Plus className="w-4 h-4 text-blue-700" />
                 </button>
                 <button
+                  type="button"
+                  onClick={openAddAdminModalDirect}
+                  className="w-full py-2.5 px-3 rounded-xl bg-blue-50 border border-blue-300 text-left font-bold text-[#12315A] hover:border-blue-500 flex items-center justify-between cursor-pointer"
+                >
+                  <span>+ Add New Full-Access Admin ({adminAccounts.length + 1})</span>
+                  <UserPlus className="w-4 h-4 text-blue-700" />
+                </button>
+                <button
+                  type="button"
                   onClick={() => setActiveTab('admins')}
                   className="w-full py-2.5 px-3 rounded-xl bg-white border border-blue-200 text-left font-bold text-[#12315A] hover:border-blue-500 flex items-center justify-between cursor-pointer"
                 >

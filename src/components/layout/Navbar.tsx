@@ -16,6 +16,7 @@ import {
   FileText,
   Award,
   Landmark,
+  UserPlus,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { InstituteLogo } from '../common/InstituteLogo';
@@ -108,6 +109,14 @@ export const Navbar: React.FC = () => {
                           {pendingApplicationsCount}
                         </span>
                       )}
+                    </Link>
+                    <Link
+                      to="/admin?tab=admins&action=add"
+                      className="flex items-center gap-1 bg-white/15 hover:bg-white/25 text-amber-200 hover:text-white font-semibold px-2.5 py-0.5 rounded text-[11px] transition-colors"
+                      title="Add or Manage Full-Access Administrators"
+                    >
+                      <UserPlus className="w-3 h-3 text-amber-300" />
+                      <span>Add Admin</span>
                     </Link>
                     <Link
                       to="/admin"
@@ -757,22 +766,30 @@ export const Navbar: React.FC = () => {
 
           <div className="pt-3 border-t border-slate-100 space-y-2">
             {currentUser?.role === 'admin' && (
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <Link
                   to="/admin?tab=applications"
-                  className="flex items-center justify-center gap-1.5 w-full py-2.5 text-xs font-bold text-[#12315A] bg-amber-100 hover:bg-amber-200 rounded-lg"
+                  className="flex items-center justify-center gap-1 w-full py-2.5 text-[11px] font-bold text-[#12315A] bg-amber-100 hover:bg-amber-200 rounded-lg"
                   onClick={() => setMobileMenuOpen(false)}
                 >
-                  <FileText className="w-4 h-4 text-amber-700" />
-                  <span>Applications ({inquiries.length})</span>
+                  <FileText className="w-3.5 h-3.5 text-amber-700" />
+                  <span>Apps ({inquiries.length})</span>
+                </Link>
+                <Link
+                  to="/admin?tab=admins&action=add"
+                  className="flex items-center justify-center gap-1 w-full py-2.5 text-[11px] font-bold text-[#12315A] bg-blue-100 hover:bg-blue-200 rounded-lg"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <UserPlus className="w-3.5 h-3.5 text-blue-700" />
+                  <span>Add Admin</span>
                 </Link>
                 <Link
                   to="/admin"
-                  className="flex items-center justify-center gap-1.5 w-full py-2.5 text-xs font-bold text-slate-950 bg-amber-400 hover:bg-amber-300 rounded-lg"
+                  className="flex items-center justify-center gap-1 w-full py-2.5 text-[11px] font-bold text-slate-950 bg-amber-400 hover:bg-amber-300 rounded-lg"
                   onClick={() => setMobileMenuOpen(false)}
                 >
-                  <Shield className="w-4 h-4" />
-                  <span>Admin Portal</span>
+                  <Shield className="w-3.5 h-3.5" />
+                  <span>Admin</span>
                 </Link>
               </div>
             )}
