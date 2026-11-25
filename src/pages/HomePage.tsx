@@ -29,6 +29,7 @@ export const HomePage: React.FC = () => {
     currentUser,
     loginAsStudent,
     loginAsAdmin,
+    isAdminAccountIdentifier,
     logout,
     inquiries,
     mockTestRegistrations,
@@ -104,7 +105,7 @@ export const HomePage: React.FC = () => {
     setApplyCustomSubject('');
   };
 
-  const handleUnifiedLogin = (e: React.FormEvent) => {
+  const handleUnifiedLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
 
@@ -120,26 +121,22 @@ export const HomePage: React.FC = () => {
     const cleanInput = rawInput.toLowerCase();
     const cleanDigits = rawInput.replace(/[^0-9]/g, '');
 
-    // 1. Automatic Admin Detection & Authentication
-    const isAdminIdentifier =
-      cleanInput === 'admin' ||
-      cleanInput === 'administrator' ||
-      cleanInput === 'sss-admin' ||
-      cleanInput === 'admin@shikshyalaya.edu.np';
+    // 1. Automatic Admin Detection & Authentication (Root + Multi-Admin accounts)
+    const isAdminIdentifier = isAdminAccountIdentifier(rawInput);
 
     if (isAdminIdentifier) {
       if (!rawPass) {
-        setLoginError('Please enter your administrator passcode to sign in.');
+        setLoginError('Please enter your administrator password to sign in.');
         setLoginLoading(false);
         return;
       }
-      const ok = loginAsAdmin(rawPass);
+      const ok = await loginAsAdmin(rawPass, rawInput);
       if (ok) {
         setLoginId('');
         setLoginPassword('');
         navigate('/admin');
       } else {
-        setLoginError('Access Denied: Incorrect administrator passcode.');
+        setLoginError('Access Denied: Incorrect administrator password.');
       }
       setLoginLoading(false);
       return;
@@ -255,7 +252,20 @@ export const HomePage: React.FC = () => {
     if (demoIds.includes(cleanInput)) {
       const success = loginAsStudent(cleanInput.toUpperCase(), `${cleanInput}@shikshyalaya.edu.np`, [loginCourseSlug]);
       if (success) {
+        setLoginLoading(false);
         navigate('/student/dashboard');
+        return;
+      }
+    }
+
+    // 7. Cross-device fallback check for newly added remote Admin accounts
+    if (rawPass) {
+      const remoteAdminOk = await loginAsAdmin(rawPass, rawInput);
+      if (remoteAdminOk) {
+        setLoginId('');
+        setLoginPassword('');
+        setLoginLoading(false);
+        navigate('/admin');
         return;
       }
     }

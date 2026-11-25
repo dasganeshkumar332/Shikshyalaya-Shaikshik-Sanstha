@@ -391,4 +391,18 @@ export interface MockTestRegistration {
   createdAt: string;
 }
 
-
+export interface AdminAccount {
+  id: string;
+  name: string;
+  username: string;
+  email: string;
+  phone?: string;
+  designation?: string;
+  role: 'admin';
+  active: boolean;
+  passwordSalt: string;
+  passwordHash: string;
+  createdAt: string;
+  updatedAt: string;
+  createdBy?: string;
+}

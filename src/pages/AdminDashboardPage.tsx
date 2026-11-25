@@ -55,6 +55,10 @@ import {
   Play,
   Square,
   ArrowUpDown,
+  ShieldCheck,
+  Mail,
+  KeyRound,
+  EyeOff,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { INITIAL_COURSES } from '../data/initialData';
@@ -82,6 +86,7 @@ import {
   MockTestRegistration,
   MockExamShiftConfig,
   BatchTeacherAssignment,
+  AdminAccount,
 } from '../types';
 
 export const AdminDashboardPage: React.FC = () => {
@@ -163,21 +168,46 @@ export const AdminDashboardPage: React.FC = () => {
     supabaseStatus,
     checkSupabaseStatus,
     syncAllToSupabase,
+    adminAccounts,
+    addAdminAccount,
+    updateAdminAccount,
+    deleteAdminAccount,
+    refreshAdminAccounts,
   } = useApp();
 
   const [searchParams] = useSearchParams();
 
   // Admin authentication state
+  const [adminIdentifier, setAdminIdentifier] = useState('');
   const [adminPass, setAdminPass] = useState('');
+  const [showAdminLoginPass, setShowAdminLoginPass] = useState(false);
+  const [isAuthenticatingAdmin, setIsAuthenticatingAdmin] = useState(false);
   const [authError, setAuthError] = useState('');
   const [isRefreshingRegistrations, setIsRefreshingRegistrations] = useState(false);
   const [isRefreshingInquiries, setIsRefreshingInquiries] = useState(false);
   const [lastInquiriesSyncAt, setLastInquiriesSyncAt] = useState<string | null>(null);
   const [inquiriesSyncError, setInquiriesSyncError] = useState<string | null>(null);
 
+  // Multi-admin management state
+  const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
+  const [editingAdmin, setEditingAdmin] = useState<AdminAccount | null>(null);
+  const [adminFormName, setAdminFormName] = useState('');
+  const [adminFormUsername, setAdminFormUsername] = useState('');
+  const [adminFormEmail, setAdminFormEmail] = useState('');
+  const [adminFormPhone, setAdminFormPhone] = useState('');
+  const [adminFormDesignation, setAdminFormDesignation] = useState('');
+  const [adminFormPassword, setAdminFormPassword] = useState('');
+  const [adminFormActive, setAdminFormActive] = useState(true);
+  const [showAdminModalPassword, setShowAdminModalPassword] = useState(false);
+  const [isSavingAdmin, setIsSavingAdmin] = useState(false);
+  const [adminFormError, setAdminFormError] = useState<string | null>(null);
+  const [adminTeamToast, setAdminTeamToast] = useState<string | null>(null);
+  const [isRefreshingAdmins, setIsRefreshingAdmins] = useState(false);
+  const [adminSearchQuery, setAdminSearchQuery] = useState('');
+
   // Active dashboard tab
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'inquiries' | 'registered-students' | 'courses' | 'groups' | 'mock-tests' | 'teachers' | 'notices' | 'materials' | 'settings' | 'database'
+    'overview' | 'inquiries' | 'registered-students' | 'courses' | 'groups' | 'mock-tests' | 'teachers' | 'notices' | 'materials' | 'admins' | 'settings' | 'database'
   >('overview');
   const [dateSortOrder, setDateSortOrder] = useState<DateSortOrder>('desc');
 
@@ -272,6 +302,7 @@ export const AdminDashboardPage: React.FC = () => {
         'teachers',
         'notices',
         'materials',
+        'admins',
         'settings',
         'database',
       ].includes(tabParam)
@@ -689,16 +720,28 @@ export const AdminDashboardPage: React.FC = () => {
 
   // Admin login handling
   if (!currentUser || currentUser.role !== 'admin') {
-    const handleAdminLogin = (e: React.FormEvent) => {
+    const handleAdminLogin = async (e: React.FormEvent) => {
       e.preventDefault();
       setAuthError('');
       if (!adminPass.trim()) {
-        setAuthError('Please enter the administrative access passcode.');
+        setAuthError('Please enter your administrator password or passcode.');
         return;
       }
-      const ok = loginAsAdmin(adminPass.trim());
-      if (!ok) {
-        setAuthError('Access Denied: Incorrect administrator passcode. Please contact central administration.');
+      setIsAuthenticatingAdmin(true);
+      try {
+        const ok = await loginAsAdmin(adminPass.trim(), adminIdentifier.trim() || undefined);
+        if (!ok) {
+          setAuthError(
+            adminIdentifier.trim()
+              ? 'Access Denied: Invalid admin credentials or suspended account.'
+              : 'Access Denied: Incorrect administrator passcode. Co-admins should also enter their Username, Email, or Mobile.'
+          );
+        } else {
+          setAdminPass('');
+          setAdminIdentifier('');
+        }
+      } finally {
+        setIsAuthenticatingAdmin(false);
       }
     };
 
@@ -724,30 +767,55 @@ export const AdminDashboardPage: React.FC = () => {
 
             <div>
               <label className="block font-bold text-slate-700 mb-1">
-                Enter Authorized Administrator Passcode
+                Admin Username, Email, or Mobile <span className="font-normal text-slate-400">(Optional for Main Admin)</span>
               </label>
               <div className="relative">
-                <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <UserCheck className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
-                  type="password"
-                  placeholder="Enter administrator passcode"
-                  value={adminPass}
-                  onChange={(e) => setAdminPass(e.target.value)}
+                  type="text"
+                  placeholder="admin, email, or mobile number"
+                  value={adminIdentifier}
+                  onChange={(e) => setAdminIdentifier(e.target.value)}
                   className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
             </div>
 
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">
+                Password / Administrator Passcode *
+              </label>
+              <div className="relative">
+                <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type={showAdminLoginPass ? 'text' : 'password'}
+                  placeholder="Enter password or passcode"
+                  value={adminPass}
+                  onChange={(e) => setAdminPass(e.target.value)}
+                  className="w-full pl-9 pr-10 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowAdminLoginPass((prev) => !prev)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  aria-label={showAdminLoginPass ? 'Hide password' : 'Show password'}
+                >
+                  {showAdminLoginPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
             <button
               type="submit"
-              className="w-full py-3 rounded-xl font-bold text-white bg-[#12315A] hover:bg-blue-900 transition-colors shadow-md flex items-center justify-center gap-2 cursor-pointer"
+              disabled={isAuthenticatingAdmin}
+              className="w-full py-3 rounded-xl font-bold text-white bg-[#12315A] hover:bg-blue-900 transition-colors shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
             >
               <Shield className="w-4 h-4 text-amber-400" />
-              <span>Unlock Admin Dashboard</span>
+              <span>{isAuthenticatingAdmin ? 'Verifying Credentials...' : 'Unlock Admin Dashboard'}</span>
             </button>
 
             <p className="text-[11px] text-slate-400 text-center">
-              Protected administrative portal. Authorized institutional personnel only.
+              Leave username blank (or type "admin") for Primary Super Admin, or sign in with your added Admin Username / Email / Mobile.
             </p>
           </form>
         </div>
@@ -846,6 +914,9 @@ export const AdminDashboardPage: React.FC = () => {
             <p className="text-xs text-blue-200 mt-0.5">
               Institute: <strong>{settings.instituteName}</strong> ({settings.instituteDevanagariName})
             </p>
+            <p className="text-[11px] text-amber-200/90 mt-0.5">
+              Signed in as: <strong>{currentUser.name}</strong> ({currentUser.email}) • Full Upload, Edit &amp; Delete Access
+            </p>
           </div>
         </div>
 
@@ -883,6 +954,7 @@ export const AdminDashboardPage: React.FC = () => {
           { id: 'teachers', label: `Teachers (${teachers.length})`, icon: Users },
           { id: 'notices', label: `Notices (${notices.length})`, icon: Bell },
           { id: 'materials', label: `Study Materials (${studyMaterials.length})`, icon: FileText },
+          { id: 'admins', label: `Admin Team (${adminAccounts.length + 1})`, icon: ShieldCheck },
           { id: 'settings', label: 'Website Settings', icon: Settings },
           { id: 'database', label: 'Supabase Database', icon: Database },
         ].map((tab) => {
@@ -1171,6 +1243,13 @@ export const AdminDashboardPage: React.FC = () => {
                 >
                   <span>Upload Study Material</span>
                   <Plus className="w-4 h-4 text-blue-700" />
+                </button>
+                <button
+                  onClick={() => setActiveTab('admins')}
+                  className="w-full py-2.5 px-3 rounded-xl bg-white border border-blue-200 text-left font-bold text-[#12315A] hover:border-blue-500 flex items-center justify-between cursor-pointer"
+                >
+                  <span>Manage Admin Team ({adminAccounts.length + 1})</span>
+                  <ShieldCheck className="w-4 h-4 text-blue-700" />
                 </button>
                 <button
                   onClick={() => setActiveTab('settings')}
@@ -4761,6 +4840,343 @@ export const AdminDashboardPage: React.FC = () => {
         </div>
       )}
 
+      {/* TAB: MULTI-ADMIN TEAM & FULL ACCESS MANAGEMENT */}
+      {activeTab === 'admins' && (() => {
+        const filteredAdmins = adminAccounts.filter((acc) => {
+          if (!adminSearchQuery.trim()) return true;
+          const q = adminSearchQuery.toLowerCase();
+          return (
+            acc.name.toLowerCase().includes(q) ||
+            acc.username.toLowerCase().includes(q) ||
+            acc.email.toLowerCase().includes(q) ||
+            (acc.phone && acc.phone.includes(q)) ||
+            (acc.designation && acc.designation.toLowerCase().includes(q))
+          );
+        });
+
+        const openNewAdminModal = () => {
+          setEditingAdmin(null);
+          setAdminFormName('');
+          setAdminFormUsername('');
+          setAdminFormEmail('');
+          setAdminFormPhone('');
+          setAdminFormDesignation('Co-Administrator');
+          setAdminFormPassword('');
+          setAdminFormActive(true);
+          setShowAdminModalPassword(false);
+          setAdminFormError(null);
+          setIsAdminModalOpen(true);
+        };
+
+        const openEditAdminModal = (acc: AdminAccount) => {
+          setEditingAdmin(acc);
+          setAdminFormName(acc.name);
+          setAdminFormUsername(acc.username);
+          setAdminFormEmail(acc.email);
+          setAdminFormPhone(acc.phone || '');
+          setAdminFormDesignation(acc.designation || 'Co-Administrator');
+          setAdminFormPassword('');
+          setAdminFormActive(acc.active);
+          setShowAdminModalPassword(false);
+          setAdminFormError(null);
+          setIsAdminModalOpen(true);
+        };
+
+        return (
+          <div className="space-y-6 animate-fadeIn">
+            {/* Header Card */}
+            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <div className="p-2.5 rounded-2xl bg-blue-50 text-[#12315A] shrink-0">
+                  <ShieldCheck className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-[#12315A]">
+                    Multiple Administrators &amp; Full Access Control
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Every active Admin created here gets <strong>complete administrative access</strong> to upload, edit, verify, publish, and delete anything across the entire website.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  disabled={isRefreshingAdmins}
+                  onClick={async () => {
+                    setIsRefreshingAdmins(true);
+                    try {
+                      const res = await refreshAdminAccounts();
+                      setAdminTeamToast(
+                        res.error
+                          ? res.error
+                          : `Synced Admin Team from cloud (${res.count} co-admin account${res.count === 1 ? '' : 's'}).`
+                      );
+                      setTimeout(() => setAdminTeamToast(null), 4000);
+                    } finally {
+                      setIsRefreshingAdmins(false);
+                    }
+                  }}
+                  className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingAdmins ? 'animate-spin' : ''}`} />
+                  <span>{isRefreshingAdmins ? 'Syncing...' : 'Refresh Cloud'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={openNewAdminModal}
+                  className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-[#12315A] hover:bg-blue-900 shadow-sm cursor-pointer"
+                >
+                  <Plus className="w-4 h-4 text-amber-400" />
+                  <span>Add New Admin</span>
+                </button>
+              </div>
+            </div>
+
+            {adminTeamToast && (
+              <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-semibold flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{adminTeamToast}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAdminTeamToast(null)}
+                  className="text-emerald-700 hover:text-emerald-900 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
+            {/* Full Permissions Info Banner */}
+            <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200 text-xs text-amber-950 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Shield className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>
+                  <strong>Full Permissions Included:</strong> Upload &amp; delete study materials, create &amp; evaluate mock tests, manage courses, batches, teachers, notices, student applications, website settings, and admin team.
+                </span>
+              </div>
+              <span className="text-[11px] font-bold text-amber-800 whitespace-nowrap">
+                Login via /admin or Home Login
+              </span>
+            </div>
+
+            {/* Search & Primary Root Admin Card */}
+            <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200 shadow-sm space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <h4 className="text-sm font-bold text-[#12315A]">
+                  Authorized Administrators ({adminAccounts.length + 1})
+                </h4>
+                <div className="relative w-full sm:w-72">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    placeholder="Search admins by name, username, email..."
+                    value={adminSearchQuery}
+                    onChange={(e) => setAdminSearchQuery(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              {/* Built-in Primary Super Admin Card */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-[#12315A] text-amber-400 flex items-center justify-center font-black text-sm shrink-0">
+                    SA
+                  </div>
+                  <div className="space-y-1 text-xs">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-bold text-slate-900 text-sm">Primary Super Admin</span>
+                      <span className="px-2 py-0.5 rounded bg-blue-100 text-blue-800 text-[10px] font-bold uppercase">
+                        Root Account
+                      </span>
+                      <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                        Always Active
+                      </span>
+                      {currentUser.id === 'admin-1' && (
+                        <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-900 text-[10px] font-bold">
+                          Currently Signed In
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-slate-600">
+                      Username: <code className="font-mono font-bold">admin</code> • Email:{' '}
+                      <code className="font-mono">admin@shikshyalaya.edu.np</code>
+                    </p>
+                    <p className="text-[11px] text-slate-400">
+                      Full System Access (Upload, Edit, Delete, Settings &amp; Multi-Admin Control)
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Added Co-Admins List */}
+              {filteredAdmins.length === 0 ? (
+                <div className="p-8 text-center rounded-2xl border border-dashed border-slate-200 space-y-2">
+                  <ShieldCheck className="w-8 h-8 text-slate-300 mx-auto" />
+                  <p className="text-xs font-semibold text-slate-600">
+                    {adminAccounts.length === 0
+                      ? 'No additional co-admins added yet.'
+                      : 'No admin accounts match your search.'}
+                  </p>
+                  {adminAccounts.length === 0 && (
+                    <button
+                      type="button"
+                      onClick={openNewAdminModal}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#12315A] hover:bg-blue-900 cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Create First Co-Admin</span>
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {filteredAdmins.map((acc) => {
+                    const isSelf = currentUser.id === acc.id;
+                    return (
+                      <div
+                        key={acc.id}
+                        className={`p-4 rounded-2xl border transition-all space-y-3 ${
+                          acc.active
+                            ? 'bg-white border-slate-200 hover:border-blue-300'
+                            : 'bg-slate-50 border-slate-200 opacity-80'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-start gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-blue-100 text-[#12315A] flex items-center justify-center font-black text-sm shrink-0 uppercase">
+                              {acc.name
+                                .split(' ')
+                                .map((w) => w[0])
+                                .join('')
+                                .slice(0, 2) || 'AD'}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <h5 className="font-bold text-sm text-slate-900">{acc.name}</h5>
+                                {isSelf && (
+                                  <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-900 text-[10px] font-bold">
+                                    You
+                                  </span>
+                                )}
+                                <span
+                                  className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                    acc.active
+                                      ? 'bg-emerald-100 text-emerald-800'
+                                      : 'bg-rose-100 text-rose-800'
+                                  }`}
+                                >
+                                  {acc.active ? 'Active' : 'Suspended'}
+                                </span>
+                              </div>
+                              <p className="text-[11px] font-semibold text-blue-700">
+                                {acc.designation || 'Co-Administrator'} • Full Access
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-1 text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-slate-400">Username:</span>
+                            <code className="font-mono font-bold text-slate-800">{acc.username}</code>
+                          </div>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-slate-400">Email:</span>
+                            <span className="font-medium text-slate-800 truncate">{acc.email}</span>
+                          </div>
+                          {acc.phone && (
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-slate-400">Mobile:</span>
+                              <span className="font-mono font-medium text-slate-800">{acc.phone}</span>
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between gap-2 text-[11px] pt-1 border-t border-slate-200/70">
+                            <span className="text-slate-400">Added by {acc.createdBy || 'Admin'}:</span>
+                            <span className="text-slate-500">
+                              {new Date(acc.createdAt).toLocaleDateString()}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-2 pt-1 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => openEditAdminModal(acc)}
+                            className="px-3 py-1.5 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs font-bold flex items-center gap-1 cursor-pointer"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                            <span>Edit / Password</span>
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isSelf}
+                            onClick={async () => {
+                              const res = await updateAdminAccount(acc.id, { active: !acc.active });
+                              if (res.success) {
+                                setAdminTeamToast(
+                                  `${acc.name} is now ${!acc.active ? 'Active' : 'Suspended'}.`
+                                );
+                                setTimeout(() => setAdminTeamToast(null), 3500);
+                              } else if (res.error) {
+                                setAdminTeamToast(res.error);
+                              }
+                            }}
+                            title={
+                              isSelf
+                                ? 'Cannot suspend your own active session'
+                                : acc.active
+                                ? 'Suspend admin login'
+                                : 'Re-activate admin login'
+                            }
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                              acc.active
+                                ? 'bg-amber-50 text-amber-800 hover:bg-amber-100'
+                                : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                            }`}
+                          >
+                            {acc.active ? 'Suspend' : 'Activate'}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isSelf}
+                            title={isSelf ? 'Cannot delete your own active session' : 'Delete admin account'}
+                            onClick={() => {
+                              setConfirmAction({
+                                title: 'Delete Administrator Account',
+                                message: `Permanently delete admin access for ${acc.name} (${acc.username})? They will no longer be able to sign in to the Admin Control Center.`,
+                                confirmLabel: 'Delete Admin',
+                                onConfirm: async () => {
+                                  const res = await deleteAdminAccount(acc.id);
+                                  if (res.success) {
+                                    setAdminTeamToast(`Admin account "${acc.name}" deleted.`);
+                                    setTimeout(() => setAdminTeamToast(null), 3500);
+                                  } else if (res.error) {
+                                    setAdminTeamToast(res.error);
+                                  }
+                                },
+                              });
+                            }}
+                            className="px-3 py-1.5 rounded-xl bg-rose-50 text-rose-700 hover:bg-rose-100 text-xs font-bold flex items-center gap-1 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Delete</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* TAB: MOCK TESTS & TIMED EXAMINATIONS */}
       {activeTab === 'mock-tests' && (
         <div className="space-y-6">
@@ -6831,6 +7247,227 @@ export const AdminDashboardPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* ADD / EDIT ADMIN ACCOUNT MODAL */}
+      {isAdminModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-fadeIn"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsAdminModalOpen(false);
+          }}
+        >
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl border border-slate-200 relative max-h-[90vh] overflow-y-auto space-y-5 text-xs sm:text-sm">
+            <button
+              type="button"
+              onClick={() => setIsAdminModalOpen(false)}
+              className="absolute top-5 right-5 p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-2.5 border-b border-slate-100 pb-3">
+              <div className="p-2 rounded-xl bg-blue-50 text-[#12315A]">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-black text-base text-[#12315A]">
+                  {editingAdmin ? 'Edit Administrator Account' : 'Add New Full-Access Admin'}
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Full permission to upload, edit, evaluate, and delete anything on the site.
+                </p>
+              </div>
+            </div>
+
+            {adminFormError && (
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{adminFormError}</span>
+              </div>
+            )}
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setAdminFormError(null);
+                setIsSavingAdmin(true);
+                try {
+                  if (editingAdmin) {
+                    const res = await updateAdminAccount(editingAdmin.id, {
+                      name: adminFormName,
+                      username: adminFormUsername,
+                      email: adminFormEmail,
+                      phone: adminFormPhone,
+                      designation: adminFormDesignation,
+                      active: adminFormActive,
+                      newPassword: adminFormPassword || undefined,
+                    });
+                    if (!res.success) {
+                      setAdminFormError(res.error || 'Could not update administrator.');
+                      return;
+                    }
+                    setAdminTeamToast(`Updated admin account for ${adminFormName.trim()}.`);
+                  } else {
+                    const res = await addAdminAccount({
+                      name: adminFormName,
+                      username: adminFormUsername,
+                      email: adminFormEmail,
+                      phone: adminFormPhone,
+                      designation: adminFormDesignation,
+                      password: adminFormPassword,
+                      active: adminFormActive,
+                    });
+                    if (!res.success) {
+                      setAdminFormError(res.error || 'Could not create administrator.');
+                      return;
+                    }
+                    setAdminTeamToast(
+                      `Created full-access admin "${adminFormName.trim()}" (Username: ${adminFormUsername.trim().toLowerCase()}).`
+                    );
+                  }
+                  setIsAdminModalOpen(false);
+                  setTimeout(() => setAdminTeamToast(null), 5000);
+                } finally {
+                  setIsSavingAdmin(false);
+                }
+              }}
+              className="space-y-4"
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Full Name *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Ramesh Adhikari"
+                    value={adminFormName}
+                    onChange={(e) => setAdminFormName(e.target.value)}
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Designation / Title</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Academic Coordinator"
+                    value={adminFormDesignation}
+                    onChange={(e) => setAdminFormDesignation(e.target.value)}
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Login Username *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. ramesh.admin"
+                    value={adminFormUsername}
+                    onChange={(e) => setAdminFormUsername(e.target.value)}
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Mobile Number (Optional)</label>
+                  <div className="relative">
+                    <Phone className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="e.g. 98XXXXXXXX"
+                      value={adminFormPhone}
+                      onChange={(e) => setAdminFormPhone(e.target.value)}
+                      className="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Admin Email *</label>
+                <div className="relative">
+                  <Mail className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="email"
+                    required
+                    placeholder="name@shikshyalaya.edu.np"
+                    value={adminFormEmail}
+                    onChange={(e) => setAdminFormEmail(e.target.value)}
+                    className="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  {editingAdmin ? 'New Password (Leave blank to keep current password)' : 'Login Password *'}
+                </label>
+                <div className="relative">
+                  <KeyRound className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type={showAdminModalPassword ? 'text' : 'password'}
+                    required={!editingAdmin}
+                    minLength={editingAdmin && !adminFormPassword ? undefined : 6}
+                    placeholder={
+                      editingAdmin ? 'Optional: enter new password (min 6 chars)' : 'Minimum 6 characters'
+                    }
+                    value={adminFormPassword}
+                    onChange={(e) => setAdminFormPassword(e.target.value)}
+                    className="w-full pl-8 pr-10 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowAdminModalPassword((prev) => !prev)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    {showAdminModalPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="adminActiveCheck"
+                  checked={adminFormActive}
+                  disabled={Boolean(editingAdmin && currentUser.id === editingAdmin.id)}
+                  onChange={(e) => setAdminFormActive(e.target.checked)}
+                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                />
+                <label htmlFor="adminActiveCheck" className="text-xs font-bold text-slate-700 cursor-pointer">
+                  Active Administrator (Full Access to Upload, Edit, and Delete)
+                </label>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAdminModalOpen(false)}
+                  className="px-4 py-2 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingAdmin}
+                  className="px-5 py-2 rounded-xl font-bold text-white bg-[#12315A] hover:bg-blue-900 shadow cursor-pointer disabled:opacity-60 flex items-center gap-1.5"
+                >
+                  <Check className="w-4 h-4 text-amber-400" />
+                  <span>
+                    {isSavingAdmin
+                      ? 'Saving...'
+                      : editingAdmin
+                      ? 'Save Admin Changes'
+                      : 'Create Admin Account'}
+                  </span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* In-UI Confirmation Modal for Single & Delete All Admin Actions */}
       {confirmAction && (
         <div

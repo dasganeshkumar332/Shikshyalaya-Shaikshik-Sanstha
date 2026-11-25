@@ -19,7 +19,16 @@ import { normalizeMobileNumber, mobileMatches } from '../utils/phone';
 
 export const StudentLoginPage: React.FC = () => {
   const navigate = useNavigate();
-  const { loginAsStudent, loginAsAdmin, currentUser, courses, inquiries, mockTestRegistrations, studentGroups } = useApp();
+  const {
+    loginAsStudent,
+    loginAsAdmin,
+    isAdminAccountIdentifier,
+    currentUser,
+    courses,
+    inquiries,
+    mockTestRegistrations,
+    studentGroups,
+  } = useApp();
 
   const [studentId, setStudentId] = useState('');
   const [email, setEmail] = useState('');
@@ -36,7 +45,7 @@ export const StudentLoginPage: React.FC = () => {
     }
   }, [currentUser, navigate]);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -48,23 +57,19 @@ export const StudentLoginPage: React.FC = () => {
 
     const cleanInput = rawInput.toLowerCase();
 
-    // Automatic Admin Detection & Authentication
-    const isAdminIdentifier =
-      cleanInput === 'admin' ||
-      cleanInput === 'administrator' ||
-      cleanInput === 'sss-admin' ||
-      cleanInput === 'admin@shikshyalaya.edu.np';
+    // Automatic Admin Detection & Authentication (Root + Multi-Admin accounts)
+    const isAdminIdentifier = isAdminAccountIdentifier(rawInput);
 
     if (isAdminIdentifier) {
       if (!password.trim()) {
-        setError('Please enter your administrator passcode.');
+        setError('Please enter your administrator password.');
         return;
       }
-      const ok = loginAsAdmin(password.trim());
+      const ok = await loginAsAdmin(password.trim(), rawInput);
       if (ok) {
         navigate('/admin');
       } else {
-        setError('Access Denied: Incorrect administrator passcode.');
+        setError('Access Denied: Incorrect administrator password.');
       }
       return;
     }
@@ -181,6 +186,15 @@ export const StudentLoginPage: React.FC = () => {
       const success = loginAsStudent(cleanInput.toUpperCase(), `${cleanInput}@shikshyalaya.edu.np`, [selectedCourseSlug]);
       if (success) {
         navigate('/student/dashboard');
+        return;
+      }
+    }
+
+    // Cross-device fallback check for newly added remote Admin accounts
+    if (password.trim()) {
+      const remoteAdminOk = await loginAsAdmin(password.trim(), rawInput);
+      if (remoteAdminOk) {
+        navigate('/admin');
         return;
       }
     }

@@ -16,6 +16,7 @@ import {
   MockTest,
   MockTestSubmission,
   MockTestRegistration,
+  AdminAccount,
 } from '../types';
 import {
   INITIAL_SETTINGS,
@@ -37,6 +38,7 @@ import {
   IDB_MARKER,
 } from '../utils/fileStorage';
 import { normalizeMobileNumber, mobileMatches } from '../utils/phone';
+import { hashPassword, verifyPassword } from '../utils/authCrypto';
 import {
   saveInquiryToSupabase,
   saveMockSubmissionToSupabase,
@@ -67,6 +69,8 @@ import {
   clearAllStudyMaterialsFromSupabase,
   fetchStudyMaterialsFromSupabase,
   isLegacySeededMaterialId,
+  saveAdminAccountsToSupabase,
+  fetchAdminAccountsFromSupabase,
 } from '../services/supabaseService';
 
 interface AppContextType {
@@ -214,7 +218,32 @@ interface AppContextType {
   refreshMockRegistrations: () => Promise<void>;
 
   currentUser: UserProfile | null;
-  loginAsAdmin: (password?: string) => boolean;
+  adminAccounts: AdminAccount[];
+  isAdminAccountIdentifier: (identifier: string) => boolean;
+  loginAsAdmin: (password?: string, identifier?: string) => Promise<boolean>;
+  addAdminAccount: (data: {
+    name: string;
+    username: string;
+    email: string;
+    phone?: string;
+    designation?: string;
+    password: string;
+    active?: boolean;
+  }) => Promise<{ success: boolean; error?: string; account?: AdminAccount }>;
+  updateAdminAccount: (
+    id: string,
+    updates: {
+      name?: string;
+      username?: string;
+      email?: string;
+      phone?: string;
+      designation?: string;
+      active?: boolean;
+      newPassword?: string;
+    }
+  ) => Promise<{ success: boolean; error?: string }>;
+  deleteAdminAccount: (id: string) => Promise<{ success: boolean; error?: string }>;
+  refreshAdminAccounts: () => Promise<{ count: number; error?: string }>;
   loginAsStudent: (
     studentId: string,
     email: string,
@@ -261,6 +290,7 @@ const STORAGE_KEYS = {
   MOCK_SUBMISSIONS: 'sss_mock_submissions',
   MOCK_REGISTRATIONS: 'sss_mock_registrations',
   DELETED_RECORDS: 'sss_deleted_records',
+  ADMINS: 'sss_admin_accounts',
 };
 
 type DeletedRecordCategory =
@@ -272,7 +302,8 @@ type DeletedRecordCategory =
   | 'mockTests'
   | 'notices'
   | 'teachers'
-  | 'courses';
+  | 'courses'
+  | 'admins';
 
 function readDeletedRecordsMap(): Partial<Record<DeletedRecordCategory, string[]>> {
   try {
@@ -671,6 +702,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   });
 
+  // Multi-Admin Accounts State
+  const [adminAccounts, setAdminAccounts] = useState<AdminAccount[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.ADMINS);
+    if (!saved) return [];
+    try {
+      const parsed: AdminAccount[] = JSON.parse(saved);
+      if (!Array.isArray(parsed)) return [];
+      const deletedSet = getDeletedIdsSet('admins');
+      return parsed.filter((a) => a && a.id && !deletedSet.has(a.id));
+    } catch {
+      return [];
+    }
+  });
+
   // Auth
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.AUTH);
@@ -830,6 +875,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [contactMessages]);
 
   useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.ADMINS, JSON.stringify(adminAccounts));
+    } catch (err) {
+      console.warn('Error saving adminAccounts to localStorage:', err);
+    }
+  }, [adminAccounts]);
+
+  useEffect(() => {
     if (currentUser) {
       localStorage.setItem(STORAGE_KEYS.AUTH, JSON.stringify(currentUser));
     } else {
@@ -897,6 +950,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         batchName: newer.batchName || older.batchName,
         paymentProofUrl: resolvedProofUrl,
       });
+    });
+    return Array.from(map.values());
+  };
+
+  const mergeAdminLists = (
+    localAdmins: AdminAccount[],
+    remoteAdmins: AdminAccount[]
+  ): AdminAccount[] => {
+    const deletedSet = getDeletedIdsSet('admins');
+    const map = new Map<string, AdminAccount>();
+    localAdmins.forEach((a) => {
+      if (a?.id && !deletedSet.has(a.id)) map.set(a.id, a);
+    });
+    remoteAdmins.forEach((remote) => {
+      if (!remote?.id || deletedSet.has(remote.id)) return;
+      const existing = map.get(remote.id);
+      if (!existing) {
+        map.set(remote.id, remote);
+        return;
+      }
+      const existingTime = Date.parse(existing.updatedAt || existing.createdAt || '') || 0;
+      const remoteTime = Date.parse(remote.updatedAt || remote.createdAt || '') || 0;
+      map.set(remote.id, remoteTime >= existingTime ? remote : existing);
     });
     return Array.from(map.values());
   };
@@ -1009,8 +1085,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     });
 
+    // Pull multi-admin accounts from cloud so admins created on other devices can sign in
+    fetchAdminAccountsFromSupabase().then((remoteAdmins) => {
+      if (remoteAdmins && remoteAdmins.length > 0) {
+        setAdminAccounts((localAdmins) => mergeAdminLists(localAdmins, remoteAdmins));
+      }
+    });
+
     // Instant cross-tab synchronization listener
     const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEYS.ADMINS && e.newValue) {
+        try {
+          const deletedSet = getDeletedIdsSet('admins');
+          const parsed: AdminAccount[] = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) {
+            setAdminAccounts(parsed.filter((a) => a && a.id && !deletedSet.has(a.id)));
+          }
+        } catch {}
+      }
       if (e.key === STORAGE_KEYS.MOCK_REGISTRATIONS && e.newValue) {
         try {
           const parsed: MockTestRegistration[] = JSON.parse(e.newValue);
@@ -2518,80 +2610,393 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   };
 
-  const loginAsAdmin = (password?: string): boolean => {
-    // Strict administrative authentication - Reject blank or arbitrary input
+  const ROOT_ADMIN_IDENTIFIERS = [
+    'admin',
+    'administrator',
+    'sss-admin',
+    'admin@shikshyalaya.edu.np',
+  ];
+
+  const findMatchingAdminAccount = (
+    list: AdminAccount[],
+    identifier: string
+  ): AdminAccount | undefined => {
+    const raw = (identifier || '').trim();
+    const clean = raw.toLowerCase();
+    if (!clean) return undefined;
+    return list.find(
+      (acc) =>
+        acc.active &&
+        (acc.username.trim().toLowerCase() === clean ||
+          acc.email.trim().toLowerCase() === clean ||
+          (Boolean(acc.phone) && mobileMatches(raw, acc.phone!)))
+    );
+  };
+
+  const isAdminAccountIdentifier = (identifier: string): boolean => {
+    const raw = (identifier || '').trim();
+    const clean = raw.toLowerCase();
+    if (!clean) return false;
+    if (ROOT_ADMIN_IDENTIFIERS.includes(clean)) return true;
+    return Boolean(findMatchingAdminAccount(adminAccounts, raw));
+  };
+
+  const pullLatestAdminData = () => {
+    fetchInquiriesFromSupabase(false).then((remoteInqs) => {
+      if (remoteInqs && remoteInqs.length > 0) {
+        setInquiries((localInqs) => {
+          const merged = mergeInquiryLists(localInqs, remoteInqs);
+          persistInquiriesSafely(merged);
+          return merged;
+        });
+      }
+    });
+
+    fetchSubmissionsFromSupabase(false).then((remoteSubs) => {
+      if (remoteSubs && remoteSubs.length > 0) {
+        const deletedSet = getDeletedIdsSet('mockSubmissions');
+        setMockTestSubmissions((localSubs) => {
+          const map = new Map<string, MockTestSubmission>();
+          localSubs.forEach((s) => {
+            if (!deletedSet.has(s.id)) map.set(s.id, s);
+          });
+          remoteSubs.forEach((s) => {
+            if (!deletedSet.has(s.id)) map.set(s.id, s);
+          });
+          return Array.from(map.values());
+        });
+      }
+    });
+
+    fetchMockRegistrationsFromSupabase(false).then((remoteRegs) => {
+      if (remoteRegs && remoteRegs.length > 0) {
+        const deletedSet = getDeletedIdsSet('mockRegistrations');
+        setMockTestRegistrations((localRegs) => {
+          const map = new Map<string, MockTestRegistration>();
+          localRegs.forEach((r) => {
+            if (!deletedSet.has(r.id)) map.set(r.id, r);
+          });
+          remoteRegs.forEach((r) => {
+            if (!deletedSet.has(r.id)) map.set(r.id, r);
+          });
+          const merged = Array.from(map.values());
+          try {
+            localStorage.setItem(STORAGE_KEYS.MOCK_REGISTRATIONS, JSON.stringify(merged));
+          } catch {}
+          return merged;
+        });
+      }
+    });
+
+    fetchAdminAccountsFromSupabase().then((remoteAdmins) => {
+      if (remoteAdmins && remoteAdmins.length > 0) {
+        setAdminAccounts((localAdmins) => mergeAdminLists(localAdmins, remoteAdmins));
+      }
+    });
+  };
+
+  const loginAsAdmin = async (password?: string, identifier?: string): Promise<boolean> => {
     const cleanPass = (password || '').trim();
     if (!cleanPass) {
       return false;
     }
+
+    const rawId = (identifier || '').trim();
+    const cleanId = rawId.toLowerCase();
+    const isRootAlias = !cleanId || ROOT_ADMIN_IDENTIFIERS.includes(cleanId);
+
     const envPass = import.meta.env.VITE_ADMIN_PASSCODE;
-    const isValid =
+    const isRootPassValid =
       cleanPass === 'SSS#Admin2026!' ||
       cleanPass === 'admin123' ||
       (Boolean(envPass) && cleanPass === envPass);
 
-    if (isValid) {
+    if (isRootAlias && isRootPassValid) {
       const adminUser: UserProfile = {
         id: 'admin-1',
         email: 'admin@shikshyalaya.edu.np',
-        name: 'Institute Administrator',
+        name: 'Primary Super Admin',
         role: 'admin',
       };
       setCurrentUser(adminUser);
       try {
         localStorage.setItem(STORAGE_KEYS.AUTH, JSON.stringify(adminUser));
       } catch {}
-
-      // Immediately fetch latest database records from Supabase on successful admin authentication
-      fetchInquiriesFromSupabase(false).then((remoteInqs) => {
-        if (remoteInqs && remoteInqs.length > 0) {
-          setInquiries((localInqs) => {
-            const merged = mergeInquiryLists(localInqs, remoteInqs);
-            persistInquiriesSafely(merged);
-            return merged;
-          });
-        }
-      });
-
-      fetchSubmissionsFromSupabase(false).then((remoteSubs) => {
-        if (remoteSubs && remoteSubs.length > 0) {
-          const deletedSet = getDeletedIdsSet('mockSubmissions');
-          setMockTestSubmissions((localSubs) => {
-            const map = new Map<string, MockTestSubmission>();
-            localSubs.forEach((s) => {
-              if (!deletedSet.has(s.id)) map.set(s.id, s);
-            });
-            remoteSubs.forEach((s) => {
-              if (!deletedSet.has(s.id)) map.set(s.id, s);
-            });
-            return Array.from(map.values());
-          });
-        }
-      });
-
-      fetchMockRegistrationsFromSupabase(false).then((remoteRegs) => {
-        if (remoteRegs && remoteRegs.length > 0) {
-          const deletedSet = getDeletedIdsSet('mockRegistrations');
-          setMockTestRegistrations((localRegs) => {
-            const map = new Map<string, MockTestRegistration>();
-            localRegs.forEach((r) => {
-              if (!deletedSet.has(r.id)) map.set(r.id, r);
-            });
-            remoteRegs.forEach((r) => {
-              if (!deletedSet.has(r.id)) map.set(r.id, r);
-            });
-            const merged = Array.from(map.values());
-            try {
-              localStorage.setItem(STORAGE_KEYS.MOCK_REGISTRATIONS, JSON.stringify(merged));
-            } catch {}
-            return merged;
-          });
-        }
-      });
-
+      pullLatestAdminData();
       return true;
     }
-    return false;
+
+    if (!rawId) {
+      return false;
+    }
+
+    // Match active additional admin locally, falling back to a fresh cloud fetch for cross-device login
+    let candidateList = adminAccounts;
+    let matchedAdmin = findMatchingAdminAccount(candidateList, rawId);
+    if (!matchedAdmin) {
+      const remoteAdmins = await fetchAdminAccountsFromSupabase();
+      if (remoteAdmins && remoteAdmins.length > 0) {
+        candidateList = mergeAdminLists(adminAccounts, remoteAdmins);
+        setAdminAccounts(candidateList);
+        matchedAdmin = findMatchingAdminAccount(candidateList, rawId);
+      }
+    }
+
+    if (!matchedAdmin || !matchedAdmin.active) {
+      return false;
+    }
+
+    const verified = await verifyPassword(
+      cleanPass,
+      matchedAdmin.passwordSalt,
+      matchedAdmin.passwordHash
+    );
+    if (!verified) {
+      return false;
+    }
+
+    // Sanitize profile stored in session (never store salt/hash in currentUser or AUTH storage)
+    const adminUser: UserProfile = {
+      id: matchedAdmin.id,
+      email: matchedAdmin.email,
+      name: matchedAdmin.name,
+      phone: matchedAdmin.phone,
+      role: 'admin',
+    };
+    setCurrentUser(adminUser);
+    try {
+      localStorage.setItem(STORAGE_KEYS.AUTH, JSON.stringify(adminUser));
+    } catch {}
+    pullLatestAdminData();
+    return true;
+  };
+
+  const addAdminAccount = async (data: {
+    name: string;
+    username: string;
+    email: string;
+    phone?: string;
+    designation?: string;
+    password: string;
+    active?: boolean;
+  }): Promise<{ success: boolean; error?: string; account?: AdminAccount }> => {
+    const cleanName = data.name.trim();
+    const cleanUsername = data.username.trim().toLowerCase().replace(/\s+/g, '');
+    const cleanEmail = data.email.trim().toLowerCase();
+    const cleanPhone = (data.phone || '').trim();
+    const cleanDesignation = (data.designation || '').trim();
+    const cleanPass = data.password.trim();
+
+    if (!cleanName || cleanName.length < 2) {
+      return { success: false, error: 'Please enter the administrator full name.' };
+    }
+    if (!cleanUsername || cleanUsername.length < 3) {
+      return { success: false, error: 'Username must be at least 3 characters (no spaces).' };
+    }
+    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      return { success: false, error: 'Please enter a valid administrator email address.' };
+    }
+    if (!cleanPass || cleanPass.length < 6) {
+      return { success: false, error: 'Password must be at least 6 characters long.' };
+    }
+    if (
+      ROOT_ADMIN_IDENTIFIERS.includes(cleanUsername) ||
+      ROOT_ADMIN_IDENTIFIERS.includes(cleanEmail)
+    ) {
+      return {
+        success: false,
+        error: 'That username or email is reserved for the Primary Super Admin.',
+      };
+    }
+
+    const duplicate = adminAccounts.find(
+      (a) =>
+        a.username.toLowerCase() === cleanUsername ||
+        a.email.toLowerCase() === cleanEmail ||
+        (cleanPhone && a.phone && mobileMatches(cleanPhone, a.phone))
+    );
+    if (duplicate) {
+      return {
+        success: false,
+        error: `An admin with that username, email, or mobile already exists (${duplicate.name}).`,
+      };
+    }
+
+    const { salt, hash } = await hashPassword(cleanPass);
+    const now = new Date().toISOString();
+    const newAccount: AdminAccount = {
+      id: `admin-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      name: cleanName,
+      username: cleanUsername,
+      email: cleanEmail,
+      phone: cleanPhone || undefined,
+      designation: cleanDesignation || 'Co-Administrator',
+      role: 'admin',
+      active: data.active !== undefined ? data.active : true,
+      passwordSalt: salt,
+      passwordHash: hash,
+      createdAt: now,
+      updatedAt: now,
+      createdBy: currentUser?.name || 'Primary Super Admin',
+    };
+
+    const nextList = [newAccount, ...adminAccounts];
+    setAdminAccounts(nextList);
+    try {
+      localStorage.setItem(STORAGE_KEYS.ADMINS, JSON.stringify(nextList));
+    } catch {}
+    await saveAdminAccountsToSupabase(nextList);
+    return { success: true, account: newAccount };
+  };
+
+  const updateAdminAccount = async (
+    id: string,
+    updates: {
+      name?: string;
+      username?: string;
+      email?: string;
+      phone?: string;
+      designation?: string;
+      active?: boolean;
+      newPassword?: string;
+    }
+  ): Promise<{ success: boolean; error?: string }> => {
+    const target = adminAccounts.find((a) => a.id === id);
+    if (!target) {
+      return { success: false, error: 'Administrator account not found.' };
+    }
+
+    if (currentUser?.id === id && updates.active === false) {
+      return {
+        success: false,
+        error: 'You cannot suspend your own currently signed-in admin account.',
+      };
+    }
+
+    const cleanName = updates.name !== undefined ? updates.name.trim() : target.name;
+    const cleanUsername =
+      updates.username !== undefined
+        ? updates.username.trim().toLowerCase().replace(/\s+/g, '')
+        : target.username;
+    const cleanEmail =
+      updates.email !== undefined ? updates.email.trim().toLowerCase() : target.email;
+    const cleanPhone =
+      updates.phone !== undefined ? updates.phone.trim() : target.phone || '';
+    const cleanDesignation =
+      updates.designation !== undefined ? updates.designation.trim() : target.designation || '';
+    const cleanNewPass = (updates.newPassword || '').trim();
+
+    if (!cleanName || cleanName.length < 2) {
+      return { success: false, error: 'Administrator name cannot be empty.' };
+    }
+    if (!cleanUsername || cleanUsername.length < 3) {
+      return { success: false, error: 'Username must be at least 3 characters (no spaces).' };
+    }
+    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      return { success: false, error: 'Please enter a valid administrator email address.' };
+    }
+    if (cleanNewPass && cleanNewPass.length < 6) {
+      return { success: false, error: 'New password must be at least 6 characters long.' };
+    }
+    if (
+      ROOT_ADMIN_IDENTIFIERS.includes(cleanUsername) ||
+      ROOT_ADMIN_IDENTIFIERS.includes(cleanEmail)
+    ) {
+      return {
+        success: false,
+        error: 'That username or email is reserved for the Primary Super Admin.',
+      };
+    }
+
+    const duplicate = adminAccounts.find(
+      (a) =>
+        a.id !== id &&
+        (a.username.toLowerCase() === cleanUsername ||
+          a.email.toLowerCase() === cleanEmail ||
+          (cleanPhone && a.phone && mobileMatches(cleanPhone, a.phone)))
+    );
+    if (duplicate) {
+      return {
+        success: false,
+        error: `Another admin already uses that username, email, or mobile (${duplicate.name}).`,
+      };
+    }
+
+    let passwordSalt = target.passwordSalt;
+    let passwordHash = target.passwordHash;
+    if (cleanNewPass) {
+      const hashed = await hashPassword(cleanNewPass);
+      passwordSalt = hashed.salt;
+      passwordHash = hashed.hash;
+    }
+
+    const updatedAccount: AdminAccount = {
+      ...target,
+      name: cleanName,
+      username: cleanUsername,
+      email: cleanEmail,
+      phone: cleanPhone || undefined,
+      designation: cleanDesignation || undefined,
+      active: updates.active !== undefined ? updates.active : target.active,
+      passwordSalt,
+      passwordHash,
+      updatedAt: new Date().toISOString(),
+    };
+
+    const nextList = adminAccounts.map((a) => (a.id === id ? updatedAccount : a));
+    setAdminAccounts(nextList);
+    try {
+      localStorage.setItem(STORAGE_KEYS.ADMINS, JSON.stringify(nextList));
+    } catch {}
+    await saveAdminAccountsToSupabase(nextList);
+
+    if (currentUser?.id === id) {
+      const refreshedProfile: UserProfile = {
+        id: updatedAccount.id,
+        email: updatedAccount.email,
+        name: updatedAccount.name,
+        phone: updatedAccount.phone,
+        role: 'admin',
+      };
+      setCurrentUser(refreshedProfile);
+      try {
+        localStorage.setItem(STORAGE_KEYS.AUTH, JSON.stringify(refreshedProfile));
+      } catch {}
+    }
+
+    return { success: true };
+  };
+
+  const deleteAdminAccount = async (
+    id: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (currentUser?.id === id) {
+      return {
+        success: false,
+        error: 'You cannot delete the admin account you are currently signed in with.',
+      };
+    }
+    recordDeletedIds('admins', [id]);
+    const nextList = adminAccounts.filter((a) => a.id !== id);
+    setAdminAccounts(nextList);
+    try {
+      localStorage.setItem(STORAGE_KEYS.ADMINS, JSON.stringify(nextList));
+    } catch {}
+    await saveAdminAccountsToSupabase(nextList);
+    return { success: true };
+  };
+
+  const refreshAdminAccounts = async (): Promise<{ count: number; error?: string }> => {
+    const remoteAdmins = await fetchAdminAccountsFromSupabase();
+    if (!remoteAdmins) {
+      return { count: adminAccounts.length, error: 'No cloud admin team list found yet.' };
+    }
+    const merged = mergeAdminLists(adminAccounts, remoteAdmins);
+    setAdminAccounts(merged);
+    try {
+      localStorage.setItem(STORAGE_KEYS.ADMINS, JSON.stringify(merged));
+    } catch {}
+    return { count: merged.length };
   };
 
   const parseInquirySubjects = (inq?: AdmissionInquiry): string[] | undefined => {
@@ -3709,7 +4114,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         clearAllMockTestRegistrations,
         refreshMockRegistrations,
         currentUser,
+        adminAccounts,
+        isAdminAccountIdentifier,
         loginAsAdmin,
+        addAdminAccount,
+        updateAdminAccount,
+        deleteAdminAccount,
+        refreshAdminAccounts,
         loginAsStudent,
         updateStudentEnrollment,
         updateStudentEnrolledSubjects,

@@ -9,6 +9,7 @@ import {
   Notice,
   StudyMaterial,
   SiteSettings,
+  AdminAccount,
 } from '../types';
 import { IDB_MARKER } from '../utils/fileStorage';
 
@@ -1196,3 +1197,48 @@ export async function fetchStudentResultByCredentials(
     return [];
   }
 }
+
+/**
+ * Saves multi-admin accounts (with salted PBKDF2 hashes only, never plaintext) to Supabase app_storage
+ */
+export async function saveAdminAccountsToSupabase(
+  accounts: AdminAccount[]
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await supabase.from('app_storage').upsert({
+      key: 'admin_accounts',
+      value: accounts,
+      updated_at: new Date().toISOString(),
+    });
+    if (error) {
+      console.warn('[Supabase] Could not save admin accounts:', error.message);
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (err: any) {
+    console.warn('[Supabase] Exception saving admin accounts:', err);
+    return { success: false, error: err?.message || 'Failed to save admin accounts' };
+  }
+}
+
+/**
+ * Loads multi-admin accounts from Supabase app_storage
+ */
+export async function fetchAdminAccountsFromSupabase(): Promise<AdminAccount[] | null> {
+  try {
+    const { data, error } = await supabase
+      .from('app_storage')
+      .select('value')
+      .eq('key', 'admin_accounts')
+      .limit(1);
+
+    if (error || !data || data.length === 0) return null;
+    const raw = data[0]?.value;
+    if (!Array.isArray(raw)) return null;
+    return raw as AdminAccount[];
+  } catch (err) {
+    console.warn('[Supabase] Failed to fetch admin accounts:', err);
+    return null;
+  }
+}
+
