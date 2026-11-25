@@ -111,12 +111,12 @@ export const Navbar: React.FC = () => {
                       )}
                     </Link>
                     <Link
-                      to="/admin?tab=admins&action=add"
-                      className="flex items-center gap-1 bg-white/15 hover:bg-white/25 text-amber-200 hover:text-white font-semibold px-2.5 py-0.5 rounded text-[11px] transition-colors"
+                      to="/admin/manage-admins"
+                      className="flex items-center gap-1 bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-bold px-2.5 py-0.5 rounded text-[11px] transition-colors shadow-xs"
                       title="Add or Manage Full-Access Administrators"
                     >
-                      <UserPlus className="w-3 h-3 text-amber-300" />
-                      <span>Add Admin</span>
+                      <UserPlus className="w-3 h-3" />
+                      <span>+ Add Admin</span>
                     </Link>
                     <Link
                       to="/admin"
@@ -776,12 +776,12 @@ export const Navbar: React.FC = () => {
                   <span>Apps ({inquiries.length})</span>
                 </Link>
                 <Link
-                  to="/admin?tab=admins&action=add"
-                  className="flex items-center justify-center gap-1 w-full py-2.5 text-[11px] font-bold text-[#12315A] bg-blue-100 hover:bg-blue-200 rounded-lg"
+                  to="/admin/manage-admins"
+                  className="flex items-center justify-center gap-1 w-full py-2.5 text-[11px] font-bold text-[#12315A] bg-emerald-100 hover:bg-emerald-200 rounded-lg"
                   onClick={() => setMobileMenuOpen(false)}
                 >
-                  <UserPlus className="w-3.5 h-3.5 text-blue-700" />
-                  <span>Add Admin</span>
+                  <UserPlus className="w-3.5 h-3.5 text-emerald-700" />
+                  <span>+ Add Admin</span>
                 </Link>
                 <Link
                   to="/admin"

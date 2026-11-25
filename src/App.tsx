@@ -20,6 +20,7 @@ import { ContactPage } from './pages/ContactPage';
 import { StudentLoginPage } from './pages/StudentLoginPage';
 import { StudentDashboardPage } from './pages/StudentDashboardPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
+import { ManageAdminsPage } from './pages/ManageAdminsPage';
 import { MockTestsPage } from './pages/MockTestsPage';
 import { UploadAnswerSheetPage } from './pages/UploadAnswerSheetPage';
 import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage';
@@ -104,6 +105,8 @@ export function App() {
 
               {/* Administrator Dashboard */}
               <Route path="/admin" element={<AdminDashboardPage />} />
+              <Route path="/admin/manage-admins" element={<ManageAdminsPage />} />
+              <Route path="/manage-admins" element={<ManageAdminsPage />} />
 
               {/* Legal Pages */}
               <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />

@@ -978,6 +978,7 @@ export const AdminDashboardPage: React.FC = () => {
       <div className="flex flex-wrap items-center gap-2 pb-3 border-b border-slate-200">
         {[
           { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+          { id: 'admins', label: `Admin Team (${adminAccounts.length + 1})`, icon: ShieldCheck },
           {
             id: 'inquiries',
             label: `Student Applications (${inquiries.length}${stats.newInquiries > 0 ? ` • ${stats.newInquiries} New` : ''})`,
@@ -990,7 +991,6 @@ export const AdminDashboardPage: React.FC = () => {
           { id: 'teachers', label: `Teachers (${teachers.length})`, icon: Users },
           { id: 'notices', label: `Notices (${notices.length})`, icon: Bell },
           { id: 'materials', label: `Study Materials (${studyMaterials.length})`, icon: FileText },
-          { id: 'admins', label: `Admin Team (${adminAccounts.length + 1})`, icon: ShieldCheck },
           { id: 'settings', label: 'Website Settings', icon: Settings },
           { id: 'database', label: 'Supabase Database', icon: Database },
         ].map((tab) => {
@@ -4217,6 +4217,39 @@ export const AdminDashboardPage: React.FC = () => {
               <span>Website settings successfully updated and saved!</span>
             </div>
           )}
+
+          {/* Quick Multi-Admin Access Banner inside Settings */}
+          <div className="p-4 sm:p-5 rounded-2xl bg-blue-50/80 border border-blue-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-xl bg-[#12315A] text-amber-400 shrink-0">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="font-bold text-sm text-[#12315A]">
+                  Multiple Full-Access Administrators ({adminAccounts.length + 1})
+                </h4>
+                <p className="text-xs text-slate-600 mt-0.5">
+                  Add co-admins who can upload, edit, verify, and delete across the entire website.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap shrink-0">
+              <button
+                type="button"
+                onClick={openAddAdminModalDirect}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-950 bg-amber-400 hover:bg-amber-300 shadow-xs flex items-center gap-1.5 cursor-pointer"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                <span>+ Add New Admin</span>
+              </button>
+              <Link
+                to="/admin/manage-admins"
+                className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#12315A] hover:bg-blue-900 shadow-xs"
+              >
+                Open Full Admin Page &rarr;
+              </Link>
+            </div>
+          </div>
 
           <form onSubmit={handleSaveSettings} className="space-y-6">
             {/* Institute Identity */}
